@@ -58,13 +58,9 @@ backendとdatabaseについては必要に応じて拡張予定。
 12. `git pull origin main`でリモートブランチに追いつく。
 
 ### 上手くいかない場合:
-- backendに繋がらない/tauriがlocalhost警告を出す
-
-    `docker compose ps`でfrontendとbackendの2つのDockerコンテナが起動しているか確認してください。起動していない場合は、`docker compose up -d`で起動してください。
-
 - 画面が真っ白/接続拒否される
 
-    `pnpm dev`での起動直後はViteの準備やRustのコンパイルに時間がかかります。ターミナル上で実行が完了しているか確認してください。完了していない場合は、しばらく待機してください。
+    `pnpm dev`での起動直後はRustのコンパイルに時間がかかります。ターミナル上で実行が完了しているか確認してください。完了していない場合は、しばらく待機してください。
 
 - 必要なモジュールがインストールされていない
 
@@ -129,21 +125,23 @@ apps以下の詳細は各ドキュメントで確認してください。
 
 ```text
 .
-├── .devcontainer/           # Dev Container設定
-├── .github/                 # GitHub 固有設定
-│   ├── workflows/           # GitHub Actions(CI)設定
-│   │   └── ci.yml           # PR時の自動ビルド・チェック
-│   └── CODEOWNERS           # フォルダごとの責任者定義
+├── .devcontainer/
+│   ├── .gitattributes
+│   ├── devcontainer.json
+│   └── Dockerfile
+├── .github/
+│   ├── workflows/
+│   │   └── ci.yml (coming!)
+│   └── CODEOWNERS (coming!)
 ├── apps/
-│   ├── backend/             # 【Backend】 Hono (TypeScript)
-│   ├── desktop/             # 【Desktop】 Tauri (Rust)
-│   └── frontend/            # 【Frontend】 Vue 3 (Vite + TS)
-├── .gitattributes           # 改行コード(LF)固定、バイナリ管理
-├── .gitignore               # git除外設定
-├── docker-compose.yml       # 開発環境全体のオーケストレーション
-├── LICENSE                  # LICENSE定義(MIT License)
-├── package.json             # モノレポ全体の依存管理 (pnpm workspaces)
-├── pnpm-lock.yaml           # pnpm パッケージのバージョンロック
-├── pnpm-workspace.yaml      # pnpm モノレポの定義
-└── turbo.json               # Turborepo 設定（ビルド・実行の最適化）
+│   ├── backend/
+│   ├── desktop/
+│   └── frontend/
+├── .gitignore
+├── LICENSE
+├── package.json
+├── pnpm-lock.yaml
+├── pnpm-workspace.yaml
+├── README.md
+└── turbo.json
 ```

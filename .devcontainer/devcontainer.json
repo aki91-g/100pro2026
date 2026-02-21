@@ -5,14 +5,16 @@
   },
   "remoteUser": "vscode",
   "workspaceFolder": "/devcontainer",
+  "workspaceMount": "source=${localWorkspaceFolder},target=/devcontainer,type=bind,consistency=cached",
+  "features": {
+    "ghcr.io/devcontainers/features/node:1": {
+      "version": "20",
+      "pnpmVersion": "latest"
+    }
+  },
   "containerEnv": {
     "CARGO_HOME": "/home/vscode/.cargo",
     "RUSTUP_HOME": "/home/vscode/.rustup"
-  },
-  "features": {
-    "ghcr.io/devcontainers/features/node:1": {
-      "version": "20"
-    }
   },
   "customizations": {
     "vscode": {
@@ -25,8 +27,5 @@
         "tamasfe.even-better-toml"
       ]
     }
-  },
-  "mounts": [
-    "source=${localWorkspaceFolder},target=/devcontainer,type=bind,consistency=cached"
-  ]
+  }
 }

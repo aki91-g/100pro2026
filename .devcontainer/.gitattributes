@@ -1,0 +1,15 @@
+# デフォルトで改行コードをLFに統一（WSL/Linux環境重視）
+* text=auto eol=lf
+
+# 画像やバイナリファイルはそのまま
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.mov binary
+*.mp4 binary
+
+# Rust/Nodeの特定ファイル
+Lockfile.tool text
+pnpm-lock.yaml settled
