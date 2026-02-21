@@ -1,0 +1,32 @@
+{
+  "name": "100pro2026-devcontainer",
+  "build": {
+    "dockerfile": "Dockerfile"
+  },
+  "remoteUser": "vscode",
+  "workspaceFolder": "/devcontainer",
+  "containerEnv": {
+    "CARGO_HOME": "/home/vscode/.cargo",
+    "RUSTUP_HOME": "/home/vscode/.rustup"
+  },
+  "features": {
+    "ghcr.io/devcontainers/features/node:1": {
+      "version": "20"
+    }
+  },
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "rust-lang.rust-analyzer",
+        "tauri-apps.tauri-vscode",
+        "vue.volar",
+        "dbaeumer.vscode-eslint",
+        "esbenp.prettier-vscode",
+        "tamasfe.even-better-toml"
+      ]
+    }
+  },
+  "mounts": [
+    "source=${localWorkspaceFolder},target=/devcontainer,type=bind,consistency=cached"
+  ]
+}
