@@ -3,14 +3,11 @@
   "tasks": {
     "build": {
       "dependsOn": ["^build"],
-      "outputs": ["dist/**", ".next/**", "!.next/cache/**"]
+      "outputs": ["dist/**", "src-tauri/target/release/bundle/**"]
     },
     "dev": {
       "cache": false,
       "persistent": true
-    },
-    "lint": {
-      "dependsOn": ["^lint"]
     }
   }
 }

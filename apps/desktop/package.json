@@ -7,7 +7,8 @@
     "dev": "tauri dev",
     "build": "tauri build",
     "preview": "tauri preview",
-    "tauri": "tauri"
+    "tauri": "tauri",
+    "check": "vue-tsc --noEmit"
   },
   "dependencies": {
     "vue": "^3.5.13",
@@ -15,10 +16,10 @@
     "@tauri-apps/plugin-opener": "^2"
   },
   "devDependencies": {
+    "@tauri-apps/cli": "^2",
     "@vitejs/plugin-vue": "^5.2.1",
     "typescript": "~5.6.2",
     "vite": "^6.0.3",
-    "vue-tsc": "^2.1.10",
-    "@tauri-apps/cli": "^2"
+    "vue-tsc": "^2.1.10"
   }
 }
