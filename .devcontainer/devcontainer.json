@@ -24,7 +24,11 @@
         "vue.volar",
         "dbaeumer.vscode-eslint",
         "esbenp.prettier-vscode",
-        "tamasfe.even-better-toml"
+        "irongeek.vscode-env",
+        "tamasfe.even-better-toml",
+        "mhutchie.git-graph",
+        "eamodio.gitlens",
+        "christian-kohler.path-intellisense"
       ]
     }
   }
