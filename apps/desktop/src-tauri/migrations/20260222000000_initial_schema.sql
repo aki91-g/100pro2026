@@ -1,0 +1,7 @@
+CREATE TABLE IF NOT EXISTS items (
+    id TEXT PRIMARY KEY NOT NULL, -- UUID stored as text
+    title TEXT NOT NULL,
+    description TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL
+);
