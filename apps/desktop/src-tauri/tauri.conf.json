@@ -4,7 +4,7 @@
   "version": "0.1.0",
   "identifier": "com.100pro2026.app",
   "build": {
-    "beforeDevCommand": "pnpm --filter frontend dev",
+    "beforeDevCommand": "",
     "beforeBuildCommand": "pnpm --filter frontend build",
     "devUrl": "http://localhost:5173",
     "frontendDist": "../../frontend/dist"
