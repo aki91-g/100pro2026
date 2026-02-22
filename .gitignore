@@ -1,39 +1,47 @@
-# --- Node / pnpm ---
-node_modules
-.pnpm-store
-.pnpm-debug.log
-.turbo
-dist
-.next
-
-# --- Rust / Tauri ---
-**/src-tauri/target
-**/src-tauri/binaries
-**/src-tauri/gen/apple
-
-# --- OS / IDE ---
+# --- System / IDE ---
 .DS_Store
+Thumbs.db
 .vscode/*
 !.vscode/extensions.json
 !.vscode/settings.json
-.idea
-*.suo
-*.ntvs*
-*.njsproj
-*.sln
-*.sw?
+.idea/
+*.swp
+*.swo
 
-# --- Env / Secrets ---
-.env
-.env.*
-!.env.example
+# --- Node / pnpm / Turbo ---
+node_modules/
+.pnpm-store/
+.pnpm-debug.log*
+.turbo/
+dist/
+dist-ssr/
+.next/
+.vercel/
+
+# --- Rust / Tauri ---
+**/target/
+**/src-tauri/target/
+**/src-tauri/binaries/
+**/src-tauri/gen/apple/
+# Rustのコンパイル一時ファイル
+Cargo.lock.back
 
 # --- Logs ---
+logs/
+*.log
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 
-# --- Local Databases / Cache ---
-.sqlite
-.vercel
+# --- Databases ---
+# 開発中のSQLiteファイルなどを無視
+*.db
+*.db-journal
+*.sqlite
+*.sqlite-journal
+
+# --- Env / Secrets ---
+.env
+.env.*
+!.env.example
