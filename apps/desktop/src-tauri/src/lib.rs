@@ -16,11 +16,15 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .invoke_handler(tauri::generate_handler![greet])
         .setup(|app| {
+            
             // Initialize logger and manage the guard to keep it alive
-            if let Ok(guard) = logger::init(app.handle()) {
-                app.manage(guard);
-            } else {
-                eprintln!("Failed to initialize logger");
+            match logger::init(app.handle()) {
+                Ok(guard) => {
+                    app.manage(guard);
+                },
+                Err(e) => {
+                    eprintln!("Failed to initialize logger: {e}");
+                }
             }
 
             // Clone handle and pass to async block
