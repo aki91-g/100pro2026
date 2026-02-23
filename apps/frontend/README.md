@@ -9,5 +9,24 @@ Learn more about the recommended Project Setup and IDE Support in the [Vue Docs 
 タグを編集しないでください。
 
 [TREE-START]
-
+```text
+apps/frontend
+├── public
+│   └── vite.svg
+├── src
+│   ├── assets
+│   │   └── vue.svg
+│   ├── components
+│   │   └── HelloWorld.vue
+│   ├── App.vue
+│   ├── main.ts
+│   └── style.css
+├── README.md
+├── index.html
+├── package.json
+├── tsconfig.app.json
+├── tsconfig.json
+├── tsconfig.node.json
+└── vite.config.ts
+```
 [TREE-END]

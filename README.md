@@ -143,33 +143,39 @@ git checkout -b front/TASKNAME
 [TREE-START]
 ```text
 .
-├── .devcontainer/
-│   ├── .gitattributes
-│   ├── devcontainer.json
-│   └── Dockerfile
-├── .github/
-│   ├── workflows/
-│   │   ├── docker-image-push.yml
-│   │   └── ci.yml
-│   └── CODEOWNERS
-├── .pnpm-store/
-├── .turbo/
-├── apps/
-│   ├── backend/
-│   ├── desktop/
-│   └── frontend/
+├── apps
+│   ├── backend
+│   │   ├── src
+│   │   ├── README.md
+│   │   ├── package.json
+│   │   └── tsconfig.json
+│   ├── desktop
+│   │   ├── src-tauri
+│   │   ├── README.md
+│   │   ├── package.json
+│   │   ├── tsconfig.json
+│   │   ├── tsconfig.node.json
+│   │   └── vite.config.ts
+│   └── frontend
+│       ├── public
+│       ├── src
+│       ├── README.md
+│       ├── index.html
+│       ├── package.json
+│       ├── tsconfig.app.json
+│       ├── tsconfig.json
+│       ├── tsconfig.node.json
+│       └── vite.config.ts
 ├── docker
-│   └── ci.Dockerfile
-├── node_modules/
-├── target/
-├── .gitignore
+│   └── ci.Dockerfile
 ├── Cargo.lock
 ├── Cargo.toml
 ├── LICENSE
+├── README.md
 ├── package.json
 ├── pnpm-lock.yaml
 ├── pnpm-workspace.yaml
-├── README.md
+├── temp_tree.txt
 └── turbo.json
 ```
 [TREE-END]
