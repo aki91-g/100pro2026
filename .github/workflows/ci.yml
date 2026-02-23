@@ -53,10 +53,14 @@ jobs:
       
       - name: Build Desktop
         env:
-          RUST_BACKTRACE: 1
           RUSTUP_HOME: /usr/local/rustup
           CARGO_HOME: /usr/local/cargo
+          # Panicの詳細を出させる
+          RUST_BACKTRACE: 1
         run: |
           rustup default stable
+
           pnpm turbo build --filter=frontend
-          pnpm turbo build --filter=desktop
+
+          cd apps/desktop
+          pnpm tauri build --bundles deb
