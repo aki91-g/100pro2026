@@ -52,7 +52,11 @@ jobs:
         run: pnpm install
       
       - name: Build Desktop
-        shell: bash
+        env:
+          RUST_BACKTRACE: 1
+          RUSTUP_HOME: /usr/local/rustup
+          CARGO_HOME: /usr/local/cargo
         run: |
-          source /usr/local/cargo/env || true
-          pnpm turbo build --filter=desktop
+          rustup default stable
+          pnpm turbo build --filter=frontend
+          pnpm turbo build --filter=desktop --verbose
