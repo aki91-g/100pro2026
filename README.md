@@ -147,13 +147,22 @@ apps以下の詳細は各ドキュメントで確認してください。
 │   └── Dockerfile
 ├── .github/
 │   ├── workflows/
+│   │   ├── docker-image-push.yml
 │   │   └── ci.yml
 │   └── CODEOWNERS
+├── .pnpm-store/
+├── .turbo/
 ├── apps/
 │   ├── backend/
 │   ├── desktop/
 │   └── frontend/
+├── docker
+│   └── ci.Dockerfile
+├── node_modules/
+├── target/
 ├── .gitignore
+├── Cargo.lock
+├── Cargo.toml
 ├── LICENSE
 ├── package.json
 ├── pnpm-lock.yaml

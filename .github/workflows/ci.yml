@@ -1,5 +1,9 @@
 name: CI
 
+permissions:
+  contents: read
+  packages: read
+
 on:
   push:
     branches: [ main ]
@@ -7,39 +11,63 @@ on:
     branches: [ main ]
 
 jobs:
-  build:
+  changes:
     runs-on: ubuntu-latest
+    outputs:
+      desktop: ${{ steps.filter.outputs.desktop }}
     steps:
       - uses: actions/checkout@v4
-
-      - name: Install pnpm
-        uses: pnpm/action-setup@v4
-
-      - name: Setup Node
-        uses: actions/setup-node@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
         with:
-          node-version: 20
-          cache: 'pnpm'
+          filters: |
+            desktop:
+              - 'apps/desktop/**'
+              - 'package.json'
+              - 'pnpm-lock.yaml'
+              - 'turbo.json'
 
-      - name: Install Rust toolchain (for Tauri)
-        uses: dtolnay/rust-toolchain@stable
+  build-desktop:
+    needs: changes
+    if: ${{ needs.changes.outputs.desktop == 'true'}}
+    runs-on: ubuntu-latest
+    # Use a prebuilt image for the build (authenticate to GHCR)
+    container:
+      image: ghcr.io/${{ github.repository_owner }}/tauri-ci:latest
+      options: --pull always
+      credentials:
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Force Rust Environment
+        run: |
+          rustup default stable
+          rustup update stable
+          rustc --version
+          cargo --version
 
       - name: Rust Cache
         uses: swatinem/rust-cache@v2
         with:
           workspaces: "apps/desktop/src-tauri -> target"
 
-      - name: Install system dependencies (Linux)
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y \
-            libgtk-3-dev \
-            libwebkit2gtk-4.1-dev \
-            libayatana-appindicator3-dev \
-            librsvg2-dev
-
       - name: Install dependencies
         run: pnpm install
+      
+      - name: Build Desktop
+        env:
+          RUSTUP_HOME: /usr/local/rustup
+          CARGO_HOME: /usr/local/cargo
+          # Enable detailed panic messages
+          RUST_BACKTRACE: 1
+        run: |
+          rustup default stable
 
-      - name: Type Check & Build
-        run: pnpm build
+          pnpm turbo build --filter=frontend
+
+          cd apps/desktop
+          pnpm tauri build --bundles deb

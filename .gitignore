@@ -1,29 +1,37 @@
-# --- System / IDE ---
+# --- System / OS ---
 .DS_Store
 Thumbs.db
+*.sw?
+*.swp
+*.swo
+
+# --- IDE (VSCode / IntelliJ) ---
 .vscode/*
 !.vscode/extensions.json
 !.vscode/settings.json
 .idea/
-*.swp
-*.swo
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
 
 # --- Node / pnpm / Turbo ---
 node_modules/
+**/node_modules/
 .pnpm-store/
+**/.pnpm-store/
 .pnpm-debug.log*
 .turbo/
-dist/
-dist-ssr/
-.next/
-.vercel/
+**/dist/
+**/dist-ssr/
+**/.next/
+**/.vercel/
 
 # --- Rust / Tauri ---
 **/target/
 **/src-tauri/target/
 **/src-tauri/binaries/
-**/src-tauri/gen/apple/
-# Rustのコンパイル一時ファイル
+**/src-tauri/gen/
 Cargo.lock.back
 
 # --- Logs ---
@@ -35,7 +43,6 @@ yarn-error.log*
 pnpm-debug.log*
 
 # --- Databases ---
-# 開発中のSQLiteファイルなどを無視
 *.db
 *.db-journal
 *.sqlite
