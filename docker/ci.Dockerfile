@@ -17,13 +17,13 @@ RUN apt-get update && apt-get install -y \
     git \
     && rm -rf /var/lib/apt/lists/*
 
-# 2. Rust のインストール (システム全体にインストール)
+# Rust のインストール (システム全体にインストール)
 ENV RUSTUP_HOME=/usr/local/rustup \
     CARGO_HOME=/usr/local/cargo \
     PATH=/usr/local/cargo/bin:$PATH
 RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --no-modify-path
 
-# 3. pnpm のインストール
+# pnpm のインストール
 RUN curl -fsSL https://get.pnpm.io/install.sh | env PNPM_VERSION=latest SHELL="$(which bash)" bash -
 ENV PATH="/root/.local/share/pnpm:${PATH}"
 
