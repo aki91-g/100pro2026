@@ -136,9 +136,11 @@ git checkout -b front/TASKNAME
     | TS側 | `invoke('関数名')` でRust側の処理を非同期呼び出し |
 
 
-## ディレクトリ構成
-apps以下の詳細は各ドキュメントで確認してください。
+## Directory
+以下はGitHub Actionsによって、pushごとに最新のツリーに入れ替わります。
+タグを編集しないでください。
 
+[TREE-START]
 ```text
 .
 ├── .devcontainer/
@@ -170,3 +172,4 @@ apps以下の詳細は各ドキュメントで確認してください。
 ├── README.md
 └── turbo.json
 ```
+[TREE-END]
