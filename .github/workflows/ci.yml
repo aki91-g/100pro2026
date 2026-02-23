@@ -36,7 +36,13 @@ jobs:
         with:
           fetch-depth: 0
 
-      # 既にRustもpnpmもイメージに入っているのでキャッシュの設定だけ行う
+      - name: Force Rust Environment
+        run: |
+          echo "RUSTUP_HOME=/usr/local/rustup" >> $GITHUB_ENV
+          echo "CARGO_HOME=/usr/local/cargo" >> $GITHUB_ENV
+          echo "/usr/local/cargo/bin" >> $GITHUB_PATH
+          rustup default stable
+
       - name: Rust Cache
         uses: swatinem/rust-cache@v2
         with:
@@ -45,8 +51,5 @@ jobs:
       - name: Install dependencies
         run: pnpm install
       
-      - name: Set Rust default
-        run: rustup default stable
-
       - name: Build Desktop
         run: pnpm turbo build --filter=desktop
