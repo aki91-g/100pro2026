@@ -2,10 +2,10 @@
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "100pro2026",
   "version": "0.1.0",
-  "identifier": "com.100pro2026.app",
+  "identifier": "com.100pro2026.app", // ここにあるのが正解！
   "build": {
     "beforeDevCommand": "",
-    "beforeBuildCommand": "",
+    "beforeBuildCommand": "", 
     "devUrl": "http://localhost:5173",
     "frontendDist": "../../frontend/dist"
   },
@@ -24,7 +24,6 @@
   "bundle": {
     "active": true,
     "targets": ["deb"],
-    "identifier": "com.100pro2026.app",
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
