@@ -5,7 +5,7 @@
   "identifier": "com.100pro2026.app",
   "build": {
     "beforeDevCommand": "",
-    "beforeBuildCommand": "", 
+    "beforeBuildCommand": "",
     "devUrl": "http://localhost:5173",
     "frontendDist": "../../frontend/dist"
   },

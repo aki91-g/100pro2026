@@ -2,11 +2,9 @@ name: Build and Push CI Image
 
 on:
   push:
+    branches: [ main ]
     paths:
-      # - 'docker/ci.Dockerfile'
-    # branches: [ main ]
-    branches: [ ci/issue7 ]
-
+      - 'docker/ci.Dockerfile'
 
 jobs:
   build-and-push:

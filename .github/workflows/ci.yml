@@ -1,5 +1,9 @@
 name: CI
 
+permissions:
+  contents: read
+  packages: read
+
 on:
   push:
     branches: [ main ]
@@ -27,10 +31,13 @@ jobs:
     needs: changes
     if: ${{ needs.changes.outputs.desktop == 'true'}}
     runs-on: ubuntu-latest
-    # ビルドしたイメージを使用
+    # Use a prebuilt image for the build (authenticate to GHCR)
     container:
       image: ghcr.io/${{ github.repository_owner }}/tauri-ci:latest
       options: --pull always
+      credentials:
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -55,7 +62,7 @@ jobs:
         env:
           RUSTUP_HOME: /usr/local/rustup
           CARGO_HOME: /usr/local/cargo
-          # Panicの詳細を出させる
+          # Enable detailed panic messages
           RUST_BACKTRACE: 1
         run: |
           rustup default stable
