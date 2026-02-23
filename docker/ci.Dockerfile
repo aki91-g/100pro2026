@@ -24,7 +24,9 @@ ENV RUSTUP_HOME=/usr/local/rustup \
 RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --no-modify-path
 
 # pnpm のインストール
-RUN curl -fsSL https://get.pnpm.io/install.sh | env PNPM_VERSION=latest SHELL="$(which bash)" bash -
-ENV PATH="/root/.local/share/pnpm:${PATH}"
+RUN curl -fsSL https://get.pnpm.io/install.sh | env PNPM_VERSION=10.12.1 bash -
+# 実行パスを通す
+ENV PNPM_HOME="/root/.local/share/pnpm"
+ENV PATH="${PNPM_HOME}:${PATH}"
 
 WORKDIR /workspace
