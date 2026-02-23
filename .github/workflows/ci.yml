@@ -23,6 +23,7 @@ jobs:
           filters: |
             desktop:
               - 'apps/desktop/**'
+              - '!apps/desktop/README.md'
               - 'package.json'
               - 'pnpm-lock.yaml'
               - 'turbo.json'

@@ -1,0 +1,51 @@
+name: Update README Tree
+permissions:
+  contents: write
+on:
+  push:
+    branches: [ "**" ]
+
+jobs:
+  update-readme-tree:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install tree
+        run: sudo apt-get update && sudo apt-get install -y tree
+
+      - name: Update README Trees
+        run: |
+            targets=(
+                ".:README.md"
+                "apps/desktop:apps/desktop/README.md"
+                "apps/frontend:apps/frontend/README.md"
+                "apps/backend:apps/backend/README.md"
+            )
+            for target in "${targets[@]}"; do
+                dir="${target%%:*}"
+                file="${target#*:}"
+
+                if [ -f "$file" ]; then
+                echo "Updating $file..."
+                
+                echo '[TREE-START]' > temp_tree.txt
+                echo '```text' >> temp_tree.txt
+
+                tree "$dir" -I 'node_modules|dist|target|.git|.github' -L 3 --dirsfirst --noreport >> temp_tree.txt
+                echo '```' >> temp_tree.txt
+                echo '[TREE-END]' >> temp_tree.txt
+
+                perl -0777 -i -pe 's/\[TREE-START\].*?\[TREE-END\]/`cat temp_tree.txt`/ges' "$file"
+                fi
+            done
+
+            git config --global user.name "github-actions[bot]"
+            git config --global user.email "github-actions[bot]@users.noreply.github.com"
+            git add README.md apps/desktop/README.md apps/frontend/README.md apps/backend/README.md
+            if ! git diff --cached --exit-code; then
+                git commit -m "docs: auto-update directory trees [skip ci]"
+                git push origin HEAD:${{ github.ref }}
+            else
+                echo "No changes to commit"
+            fi

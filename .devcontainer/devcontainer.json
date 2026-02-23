@@ -27,8 +27,9 @@
         "irongeek.vscode-env",
         "tamasfe.even-better-toml",
         "mhutchie.git-graph",
-        "eamodio.gitlens",
-        "christian-kohler.path-intellisense"
+        "christian-kohler.path-intellisense",
+        "github.vscode-github-actions",
+        "github.vscode-pull-request-github"
       ]
     }
   }

@@ -136,37 +136,48 @@ git checkout -b front/TASKNAME
     | TS側 | `invoke('関数名')` でRust側の処理を非同期呼び出し |
 
 
-## ディレクトリ構成
-apps以下の詳細は各ドキュメントで確認してください。
+## Directory
+以下はGitHub Actionsによって、pushごとに最新のツリーに入れ替わります。
+タグを編集しないでください。
 
+[TREE-START]
 ```text
 .
-├── .devcontainer/
-│   ├── .gitattributes
-│   ├── devcontainer.json
-│   └── Dockerfile
-├── .github/
-│   ├── workflows/
-│   │   ├── docker-image-push.yml
-│   │   └── ci.yml
-│   └── CODEOWNERS
-├── .pnpm-store/
-├── .turbo/
-├── apps/
-│   ├── backend/
-│   ├── desktop/
-│   └── frontend/
+├── apps
+│   ├── backend
+│   │   ├── src
+│   │   ├── README.md
+│   │   ├── package.json
+│   │   └── tsconfig.json
+│   ├── desktop
+│   │   ├── src-tauri
+│   │   ├── README.md
+│   │   ├── package.json
+│   │   ├── tsconfig.json
+│   │   ├── tsconfig.node.json
+│   │   └── vite.config.ts
+│   └── frontend
+│       ├── public
+│       ├── src
+│       ├── README.md
+│       ├── index.html
+│       ├── package.json
+│       ├── tsconfig.app.json
+│       ├── tsconfig.json
+│       ├── tsconfig.node.json
+│       └── vite.config.ts
 ├── docker
-│   └── ci.Dockerfile
-├── node_modules/
-├── target/
-├── .gitignore
+│   └── ci.Dockerfile
 ├── Cargo.lock
 ├── Cargo.toml
 ├── LICENSE
+├── README.md
 ├── package.json
 ├── pnpm-lock.yaml
 ├── pnpm-workspace.yaml
-├── README.md
+├── temp_tree.txt
 └── turbo.json
 ```
+[TREE-END]
+
+

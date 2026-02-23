@@ -1,0 +1,10 @@
+[TREE-START]
+```text
+apps/backend
+├── src
+│   └── index.ts
+├── README.md
+├── package.json
+└── tsconfig.json
+```
+[TREE-END]
