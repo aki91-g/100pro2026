@@ -59,4 +59,4 @@ jobs:
         run: |
           rustup default stable
           pnpm turbo build --filter=frontend
-          pnpm turbo build --filter=desktop --verbosity=debug
+          pnpm turbo build --filter=desktop
