@@ -1,6 +1,7 @@
 // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
 pub mod error;
 pub mod database;
+pub mod logger;
 
 use tauri::Manager;
 
@@ -15,29 +16,29 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .invoke_handler(tauri::generate_handler![greet])
         .setup(|app| {
-            // handleをcloneしてasyncブロックに渡す
+            // Initialize logger and manage the guard to keep it alive
+            if let Ok(guard) = logger::init(app.handle()) {
+                app.manage(guard);
+            } else {
+                eprintln!("Failed to initialize logger");
+            }
+
+            // Clone handle and pass to async block
             let handle = app.handle().clone();
 
-            // DBのセットアップ（async実行）
-            // let pool = tauri::async_runtime::block_on(async move {
-            //     database::setup_database(&handle)
-            //         .await
-            //         .expect("Failed to setup database")
-            // });
-
             let pool = tauri::async_runtime::block_on(async move {
-                // expect ではなく match でエラーを捕まえる
+                // Use match to catch errors instead of expect
                 match database::setup_database(&handle).await {
                     Ok(p) => p,
                     Err(e) => {
-                        // ターミナルに赤字でエラーを出す
+                        // Output error to stderr
                         eprintln!("\n--- DATABASE SETUP ERROR ---\n{}\n----------------------------\n", e);
-                        panic!("Check the error message above!"); // ここで落とす
+                        panic!("Check the error message above!");
                     }
                 }
             });
             app.manage(pool);
-            
+
             Ok(())
         })
         .run(tauri::generate_context!())
