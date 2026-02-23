@@ -38,10 +38,10 @@ jobs:
 
       - name: Force Rust Environment
         run: |
-          echo "RUSTUP_HOME=/usr/local/rustup" >> $GITHUB_ENV
-          echo "CARGO_HOME=/usr/local/cargo" >> $GITHUB_ENV
-          echo "/usr/local/cargo/bin" >> $GITHUB_PATH
           rustup default stable
+          rustup update stable
+          rustc --version
+          cargo --version
 
       - name: Rust Cache
         uses: swatinem/rust-cache@v2
@@ -52,4 +52,7 @@ jobs:
         run: pnpm install
       
       - name: Build Desktop
-        run: pnpm turbo build --filter=desktop
+        shell: bash
+        run: |
+          source /usr/local/cargo/env || true
+          pnpm turbo build --filter=desktop
