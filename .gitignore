@@ -32,8 +32,6 @@ node_modules/
 **/src-tauri/target/
 **/src-tauri/binaries/
 **/src-tauri/gen/
-# 旧来の特定のパスも念のため
-**/src-tauri/gen/apple/
 Cargo.lock.back
 
 # --- Logs ---
