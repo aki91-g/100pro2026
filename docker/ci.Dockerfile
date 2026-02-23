@@ -1,9 +1,8 @@
-# CI専用: Ubuntu 22.04 ベース
-FROM ubuntu:22.04
+FROM node:20-bookworm
 
 ENV DEBIAN_FRONTEND=noninteractive
 
-# Tauriのビルドに必要なシステムライブラリ
+# Tauriのビルドに必要なシステムライブラリ (NodeイメージはDebianベースなのでaptが使えます)
 RUN apt-get update && apt-get install -y \
     curl \
     wget \
@@ -17,16 +16,13 @@ RUN apt-get update && apt-get install -y \
     git \
     && rm -rf /var/lib/apt/lists/*
 
-# Rust のインストール (システム全体にインストール)
+# Rust のインストール
 ENV RUSTUP_HOME=/usr/local/rustup \
     CARGO_HOME=/usr/local/cargo \
     PATH=/usr/local/cargo/bin:$PATH
 RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --no-modify-path
 
 # pnpm のインストール
-RUN curl -fsSL https://get.pnpm.io/install.sh | env PNPM_VERSION=10.12.1 bash -
-# 実行パスを通す
-ENV PNPM_HOME="/root/.local/share/pnpm"
-ENV PATH="${PNPM_HOME}:${PATH}"
+RUN corepack enable && corepack prepare pnpm@10.12.1 --activate
 
 WORKDIR /workspace
