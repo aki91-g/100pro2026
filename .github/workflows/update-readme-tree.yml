@@ -13,7 +13,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ github.head_ref || github.ref }}
+          ref: ${{ github.head_ref || github.ref_name }}
 
       - name: Install tree
         run: sudo apt-get update && sudo apt-get install -y tree
@@ -47,9 +47,10 @@ jobs:
             git config --global user.name "github-actions[bot]"
             git config --global user.email "github-actions[bot]@users.noreply.github.com"
             git add README.md apps/desktop/README.md apps/frontend/README.md apps/backend/README.md
-            if ! git diff --cached --exit-code; then
+            if [ "${{ github.event_name }}" = "pull_request" ]; then
+            if ! git diff --cached --quiet; then
                 git commit -m "docs: auto-update directory trees [skip ci]"
-                git push origin HEAD:${{ github.ref }}
+                git push origin HEAD:${{ github.head_ref || github.ref_name }}
             else
                 echo "No changes to commit"
             fi
