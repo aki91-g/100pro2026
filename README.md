@@ -177,10 +177,10 @@ git checkout -b front/TASKNAME
 ├── pnpm-lock.yaml
 ├── pnpm-workspace.yaml
 ├── README.md
-├── temp_tree.txt
 └── turbo.json
 ```
 [TREE-END]
+
 
 
 
