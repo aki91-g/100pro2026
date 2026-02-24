@@ -146,39 +146,44 @@ git checkout -b front/TASKNAME
 ├── apps
 │   ├── backend
 │   │   ├── src
-│   │   ├── README.md
 │   │   ├── package.json
+│   │   ├── README.md
 │   │   └── tsconfig.json
 │   ├── desktop
 │   │   ├── src-tauri
-│   │   ├── README.md
 │   │   ├── package.json
+│   │   ├── README.md
 │   │   ├── tsconfig.json
 │   │   ├── tsconfig.node.json
 │   │   └── vite.config.ts
 │   └── frontend
 │       ├── public
 │       ├── src
-│       ├── README.md
 │       ├── index.html
 │       ├── package.json
+│       ├── README.md
 │       ├── tsconfig.app.json
 │       ├── tsconfig.json
 │       ├── tsconfig.node.json
 │       └── vite.config.ts
 ├── docker
 │   └── ci.Dockerfile
+├── scripts
+│   └── update-trees.sh
 ├── Cargo.lock
 ├── Cargo.toml
 ├── LICENSE
-├── README.md
 ├── package.json
 ├── pnpm-lock.yaml
 ├── pnpm-workspace.yaml
-├── temp_tree.txt
+├── README.md
 └── turbo.json
 ```
 [TREE-END]
+
+
+
+
 
 
 
