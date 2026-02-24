@@ -3,7 +3,9 @@ permissions:
   contents: write
 on:
   push:
-    branches: [ "**" ]
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
 
 jobs:
   update-readme-tree:
