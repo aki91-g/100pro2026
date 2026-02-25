@@ -1,16 +1,83 @@
-## システム構成
-Tauri(Desktop) + Vue(Frontend) + Hono(Backend) をpnpm と Turborepo により統合したモノレポ構成のアプリ。
+ [プロダクト概要](#japanese) | [Product Description](#english) | [開発者情報](#developer-jp)
+<a name="japanese"></a>
+# “今やるべきこと” が直感的に見えるタスク管理ツール
+100プロ(2026春、第9期)にて始動。
+
+## 課題
+明日までにクリアしたいゲームのステージと、明後日までに書かなければいけないレポートがあるとき、より目につくべきタスクはどちらでしょうか？
+
+従来のタスク管理ツールは、日程順に表示されます。
+
+このデスクトップアプリはユーザーの意欲、期限、所要時間などを軸に視覚化することを目指します。
+
+## 構想
+- **カームな画面設計** 
+- **多元的なタスク管理**
+  - やる気(意欲)
+  - 緊急性(期限)
+  - 想定される所要時間
+- **ローカルファースト**
+
+## 将来的な構想
+1. AIサジェスト機能
+3. タスクに対する報酬(EXP)機能
+4. ご褒美タスクのサジェスト
+5. 外部アプリとの連携
 
 ## 技術スタック
-| 分類 | 技術 |
+|  |  |
 | :--- | :--- |
 | **Frontend** | Vue 3, Vite, TypeScript, Tailwind CSS |
 | **Desktop** | Rust, Tauri |
-| **Database** | SQLite |
-| (**Backend**) | Hono, TypeScript|
+| **Database** | SQLite, PostgreSQL |
+| **Backend** | Hono, TypeScript|
 
-backendとdatabaseについては必要に応じて拡張予定。
 
+
+<a name="english"></a>
+# The Task Visualizer that understands your "Now."
+Launchd in 100 programs, Spring 2026 (Generation 9)
+
+## The Problem
+When faced with a game task to finish by tomorrow and the final report due the day after, which one should be more prominent? 
+
+Standard apps only look at dates. This desktop-app looks at how you feel and how long things take, ensuring the "right" task catches your eye at the right time.
+
+## The Vision
+- **Intuitive Visualization** 
+- **Multi-Dimensional Sorting** based on:
+  - Motivation
+  - Urgency
+  - Time Cost
+- **Local-First, Cloud-Ready**
+
+## Future Roadmap
+1. AI suggetion
+3. Gamification & EXP
+4. The "Reward" Loop
+5. Ecosystem Sync
+
+## Tech Stack
+|  |  |
+| :--- | :--- |
+| **Frontend** | Vue 3, Vite, TypeScript, Tailwind CSS |
+| **Desktop** | Rust, Tauri |
+| **Database** | SQLite, PostgreSQL |
+| **Backend** | Hono, TypeScript|
+
+
+
+
+<a name="developer-jp"></a>
+# 開発者情報 (For-Developers)
+## システム構成
+Tauri(Desktop) + Vue(Frontend) + Hono(Backend) をpnpm と Turborepo により統合したモノレポ構成のアプリ。
+
+## MVP
+- フロントエンド実装
+- ローカルDB連携
+
+※　Web実装と外部DB同期(PostgreSQL)については100プロ期間中の必須要件とはみなさない。
 
 ## 開発フロー
 ### 開発環境 (Dev Container)
@@ -117,7 +184,7 @@ git checkout -b front/TASKNAME
 3. Rust部分への変更はaki91-gの承認が必要
 
 ## CI (GitHub Actions)
-プルリクが作成されると、`.github/workflows/ci.yml`が作動し以下のチェックが行われます。
+既定の変更を含む場合、mainブランチへのプルリクが作成されると、`.github/workflows/ci.yml`が作動し以下のチェックが行われます。
 1. Environment Setup: Node.js 20 / pnpm の環境構築。
 
 2. Rust Toolchain: Stable Rust のインストール。
