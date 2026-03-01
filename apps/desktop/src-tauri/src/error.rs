@@ -12,17 +12,11 @@ pub enum AppError {
     #[error("I/O error: {0}")]
     Io(#[from] std::io::Error),
 
-    #[error("Path not found: {0}")]
-    PathNotFound(String),
+    #[error("Tauri error: {0}")]
+    Tauri(#[from] tauri::Error),
 
     #[error("Invalid input: {0}")]
     InvalidInput(String),
-
-    #[error("Network error: {0}")]
-    Network(String),
-
-    #[error("External service error: {0}")]
-    ExternalService(String),
 
     #[error("Unknown error: {0}")]
     Unknown(String),
