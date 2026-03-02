@@ -18,6 +18,6 @@ FOR EACH ROW
 WHEN (NEW.updated_at IS OLD.updated_at)
 BEGIN
     UPDATE items 
-    SET updated_at = CURRENT_TIMESTAMP 
+    SET updated_at = (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')) 
     WHERE id = OLD.id;
 END;

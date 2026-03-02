@@ -14,6 +14,11 @@ use crate::commands::db_commands::*;
 use crate::commands::debug::*; 
 use crate::database::connection::init_db;
 
+#[tauri::command]
+fn is_dev() -> bool {
+    cfg!(debug_assertions)
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -42,6 +47,8 @@ pub fn run() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
+            // simple commands
+            is_dev,
             // db_commands
             get_active_items,
             get_archived_items,

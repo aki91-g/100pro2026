@@ -2,8 +2,9 @@ use uuid::Uuid;
 use chrono::{DateTime, Utc}; // Recommended for SQLX compatibility
 use serde::{Serialize, Deserialize};
 
-#[derive(Debug, Serialize, Deserialize, sqlx::Type)]
-#[sqlx(type_name = "status", rename_all = "lowercase")]
+#[derive(Debug, Serialize, Deserialize, sqlx::Type, Clone, Copy)]
+#[sqlx(rename_all = "lowercase")]
+#[serde(rename_all = "lowercase")]
 pub enum TaskStatus {
     Backlog,
     Todo,
