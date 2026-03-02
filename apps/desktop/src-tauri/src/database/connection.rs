@@ -5,7 +5,7 @@ use std::str::FromStr;
 use tauri::AppHandle;
 use tauri::Manager;
 
-pub async fn init_db(app_handle: &AppHandle) -> Result<SqlitePool, Box<dyn std::error::Error>> {
+pub async fn init_db(app_handle: &AppHandle) -> crate::error::AppResult<SqlitePool> {
     // 1. Get the path to the app data directory
     let app_dir = app_handle.path().app_data_dir()?;
     if !app_dir.exists() {

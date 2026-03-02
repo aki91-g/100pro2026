@@ -1,4 +1,4 @@
-use crate::error::AppResult;
+use crate::error::{AppError, AppResult};
 use crate::models::item::TaskStatus;
 use uuid::Uuid;
 use sqlx::SqlitePool;
@@ -6,6 +6,12 @@ use tauri::State;
 
 #[tauri::command]
 pub async fn debug_reset_db(pool: State<'_, SqlitePool>) -> AppResult<()> {
+    if !cfg!(debug_assertions) {
+        return Err(AppError::InvalidInput(
+            "debug_reset_db is disabled in release builds".to_string(),
+        ));
+    }
+
     // 1. Wipe everything
     sqlx::query("DELETE FROM items").execute(&*pool).await?;
 

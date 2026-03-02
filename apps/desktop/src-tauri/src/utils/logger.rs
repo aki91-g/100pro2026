@@ -18,7 +18,7 @@ pub fn init(handle: &AppHandle) -> Result<WorkerGuard, Box<dyn std::error::Error
         .with(filter)
         .with(fmt::Layer::default().with_writer(std::io::stdout)) // Dev console
         .with(fmt::Layer::default().with_writer(non_blocking))   // File
-        .init();
+        .try_init()?;
 
     tracing::info!("Logging initialized in: {:?}", log_dir);
     Ok(guard)

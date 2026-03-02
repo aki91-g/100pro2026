@@ -10,6 +10,7 @@ pub mod utils;
 use tauri::Manager;
 
 use crate::commands::db_commands::*; 
+#[cfg(debug_assertions)]
 use crate::commands::debug::*; 
 use crate::database::connection::init_db;
 
@@ -18,11 +19,10 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .setup(|app| {
-            
             // 1. Initialize Logger
             // use .map_err to turn your logger error into the Boxed error Tauri expects
             let guard = crate::utils::logger::init(app.handle())
-                .map_err(|e| format!("Logger init failed: {}", e))?;
+                .map_err(|e| e.to_string())?;
             
             // 2. Manage the guard so it stays alive for the duration of the app
             app.manage(guard); 
@@ -31,12 +31,13 @@ pub fn run() {
             let handle = app.handle().clone();
             
             // use block_on here to ensure the DB is ready before the window opens
-            tauri::async_runtime::block_on(async move {
-                let pool = init_db(&handle)
-                    .await
-                    .expect("Failed to initialize database");
-                handle.manage(pool); 
+            let result: crate::error::AppResult<()> = tauri::async_runtime::block_on(async move {
+                let pool = init_db(&handle).await?;
+                handle.manage(pool);
+                Ok(())
             });
+
+            result.expect("Failed to initialize database");
 
             Ok(())
         })
@@ -55,6 +56,7 @@ pub fn run() {
             hard_delete_item,
             empty_trash,
             // debug
+            #[cfg(debug_assertions)]
             debug_reset_db,
         ])
         .run(tauri::generate_context!())

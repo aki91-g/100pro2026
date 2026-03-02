@@ -91,11 +91,14 @@ pub async fn update_item_status(
     status: TaskStatus, // Use the Enum here
     pool: State<'_, SqlitePool>
 ) -> AppResult<()> {
-    sqlx::query("UPDATE items SET status = ? WHERE id = ?") // updated_at is handled by trigger now!
+    let result = sqlx::query("UPDATE items SET status = ? WHERE id = ?")
         .bind(status)
         .bind(id)
         .execute(&*pool)
         .await?;
+    if result.rows_affected() == 0 {
+        return Err(crate::error::AppError::NotFound(id.to_string()));
+    }
     Ok(())
 }
 
@@ -187,7 +190,7 @@ pub async fn restore_item(id: Uuid, pool: State<'_, SqlitePool>) -> AppResult<()
 #[tauri::command]
 pub async fn hard_delete_item(id: Uuid, pool: State<'_, SqlitePool>) -> AppResult<()> {
     // Only use this for "Empty Trash" functionality.
-    sqlx::query("DELETE FROM items WHERE id = ?")
+    sqlx::query("DELETE FROM items WHERE id = ? AND deleted_at IS NOT NULL")
         .bind(id)
         .execute(&*pool)
         .await?;
