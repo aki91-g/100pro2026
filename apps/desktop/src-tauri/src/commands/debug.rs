@@ -16,9 +16,9 @@ pub async fn debug_reset_db(pool: State<'_, SqlitePool>) -> AppResult<()> {
 
 #[tauri::command]
 pub async fn debug_seed_data(pool: State<'_, SqlitePool>) -> AppResult<()> {
-    #[cfg(not(debug_assertions))]
-    return Err(AppError::InvalidInput("Disabled in release builds".into()));
-
+    if !cfg!(debug_assertions) {
+        return Err(crate::error::AppError::InvalidInput("Disabled".into()));
+    }
     // 1. Clear existing data first so we don't duplicate on every click
     sqlx::query("DELETE FROM items").execute(&*pool).await?;
 
@@ -28,7 +28,7 @@ pub async fn debug_seed_data(pool: State<'_, SqlitePool>) -> AppResult<()> {
     // Format: (Title, Desc, Status, Motivation, is_archived, is_deleted)
     let seed_configs = vec![
         ("Backlog Item", "Planning stage", TaskStatus::Backlog, 0, false, false),
-        ("InProgress Task", "Working on this", TaskStatus::InProgress, 5, false, false),
+        ("InP Task", "Working on this", TaskStatus::InProgress, 5, false, false),
         ("Finished Task", "Ready to be archived", TaskStatus::Done, 2, false, false),
         ("Archived Project", "Past work", TaskStatus::Done, 0, true, false),
         ("Ghost Task", "This was deleted", TaskStatus::Todo, 0, false, true),

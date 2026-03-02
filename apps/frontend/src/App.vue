@@ -12,12 +12,10 @@ const showDebugTools = ref(false);
 // --- Lifecycle ---
 onMounted(async () => {
   try {
-    // This calls the Rust cfg!(debug_assertions) check we discussed
-    showDebugTools.value = await invoke("is_dev");
-    // Initial load of data
-    await checkDatabase();
+    showDebugTools.value = await invoke("is_dev"); 
   } catch (e) {
-    console.warn("Could not determine dev mode or load initial data:", e);
+    console.warn("Could not determine dev mode:", e);
+    showDebugTools.value = false;
   }
 });
 
