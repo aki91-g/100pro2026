@@ -1,4 +1,4 @@
-use crate::error::AppResult;
+use crate::error::{AppError, AppResult};
 use crate::models::item::TaskStatus;
 use uuid::Uuid;
 use sqlx::SqlitePool;
@@ -7,9 +7,9 @@ use chrono::Utc;
 
 #[tauri::command]
 pub async fn debug_reset_db(pool: State<'_, SqlitePool>) -> AppResult<()> {
-    #[cfg(not(debug_assertions))]
-    return Err(AppError::InvalidInput("Disabled in release builds".into()));
-
+    if !cfg!(debug_assertions) {
+        return Err(AppError::InvalidInput("Disabled in release builds".into()));
+    }
     sqlx::query("DELETE FROM items").execute(&*pool).await?;
     Ok(())
 }
@@ -17,7 +17,7 @@ pub async fn debug_reset_db(pool: State<'_, SqlitePool>) -> AppResult<()> {
 #[tauri::command]
 pub async fn debug_seed_data(pool: State<'_, SqlitePool>) -> AppResult<()> {
     if !cfg!(debug_assertions) {
-        return Err(crate::error::AppError::InvalidInput("Disabled".into()));
+        return Err(AppError::InvalidInput("Disabled".into()));
     }
     // 1. Clear existing data first so we don't duplicate on every click
     sqlx::query("DELETE FROM items").execute(&*pool).await?;
