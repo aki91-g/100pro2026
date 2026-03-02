@@ -2,27 +2,28 @@
 use serde::{Serialize, Serializer};
 
 #[derive(thiserror::Error, Debug)]
+
 pub enum AppError {
     #[error("Database error: {0}")]
     Database(#[from] sqlx::Error),
 
+    #[error("Database initialization failed: {0}")]
+    DbInit(String),
+
     #[error("Migration error: {0}")]
     Migration(#[from] sqlx::migrate::MigrateError),
+
+    #[error("Item not found: {0}")]
+    NotFound(String),
 
     #[error("I/O error: {0}")]
     Io(#[from] std::io::Error),
 
-    #[error("Path not found: {0}")]
-    PathNotFound(String),
+    #[error("Tauri error: {0}")]
+    Tauri(#[from] tauri::Error),
 
     #[error("Invalid input: {0}")]
     InvalidInput(String),
-
-    #[error("Network error: {0}")]
-    Network(String),
-
-    #[error("External service error: {0}")]
-    ExternalService(String),
 
     #[error("Unknown error: {0}")]
     Unknown(String),

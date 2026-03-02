@@ -1,50 +1,73 @@
 // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
 pub mod error;
+
+pub mod commands;
 pub mod database;
-pub mod logger;
+pub mod models;
+pub mod services;
+pub mod utils;
 
 use tauri::Manager;
 
+use crate::commands::db_commands::*; 
+#[cfg(debug_assertions)]
+use crate::commands::debug::*; 
+use crate::database::connection::init_db;
+
 #[tauri::command]
-fn greet(name: &str) -> String {
-    format!("Hello, {}! You've been greeted from Rust!", name)
+fn is_dev() -> bool {
+    cfg!(debug_assertions)
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
-        .invoke_handler(tauri::generate_handler![greet])
         .setup(|app| {
+            // 1. Initialize Logger
+            // use .map_err to turn your logger error into the Boxed error Tauri expects
+            let guard = crate::utils::logger::init(app.handle())
+                .map_err(|e| e.to_string())?;
             
-            // Initialize logger and manage the guard to keep it alive
-            match logger::init(app.handle()) {
-                Ok(guard) => {
-                    app.manage(guard);
-                },
-                Err(e) => {
-                    eprintln!("Failed to initialize logger: {e}");
-                }
-            }
+            // 2. Manage the guard so it stays alive for the duration of the app
+            app.manage(guard); 
 
-            // Clone handle and pass to async block
+            // 3. Initialize Database
             let handle = app.handle().clone();
-
-            let pool = tauri::async_runtime::block_on(async move {
-                // Use match to catch errors instead of expect
-                match database::setup_database(&handle).await {
-                    Ok(p) => p,
-                    Err(e) => {
-                        // Output error to stderr
-                        eprintln!("\n--- DATABASE SETUP ERROR ---\n{}\n----------------------------\n", e);
-                        panic!("Check the error message above!");
-                    }
-                }
+            
+            // use block_on here to ensure the DB is ready before the window opens
+            let result: crate::error::AppResult<()> = tauri::async_runtime::block_on(async move {
+                let pool = init_db(&handle).await?;
+                handle.manage(pool);
+                Ok(())
             });
-            app.manage(pool);
+
+            result.expect("Failed to initialize database");
 
             Ok(())
         })
+        .invoke_handler(tauri::generate_handler![
+            // simple commands
+            is_dev,
+            // db_commands
+            get_active_items,
+            get_archived_items,
+            get_deleted_items,
+            create_item,
+            update_item_status,
+            update_item_details,
+            archive_item,
+            unarchive_item,
+            soft_delete_item,
+            restore_item,
+            hard_delete_item,
+            empty_trash,
+            // debug
+            #[cfg(debug_assertions)]
+            debug_reset_db,
+            #[cfg(debug_assertions)]
+            debug_seed_data,
+        ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
