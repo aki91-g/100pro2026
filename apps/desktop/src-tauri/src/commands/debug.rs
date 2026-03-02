@@ -46,3 +46,31 @@ pub async fn debug_reset_db(pool: State<'_, SqlitePool>) -> AppResult<()> {
 
     Ok(())
 }
+#[tauri::command]
+pub async fn debug_seed_data(pool: State<'_, SqlitePool>) -> AppResult<()> {
+    let now = chrono::Utc::now();
+    let tasks = vec![
+        (Uuid::new_v4(), "Buy Groceries", Some("Milk, eggs, and bread"), TaskStatus::Todo, 0),
+        (Uuid::new_v4(), "Finish Tauri Project", Some("Implement the seed function"), TaskStatus::InProgress, 1),
+        (Uuid::new_v4(), "Workout", Some("Go for a 5km run"), TaskStatus::Backlog, 0),
+        (Uuid::new_v4(), "Old Task", Some("This is already done"), TaskStatus::Done, 0),
+    ];
+
+    for (id, title, desc, status, motivation) in tasks {
+        sqlx::query(
+            "INSERT INTO items (id, title, description, status, motivation, created_at, updated_at) 
+             VALUES (?, ?, ?, ?, ?, ?, ?)"
+        )
+        .bind(id)         // sqlx handles Uuid directly now
+        .bind(title)
+        .bind(desc)
+        .bind(status)
+        .bind(motivation)
+        .bind(now)        // Bind chrono::DateTime<Utc>
+        .bind(now)
+        .execute(&*pool)
+        .await?;
+    }
+
+    Ok(())
+}

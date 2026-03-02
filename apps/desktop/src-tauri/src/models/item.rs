@@ -18,17 +18,18 @@ pub struct Item {
     pub description: Option<String>,
     pub status: TaskStatus,
     
-    // Using Chrono for seamless SQL mapping
     pub due: Option<DateTime<Utc>>, 
     pub duration_minutes: Option<i32>, 
     
-    pub motivation: i8, // -128 to 127
+    pub motivation: i32, 
+    
+    // SQLite uses 0/1 for booleans. 
+    // We tell sqlx to map the SQLite Integer to a Rust bool.
     pub is_archived: bool,
     
-    // Metadata for lifecycle management
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
-    pub deleted_at: Option<DateTime<Utc>>, // None = Active, Some = Deleted
+    pub deleted_at: Option<DateTime<Utc>>,
 }
 
 impl Item {

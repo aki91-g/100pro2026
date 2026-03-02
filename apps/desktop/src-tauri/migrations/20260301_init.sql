@@ -6,10 +6,10 @@ CREATE TABLE items (
     due TEXT,
     duration_minutes INTEGER,
     motivation INTEGER DEFAULT 0,
-    is_archived INTEGER DEFAULT 0,
-    created_at TEXT DEFAULT CURRENT_TIMESTAMP,
-    updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
-    deleted_at TEXT
+    is_archived BOOLEAN NOT NULL DEFAULT 0,
+    created_at DATETIME NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
+    updated_at DATETIME NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
+    deleted_at DATETIME
 );
 
 CREATE TRIGGER items_update_timestamp

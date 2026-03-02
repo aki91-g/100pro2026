@@ -3,23 +3,50 @@ import { ref } from "vue";
 import { invoke } from "@tauri-apps/api/core";
 
 // --- 状態管理 ---
-const name = ref("");
+const items = ref<any[]>([]);
 const greetMsg = ref("");
 const backendMsg = ref("");
 const isBackendLoading = ref(false);
 
 // --- ロジック: Rust (Desktop) との通信 ---
-async function greet() {
-  if (!name.value) {
-    greetMsg.value = "名前を入力してください";
-    return;
-  }
+async function checkDatabase() {
   try {
-    // Rustの 'greet' コマンドを呼び出し
-    greetMsg.value = await invoke("greet", { name: name.value });
+    const data: any[] = await invoke("get_active_items");
+    items.value = data; // Store the array
+    greetMsg.value = `Connected! Showing ${data.length} tasks.`;
   } catch (e) {
-    console.error("Rust Error:", e);
-    greetMsg.value = "Rustとの通信に失敗しました";
+    console.error("Fetch Error:", e);
+    greetMsg.value = "Failed to load tasks.";
+  }
+}
+
+async function seedDatabase() {
+  try {
+    // Rustの 'debug_seed_data' コマンドを呼び出し
+    await invoke("debug_seed_data");
+    
+    // シード後に件数を再取得して表示を更新
+    await checkDatabase();
+    greetMsg.value = "Database seeded successfully!";
+  } catch (e) {
+    console.error("Rust Seed Error:", e);
+    greetMsg.value = "Failed to seed database. (Check if debug mode is active)";
+  }
+}
+
+async function resetDatabase() {
+  if (!confirm("Are you sure? This will wipe all data!")) return;
+  
+  try {
+    // Rustの 'debug_reset_db' コマンドを呼び出し
+    await invoke("debug_reset_db");
+    
+    // リセット後に件数を再取得
+    await checkDatabase();
+    greetMsg.value = "Database has been reset to factory settings.";
+  } catch (e) {
+    console.error("Rust Reset Error:", e);
+    greetMsg.value = "Failed to reset database.";
   }
 }
 
@@ -32,7 +59,7 @@ async function fetchFromHono() {
     if (!res.ok) throw new Error("Network response was not ok");
     
     const data = await res.json();
-    backendMsg.value = `${data.message} (取得時刻: ${new Date(data.timestamp).toLocaleTimeString()})`;
+    backendMsg.value = `${data.message} (取得時刻: ${new Date(data.timestamp).toLocaleString()})`;
   } catch (e) {
     console.error("Hono Error:", e);
     backendMsg.value = "Honoサーバーに接続できません。CORS設定やサーバーの起動を確認してください。";
@@ -50,14 +77,43 @@ async function fetchFromHono() {
 
     <main>
       <section class="card">
-        <h2>1. Desktop Bridge (Rust)</h2>
-        <p class="description">Tauri経由でRustのネイティブ機能を呼び出します。</p>
+      <h2>1. Desktop Bridge (Rust + SQLite)</h2>
+      <p class="description">Verify the connection to your local tasks.db.</p>
+      
+      <div class="input-group">
+        <button @click="checkDatabase">Check Database Status</button>
+      </div>
+
+      <div class="response-box" :class="{ hasValue: greetMsg }">
+        {{ greetMsg || "Click the button to ping the DB" }}
+      </div>
+      </section>
+
+      <section class="card debug-section">
+        <h2>🛠 Development Tools</h2>
         <div class="input-group">
-          <input v-model="name" placeholder="名前を入力..." @keyup.enter="greet" />
-          <button @click="greet">Rustを呼ぶ</button>
+          <button @click="seedDatabase">Seed Data</button>
+          <button @click="resetDatabase" class="btn-danger">Reset DB</button>
         </div>
-        <div class="response-box" :class="{ hasValue: greetMsg }">
-          {{ greetMsg || "ここにRustからの返答が出ます" }}
+      </section>
+
+      <section class="card" v-if="items.length > 0">
+        <h2>📋 Active Tasks</h2>
+        <div class="task-container">
+          <div v-for="item in items" :key="item.id" class="task-row">
+            <span :class="['status-pill', item.status.toLowerCase()]">
+              {{ item.status }}
+            </span>
+            
+            <div class="task-info">
+              <strong>{{ item.title }}</strong>
+              <p v-if="item.description">{{ item.description }}</p>
+            </div>
+
+            <div class="task-meta">
+              <span class="motivation">🔥 {{ item.motivation }}</span>
+            </div>
+          </div>
         </div>
       </section>
 
@@ -169,4 +225,57 @@ button:disabled {
   color: #2c3e50;
   background: #f0fff4;
 }
+.task-container {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 1rem;
+}
+
+.task-row {
+  display: flex;
+  align-items: center;
+  background: white;
+  padding: 12px;
+  border-radius: 8px;
+  border: 1px solid #e0e0e0;
+  text-align: left;
+  transition: transform 0.1s;
+}
+
+.task-row:hover {
+  transform: translateX(5px);
+  border-color: #41b883;
+}
+
+.task-info {
+  flex: 1;
+  margin-left: 15px;
+}
+
+.task-info p {
+  margin: 4px 0 0 0;
+  font-size: 0.85rem;
+  color: #666;
+}
+
+.status-pill {
+  font-size: 0.7rem;
+  font-weight: bold;
+  padding: 4px 8px;
+  border-radius: 4px;
+  min-width: 80px;
+  text-align: center;
+}
+
+.todo { background: #e3f2fd; color: #1976d2; }
+.inprogress { background: #fff3e0; color: #f57c00; }
+.done { background: #e8f5e9; color: #388e3c; }
+.backlog { background: #f5f5f5; color: #616161; }
+
+.motivation {
+  font-weight: bold;
+  color: #e53935;
+}
+
 </style>

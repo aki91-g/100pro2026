@@ -58,6 +58,8 @@ pub fn run() {
             // debug
             #[cfg(debug_assertions)]
             debug_reset_db,
+            #[cfg(debug_assertions)]
+            debug_seed_data,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
