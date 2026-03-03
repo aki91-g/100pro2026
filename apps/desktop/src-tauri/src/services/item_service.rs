@@ -93,20 +93,18 @@ impl ItemService {
 
             self.repo.update_item_status(item.id, item.status).await?;
 
-            // Only call update_item_details if description differs
-            // (create_item already upserted title/motivation/due/duration_minutes)
-            if let Some(ref description) = item.description {
-                self.repo
-                    .update_item_details(
-                        item.id,
-                        item.title,
-                        Some(description.clone()),
-                        item.due,
-                        item.duration_minutes,
-                        motivation,
-                    )
-                    .await?;
-            }
+            // Always call update_item_details to sync description
+            // (pass None explicitly to clear remote-deleted descriptions)
+            self.repo
+                .update_item_details(
+                    item.id,
+                    item.title,
+                    item.description,
+                    item.due,
+                    item.duration_minutes,
+                    motivation,
+                )
+                .await?;
 
             // Only call archive_item if remote is archived
             // (newly created items are unarchived by default)
