@@ -4,6 +4,7 @@ pub mod error;
 pub mod commands;
 pub mod database;
 pub mod models;
+pub mod repositories;
 pub mod services;
 pub mod utils;
 
@@ -25,7 +26,6 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .setup(|app| {
             // 1. Initialize Logger
-            // use .map_err to turn your logger error into the Boxed error Tauri expects
             let guard = crate::utils::logger::init(app.handle())
                 .map_err(|e| e.to_string())?;
             
@@ -38,11 +38,16 @@ pub fn run() {
             // use block_on here to ensure the DB is ready before the window opens
             let result: crate::error::AppResult<()> = tauri::async_runtime::block_on(async move {
                 let pool = init_db(&handle).await?;
+                let repo = std::sync::Arc::new(crate::repositories::sqlite_item_repo::SqliteItemRepo { 
+                    pool: pool.clone() 
+                });
+                let item_service = crate::services::item_service::ItemService::new(repo);
                 handle.manage(pool);
+                handle.manage(item_service);
                 Ok(())
             });
 
-            result.expect("Failed to initialize database");
+            result.map_err(|e| e.to_string())?;
 
             Ok(())
         })
@@ -61,7 +66,7 @@ pub fn run() {
             soft_delete_item,
             restore_item,
             hard_delete_item,
-            empty_trash,
+            empty_item_trash,
             // debug
             #[cfg(debug_assertions)]
             debug_reset_db,
