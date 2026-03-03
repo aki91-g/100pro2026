@@ -28,6 +28,7 @@ tauri-plugin-opener = "2"
 # 非同期 & エラー管理
 tokio = { version = "1", features = ["full"] }
 thiserror = "2.0"
+async-trait = "0.1"
 
 # SQLx (SQLite)
 sqlx = { version = "0.8", features = [ 
@@ -37,8 +38,11 @@ sqlx = { version = "0.8", features = [
     "uuid", 
     "chrono", 
     "macros",
-    "migrate"
+    "migrate",
+    "postgres",
+    "runtime-tokio-native-tls",
 ] }
+
 
 # データ型
 uuid = { version = "1", features = ["v4", "serde"] }
