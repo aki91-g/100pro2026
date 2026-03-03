@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{f32::consts::E, sync::Arc};
 use chrono::{DateTime, Utc};
 use uuid::Uuid;
 use tauri::{AppHandle, Emitter};
@@ -75,11 +75,17 @@ impl ItemService {
         let mut processed_count: usize = 0;
 
         for item in remote_items {
+            let motivation = i8::try_from(item.motivation).map_err(
+                |_| crate::error::AppError::InvalidInput(format!(
+                    "Invalid motivation value for item {}: {}", 
+                    item.id, item.motivation
+                ))
+            )?;
             self.repo
                 .create_item(
                     item.id,
                     item.title.clone(),
-                    item.motivation as i8,
+                    motivation,
                     item.due,
                     item.duration_minutes,
                 )
@@ -94,7 +100,7 @@ impl ItemService {
                     item.description,
                     item.due,
                     item.duration_minutes,
-                    item.motivation as i8,
+                    motivation,
                 )
                 .await?;
 
@@ -246,7 +252,11 @@ impl ItemService {
         if let Some(ref remote_repo) = *remote_lock {
             let remote_repo = remote_repo.clone();
             tokio::spawn(async move {
-                let _ = remote_repo.empty_item_trash(false).await;
+                if let Err(e) = remote_repo.empty_item_trash(false).await {
+                    error!("Failed to empty remote trash: {:?}", e);
+                }else{
+                    info!("Successfully emptied remote trash");
+                }
             });
         }
         Ok(())
