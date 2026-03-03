@@ -1,4 +1,4 @@
-use std::{f32::consts::E, sync::Arc};
+use std::{sync::Arc};
 use chrono::{DateTime, Utc};
 use uuid::Uuid;
 use tauri::{AppHandle, Emitter};
