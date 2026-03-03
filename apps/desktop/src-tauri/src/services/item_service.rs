@@ -14,10 +14,10 @@ impl ItemService {
 
     pub async fn create_item(&self, title: String, motivation: i8, due: Option<DateTime<Utc>>, duration_minutes: Option<i32>) -> AppResult<Uuid> {
         let id = Uuid::new_v4();
-        // Step 1: Write to SQLite
+        // Step 1: Persist via configured repository backend
         self.repo.create_item(id, title, motivation, due, duration_minutes).await?;
         
-        // Step 2: (Future) Emit event to PostgreSQL stream
+        // Step 2: (Future) Emit domain/integration event
         
         Ok(id)
     }

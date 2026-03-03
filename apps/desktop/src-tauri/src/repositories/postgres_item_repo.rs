@@ -64,12 +64,15 @@ impl ItemRepository for PostgresItemRepo {
     }
 
     async fn update_item_details(&self, id: Uuid, title: String, description: Option<String>, due: Option<DateTime<Utc>>, duration_minutes: Option<i32>, motivation: i8) -> AppResult<()> {
-        sqlx::query(
+        let result = sqlx::query(
             "UPDATE items SET title = $1, description = $2, due = $3, duration_minutes = $4, motivation = $5 
              WHERE id = $6"
         )
         .bind(title).bind(description).bind(due).bind(duration_minutes).bind(motivation as i16).bind(id)
         .execute(&self.pool).await?;
+        if result.rows_affected() == 0 {
+             return Err(crate::error::AppError::NotFound(id.to_string()));
+        }
         Ok(())
     }
 

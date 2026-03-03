@@ -47,7 +47,7 @@ pub fn run() {
                 Ok(())
             });
 
-            result.expect("Failed to initialize database/services");
+            result.map_err(|e| e.to_string())?;
 
             Ok(())
         })
