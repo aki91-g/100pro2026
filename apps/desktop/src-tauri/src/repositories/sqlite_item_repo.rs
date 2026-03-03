@@ -71,7 +71,9 @@ impl ItemRepository for SqliteItemRepo {
     }
 
     async fn update_item_status(&self, id: Uuid, status: TaskStatus) -> AppResult<()> {
-        let result = sqlx::query("UPDATE items SET status = ? WHERE id = ?")
+        let result = sqlx::query(
+            "UPDATE items SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?"
+        )
             .bind(status.as_str()).bind(id).execute(&self.pool).await?;
         if result.rows_affected() != 1 {
             return Err(crate::error::AppError::InvalidInput(format!(
@@ -85,7 +87,7 @@ impl ItemRepository for SqliteItemRepo {
 
     async fn update_item_details(&self, id: Uuid, title: String, description: Option<String>, due: Option<DateTime<Utc>>, duration_minutes: Option<i32>, motivation: i8) -> AppResult<()> {
         sqlx::query(
-            "UPDATE items SET title = ?, description = ?, due = ?, duration_minutes = ?, motivation = ? 
+            "UPDATE items SET title = ?, description = ?, due = ?, duration_minutes = ?, motivation = ?, updated_at = CURRENT_TIMESTAMP 
              WHERE id = ?"
         )
         .bind(title).bind(description).bind(due).bind(duration_minutes).bind(motivation).bind(id)

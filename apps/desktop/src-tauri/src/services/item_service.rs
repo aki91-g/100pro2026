@@ -1,5 +1,4 @@
 use std::sync::Arc;
-use std::collections::HashSet;
 use chrono::{DateTime, Utc};
 use uuid::Uuid;
 use tauri::{AppHandle, Emitter};
@@ -73,9 +72,6 @@ impl ItemService {
         };
 
         let remote_items = remote_repo.get_all_items().await?;
-        let local_items = self.repo.get_all_items().await?;
-
-        let remote_ids: HashSet<Uuid> = remote_items.iter().map(|item| item.id).collect();
         let mut processed_count: usize = 0;
 
         for item in remote_items {
@@ -117,13 +113,7 @@ impl ItemService {
             processed_count += 1;
         }
 
-        for local_item in local_items {
-            if !remote_ids.contains(&local_item.id) {
-                self.repo.soft_delete_item(local_item.id).await?;
-                self.repo.hard_delete_item(local_item.id).await?;
-                processed_count += 1;
-            }
-        }
+        // Note: Local-only items are preserved as they may be pending sync (created while offline or not yet synced). They will naturally sync on the next successful remote connection.
 
         Ok(processed_count)
     }
@@ -277,7 +267,12 @@ impl ItemService {
                     "soft-delete" => remote_repo.soft_delete_item(id).await,
                     "restore" => remote_repo.restore_item(id).await,
                     "hard-delete" => remote_repo.hard_delete_item(id).await,
-                    _ => Ok(()),
+                    unknown => {
+                        error!("Unknown sync action: {}", unknown);
+                        Err(crate::error::AppError::InvalidInput(
+                            format!("Unknown action: {}", unknown)
+                        ))
+                    }
                 };
 
                 match res {

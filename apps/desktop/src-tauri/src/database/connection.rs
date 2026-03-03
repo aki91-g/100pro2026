@@ -29,25 +29,41 @@ pub async fn init_sqlite(app_handle: &AppHandle) -> crate::error::AppResult<Sqli
 }
 
 pub async fn init_postgres() -> Option<sqlx::PgPool> {
-    let url = std::env::var("DATABASE_URL").ok()?;
+    let url = match std::env::var("DATABASE_URL") {
+        Ok(v) => v,
+        Err(e) => {
+            eprintln!("DATABASE_URL not set: {}", e);
+            return None;
+        }
+    };
 
     // 1. Configure the pool with the "PgBouncer-safe" settings
-    let options = sqlx::postgres::PgConnectOptions::from_str(&url).ok()?
+    let options = match sqlx::postgres::PgConnectOptions::from_str(&url) {
+        Ok(opts) => opts.statement_cache_capacity(0),
+        Err(e) => {
+            eprintln!("Invalid DATABASE_URL: {}", e);
+            return None;
+        }
+    }
         .statement_cache_capacity(0); 
 
-    let pool = sqlx::postgres::PgPoolOptions::new()
+    let pool = match sqlx::postgres::PgPoolOptions::new()
         .max_connections(5)
         .acquire_timeout(std::time::Duration::from_secs(2))
         .connect_with(options) 
         .await
-        .ok()?;
+    {
+        Ok(p) => p,
+        Err(e) => {
+            eprintln!("Postgres connection failed: {}", e);
+            return None;
+        }
+    };
 
     // 2. Run migrations using the POOL. 
     if let Err(e) = sqlx::migrate!("./migrations/postgres").run(&pool).await {
-        if !e.to_string().contains("prepared statement") {
-            eprintln!("Postgres migration error: {}", e);
-            return None;
-        }
+        eprintln!("Postgres migration error: {}", e);
+        return None;
     }
 
     println!("REMOTE ACTIVE: Ready for seeding!");

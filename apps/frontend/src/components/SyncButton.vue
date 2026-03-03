@@ -1,9 +1,10 @@
 <script setup lang="ts">
-import { ref } from 'vue';
+import { ref, onUnmounted } from 'vue';
 import { syncAndRefresh } from '../services/itemService'; // Adjust path as needed
 
 const isSyncing = ref(false);
 const syncResult = ref<{ count: number; error: string | null }>({ count: 0, error: null });
+let errorTimer: ReturnType<typeof setTimeout> | null = null;
 
 async function handleSync() {
   isSyncing.value = true;
@@ -19,9 +20,18 @@ async function handleSync() {
   } finally {
     isSyncing.value = false;
     // Auto-clear the message after 3 seconds
-    setTimeout(() => { syncResult.value.error = null; }, 3000);
+    if (errorTimer) {
+      clearTimeout(errorTimer);
+    }
+    errorTimer = setTimeout(() => { syncResult.value.error = null; }, 3000);
   }
 }
+
+onUnmounted(() => {
+  if (errorTimer) {
+    clearTimeout(errorTimer);
+  }
+});
 </script>
 
 <template>

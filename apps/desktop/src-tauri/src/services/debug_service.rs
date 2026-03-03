@@ -28,8 +28,11 @@ impl DebugService {
         self.local.empty_item_trash(true).await?;
         
         // Lock the remote for reading
-        let remote_lock = self.remote.read().await;
-        if let Some(ref remote_repo) = *remote_lock {
+        let remote_repo = {
+            let remote_lock = self.remote.read().await;
+            remote_lock.clone()
+        };
+        if let Some(remote_repo) = remote_repo {
             remote_repo.empty_item_trash(true).await?;
         }
         Ok(())
@@ -42,7 +45,7 @@ impl DebugService {
             (Uuid::from_u128(0x00000000000000000000000000000002), "InP Task", "Working on this", TaskStatus::InProgress, 5, false, false),
             (Uuid::from_u128(0x00000000000000000000000000000003), "Finished Task", "Ready to be archived", TaskStatus::Done, 2, false, false),
             (Uuid::from_u128(0x00000000000000000000000000000004), "Archived Project", "Past work", TaskStatus::InProgress, 0, true, false),
-            (Uuid::from_u128(0x00000000000000000000000000000005), "Ghost Task", "This was deleted", TaskStatus::Todo, 0, false, false),
+            (Uuid::from_u128(0x00000000000000000000000000000005), "Ghost Task", "This was deleted", TaskStatus::Todo, 0, false, true),
         ];
         let remote_lock = self.remote.read().await;
         

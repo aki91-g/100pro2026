@@ -10,10 +10,11 @@ interface SyncEvent {
 export const useSyncStatus = () => {
   const syncMap = ref<Record<string, SyncEvent['status']>>({});
   const errorMap = ref<Record<string, string>>({});
-  let unlisten: UnlistenFn;
+  let unlisten: UnlistenFn | null = null;
+  let disposed = false;
 
   onMounted(async () => {
-    unlisten = await listen<SyncEvent>('sync-status', (event) => {
+    const stop = await listen<SyncEvent>('sync-status', (event) => {
       const { id, status, message } = event.payload;
       syncMap.value[id] = status;
 
@@ -30,9 +31,15 @@ export const useSyncStatus = () => {
         }, 3000);
       }
     });
+    if (disposed) {
+      stop();
+    } else {
+      unlisten = stop;
+    }
   });
 
   onUnmounted(() => {
+    disposed = true;
     if (unlisten) unlisten();
   });
 
