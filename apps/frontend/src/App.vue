@@ -2,6 +2,11 @@
 import { ref, onMounted } from "vue"; // Added onMounted here
 import { invoke } from "@tauri-apps/api/core";
 
+// 1. Import the new composable
+import { useSyncStatus } from "@/composables/useSyncStatus";
+const { syncMap, errorMap } = useSyncStatus();
+import SyncButton from '@/components/SyncButton.vue';
+
 // --- State Management ---
 const items = ref<any[]>([]);
 const greetMsg = ref("");
@@ -75,6 +80,7 @@ async function fetchFromHono() {
   <div class="container">
     <header>
       <h1>100pro2026 <span class="badge">Monorepo Active</span></h1>
+      <SyncButton />
     </header>
 
     <main>
@@ -102,6 +108,12 @@ async function fetchFromHono() {
         <h2>📋 Current Tasks</h2>
         <div class="task-container">
           <div v-for="item in items" :key="item.id" class="task-row">
+            <div class="sync-tag">
+              <span v-if="syncMap[item.id] === 'pending'" class="dot pending">●</span>
+              <span v-if="syncMap[item.id] === 'success'" class="dot success">Check</span>
+              <span v-if="syncMap[item.id] === 'error'" class="dot error" :title="errorMap[item.id]">!</span>
+            </div>
+
             <span :class="['status-pill', item.status.toLowerCase()]">
               {{ item.status }}
             </span>
@@ -162,4 +174,15 @@ button:hover { background: #41b883; }
 .done { background: #e8f5e9; color: #388e3c; }
 .backlog { background: #f5f5f5; color: #616161; }
 .motivation { color: #e53935; font-weight: bold; }
+
+/* sync indicators */
+.sync-tag { margin-right: 8px; font-size: 0.8rem; }
+.dot.pending { color: #3498db; animation: blink 1s infinite; }
+.dot.success { color: #42b883; font-weight: bold; }
+.dot.error { color: #e53935; font-weight: bold; cursor: help; }
+@keyframes blink {
+  50% { opacity: 0; }
+}
+
 </style>
+

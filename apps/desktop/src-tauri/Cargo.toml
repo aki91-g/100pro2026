@@ -52,3 +52,7 @@ chrono = { version = "0.4", features = ["serde"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "json", "time"] }
 tracing-appender = "0.2"
+
+# env読み込み
+dotenvy = "0.15"
+
