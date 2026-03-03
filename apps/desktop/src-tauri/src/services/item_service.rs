@@ -93,27 +93,31 @@ impl ItemService {
 
             self.repo.update_item_status(item.id, item.status).await?;
 
-            self.repo
-                .update_item_details(
-                    item.id,
-                    item.title,
-                    item.description,
-                    item.due,
-                    item.duration_minutes,
-                    motivation,
-                )
-                .await?;
-
-            if item.is_archived {
-                self.repo.archive_item(item.id).await?;
-            } else {
-                self.repo.unarchive_item(item.id).await?;
+            // Only call update_item_details if description differs
+            // (create_item already upserted title/motivation/due/duration_minutes)
+            if let Some(ref description) = item.description {
+                self.repo
+                    .update_item_details(
+                        item.id,
+                        item.title,
+                        Some(description.clone()),
+                        item.due,
+                        item.duration_minutes,
+                        motivation,
+                    )
+                    .await?;
             }
 
+            // Only call archive_item if remote is archived
+            // (newly created items are unarchived by default)
+            if item.is_archived {
+                self.repo.archive_item(item.id).await?;
+            }
+
+            // Only call soft_delete_item if remote is deleted
+            // (newly created items are not deleted by default)
             if item.deleted_at.is_some() {
                 self.repo.soft_delete_item(item.id).await?;
-            } else {
-                self.repo.restore_item(item.id).await?;
             }
 
             processed_count += 1;
