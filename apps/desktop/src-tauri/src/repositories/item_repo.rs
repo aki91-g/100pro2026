@@ -7,6 +7,7 @@ use crate::error::AppResult;
 #[async_trait]
 pub trait ItemRepository: Send + Sync {
     // GET logic
+    async fn get_all_items(&self) -> AppResult<Vec<Item>>;
     async fn get_active_items(&self) -> AppResult<Vec<Item>>;
     async fn get_archived_items(&self) -> AppResult<Vec<Item>>;
     async fn get_deleted_items(&self) -> AppResult<Vec<Item>>;
@@ -28,5 +29,5 @@ pub trait ItemRepository: Send + Sync {
 
     // HARD DELETE logic
     async fn hard_delete_item(&self, id: Uuid) -> AppResult<()>;
-    async fn empty_item_trash(&self) -> AppResult<()>;
+    async fn empty_item_trash(&self, full_wipe: bool) -> AppResult<()>;
 }
