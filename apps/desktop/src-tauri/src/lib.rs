@@ -16,12 +16,10 @@ use crate::state::AppState;
 use crate::services::{debug_service::DebugService, item_service::ItemService};
 use crate::commands::db_commands::*;
 use crate::commands::auth_commands::*;
+use crate::commands::debug::*;
 use crate::database::connection::init_sqlite;
 use crate::repositories::user_repo::UserRepository;
 use crate::repositories::profile_repo::ProfileRepository;
-
-#[cfg(debug_assertions)]
-use crate::commands::debug::*;
 
 #[tauri::command]
 fn is_dev() -> bool {
