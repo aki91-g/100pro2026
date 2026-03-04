@@ -285,7 +285,10 @@ pub async fn auto_login(
             
             Ok(Some(user))
         }
-        Ok(None) => Ok(None),
+        Ok(None) => {
+            app_state.clear_user_id().await;
+            Ok(None)
+        },
         Err(e) => Err(format!("Failed to check for active user: {}", e))
     }
 }

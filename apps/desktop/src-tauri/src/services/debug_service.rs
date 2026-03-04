@@ -79,68 +79,48 @@ impl DebugService {
         for (id, title, desc, status, motivation, archived, deleted) in seed_configs {
             
             // Seed Local
-            if let Err(e) = self.local.create_item(user_id, id, title.to_string(), motivation, None, None).await {
-                eprintln!("❌ Failed to create local item '{}': {}", title, e);
-                continue;
-            }
+            self.local.create_item(user_id, id, title.to_string(), motivation, None, None).await?;
             println!("✓ Created local item: {}", title);
             
-            if let Err(e) = self.local.update_item_status(user_id, id, status).await {
-                eprintln!("❌ Failed to set status for local item '{}': {}", title, e);
-                continue;
-            }
+            self.local.update_item_status(user_id, id, status).await?;
             
-            if let Err(e) = self.local.update_item_details(user_id, id, title.to_string(), Some(desc.to_string()), None, None, motivation).await {
-                eprintln!("❌ Failed to update local item details '{}': {}", title, e);
-                continue;
-            }
+            self.local
+                .update_item_details(user_id, id, title.to_string(), Some(desc.to_string()), None, None, motivation)
+                .await?;
             
             if archived {
-                if let Err(e) = self.local.archive_item(user_id, id).await {
-                    eprintln!("❌ Failed to archive local item '{}': {}", title, e);
-                }
-            } else if let Err(e) = self.local.unarchive_item(user_id, id).await {
-                eprintln!("❌ Failed to unarchive local item '{}': {}", title, e);
+                self.local.archive_item(user_id, id).await?;
+            } else {
+                self.local.unarchive_item(user_id, id).await?;
             }
             
             if deleted {
-                if let Err(e) = self.local.soft_delete_item(user_id, id).await {
-                    eprintln!("❌ Failed to soft-delete local item '{}': {}", title, e);
-                }
-            } else if let Err(e) = self.local.restore_item(user_id, id).await {
-                eprintln!("❌ Failed to restore local item '{}': {}", title, e);
+                self.local.soft_delete_item(user_id, id).await?;
+            } else {
+                self.local.restore_item(user_id, id).await?;
             }
             
             // Seed Remote
             if let Some(ref remote_repo) = *remote_lock {
-                if let Err(e) = remote_repo.create_item(user_id, id, title.to_string(), motivation, None, None).await {
-                    eprintln!("❌ Failed to create remote item '{}': {}", title, e);
-                    continue;
-                }
+                remote_repo.create_item(user_id, id, title.to_string(), motivation, None, None).await?;
                 println!("✓ Pushed to Supabase: {}", title);
                 
-                if let Err(e) = remote_repo.update_item_status(user_id, id, status).await {
-                    eprintln!("❌ Failed to set status for remote item '{}': {}", title, e);
-                }
+                remote_repo.update_item_status(user_id, id, status).await?;
                 
-                if let Err(e) = remote_repo.update_item_details(user_id, id, title.to_string(), Some(desc.to_string()), None, None, motivation).await {
-                    eprintln!("❌ Failed to update remote item details '{}': {}", title, e);
-                }
+                remote_repo
+                    .update_item_details(user_id, id, title.to_string(), Some(desc.to_string()), None, None, motivation)
+                    .await?;
                 
                 if archived {
-                    if let Err(e) = remote_repo.archive_item(user_id, id).await {
-                        eprintln!("❌ Failed to archive remote item '{}': {}", title, e);
-                    }
-                } else if let Err(e) = remote_repo.unarchive_item(user_id, id).await {
-                    eprintln!("❌ Failed to unarchive remote item '{}': {}", title, e);
+                    remote_repo.archive_item(user_id, id).await?;
+                } else {
+                    remote_repo.unarchive_item(user_id, id).await?;
                 }
                 
                 if deleted {
-                    if let Err(e) = remote_repo.soft_delete_item(user_id, id).await {
-                        eprintln!("❌ Failed to soft-delete remote item '{}': {}", title, e);
-                    }
-                } else if let Err(e) = remote_repo.restore_item(user_id, id).await {
-                    eprintln!("❌ Failed to restore remote item '{}': {}", title, e);
+                    remote_repo.soft_delete_item(user_id, id).await?;
+                } else {
+                    remote_repo.restore_item(user_id, id).await?;
                 }
             }
         }

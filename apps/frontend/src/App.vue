@@ -1,15 +1,23 @@
 <script setup lang="ts">
 import { ref, onMounted, watch } from "vue";
-import { invoke } from "@tauri-apps/api/core";
 
 // Composables
 import { useAuth } from "@/composables/useAuth";
 import { useItems } from "@/composables/useItems";
 import { useSyncStatus } from "@/composables/useSyncStatus";
+import {
+  fetchHonoHelloApi,
+  isDevMode,
+  migrateNullUserItemsApi,
+  resetDatabaseApi,
+  seedDatabaseApi,
+} from "@/services/apiService";
 
 // Components
 import Login from "@/components/Login.vue";
 import SyncButton from '@/components/SyncButton.vue';
+import TaskList from "@/components/TaskList.vue";
+import DebugTools from "@/components/DebugTools.vue";
 
 // Auth
 const { isAuthenticated, userId, logout, initialize } = useAuth();
@@ -32,7 +40,7 @@ onMounted(async () => {
   await initialize();
   
   try {
-    showDebugTools.value = await invoke("is_dev"); 
+    showDebugTools.value = await isDevMode();
   } catch (e) {
     console.warn("Could not determine dev mode:", e);
     showDebugTools.value = false;
@@ -67,7 +75,7 @@ async function seedDatabase() {
   }
 
   try {
-    await invoke("debug_seed_data");
+    await seedDatabaseApi();
     await loadItems();
     greetMsg.value = `Database seeded successfully for user '${userId.value}'!`;
   } catch (e) {
@@ -84,7 +92,7 @@ async function resetDatabase() {
 
   if (!confirm(`Are you sure? This will wipe all data for user '${userId.value}'!`)) return;
   try {
-    await invoke("debug_reset_db");
+    await resetDatabaseApi();
     items.value = [];
     greetMsg.value = "Database wiped clean.";
   } catch (e) {
@@ -101,7 +109,7 @@ async function migrateNullUserItems() {
 
   if (!confirm(`This will assign all items with NULL user_id to '${userId.value}'. Continue?`)) return;
   try {
-    const count = await invoke<number>("debug_migrate_null_users", { assignToCurrentUser: true });
+    const count = await migrateNullUserItemsApi(true);
     greetMsg.value = `✓ Migrated ${count} items to your account.`;
     await loadItems();
   } catch (e) {
@@ -124,9 +132,7 @@ async function handleLogout() {
 async function fetchFromHono() {
   isBackendLoading.value = true;
   try {
-    const res = await fetch("http://localhost:3000/api/hello");
-    if (!res.ok) throw new Error("Network response was not ok");
-    const data = await res.json();
+    const data = await fetchHonoHelloApi();
     backendMsg.value = `${data.message} (${new Date(data.timestamp).toLocaleTimeString()})`;
   } catch (e) {
     console.error("Hono Error:", e);
@@ -169,54 +175,20 @@ async function fetchFromHono() {
         </div>
       </section>
 
-      <section class="card debug-section" v-if="showDebugTools">
-        <h2 style="color: #d32f2f;">🛠 Debug Tools</h2>
-        <p class="description">These tools are only visible in development builds.</p>
-        <p class="description" v-if="isAuthenticated" style="color: #42b883;">
-          ✓ Logged in as: <strong>{{ userId }}</strong>
-        </p>
-        <p class="description" v-else style="color: #f57c00;">
-          ⚠ Login required to use debug tools
-        </p>
-        <div class="input-group">
-          <button @click="seedDatabase" :disabled="!isAuthenticated">Seed Demo Data</button>
-          <button @click="resetDatabase" :disabled="!isAuthenticated" class="btn-danger">Wipe My Data</button>
-        </div>
-        <div class="input-group" style="margin-top: 0.5rem;">
-          <button @click="migrateNullUserItems" :disabled="!isAuthenticated" class="btn-migration">
-            🔄 Claim Orphaned Items
-          </button>
-        </div>
-        <p class="description" style="font-size: 0.75rem; color: #666; margin-top: 0.5rem;">
-          💡 Tip: "Claim Orphaned Items" assigns items with NULL user_id to your account.
-        </p>
-      </section>
+      <DebugTools
+        :visible="showDebugTools"
+        :is-authenticated="isAuthenticated"
+        :user-id="userId"
+        @seed="seedDatabase"
+        @reset="resetDatabase"
+        @migrate="migrateNullUserItems"
+      />
 
-      <section class="card" v-if="items.length > 0">
-        <h2>📋 Current Tasks</h2>
-        <div class="task-container">
-          <div v-for="item in items" :key="item.id" class="task-row">
-            <div class="sync-tag">
-              <span v-if="syncMap[item.id] === 'pending'" class="dot pending">●</span>
-              <span v-if="syncMap[item.id] === 'success'" class="dot success">✓</span>
-              <span v-if="syncMap[item.id] === 'error'" class="dot error" :title="errorMap[item.id]">!</span>
-            </div>
-
-            <span :class="['status-pill', item.status.toLowerCase()]">
-              {{ item.status }}
-            </span>
-            
-            <div class="task-info">
-              <strong>{{ item.title }}</strong>
-              <p v-if="item.description">{{ item.description }}</p>
-            </div>
-
-            <div class="task-meta">
-              <span class="motivation">🔥 {{ item.motivation }}</span>
-            </div>
-          </div>
-        </div>
-      </section>
+      <TaskList
+        :items="items"
+        :sync-map="syncMap"
+        :error-map="errorMap"
+      />
 
       <section class="card">
         <h2>2. Backend API (Hono)</h2>
@@ -248,43 +220,13 @@ header { margin-bottom: 2rem; }
 .badge { font-size: 0.7rem; background: #42b883; color: white; padding: 4px 8px; border-radius: 12px; }
 
 .card { background: #f8f9fa; border-radius: 12px; padding: 1.5rem; margin-bottom: 1.5rem; border: 1px solid #eee; }
-.debug-section { border: 2px dashed #ffcdd2; background: #fff9f9; }
 .description { color: #666; font-size: 0.9rem; margin-bottom: 1rem; }
 
 .input-group { display: flex; gap: 10px; margin-bottom: 1rem; }
 button { background: #34495e; color: white; border: none; padding: 0.6rem 1.2rem; border-radius: 6px; cursor: pointer; }
 button:hover { background: #41b883; }
 button:disabled { background: #999; cursor: not-allowed; }
-.btn-danger { background: #e53935; }
-.btn-danger:hover { background: #c62828; }
-.btn-migration { background: #3498db; }
-.btn-migration:hover { background: #2980b9; }
-.btn-migration:disabled { background: #999; }
 
 .response-box { min-height: 2.5rem; background: #fff; border: 1px dashed #ccc; border-radius: 6px; padding: 0.8rem; display: flex; align-items: center; justify-content: center; font-size: 0.9rem; color: #666; }
 .response-box.hasValue { border-style: solid; border-color: #42b883; color: #2c3e50; background: #f0fff4; }
-
-/* Task Styling */
-.task-container { display: flex; flex-direction: column; gap: 8px; margin-top: 1rem; }
-.task-row { display: flex; align-items: center; background: white; padding: 12px; border-radius: 8px; border: 1px solid #e0e0e0; }
-.task-info { flex: 1; margin-left: 12px; text-align: left; }
-.task-info p { margin: 2px 0 0 0; font-size: 0.8rem; color: #777; }
-.task-meta { display: flex; align-items: center; gap: 8px; }
-.status-pill { font-size: 0.65rem; font-weight: bold; padding: 3px 6px; border-radius: 4px; min-width: 70px; text-align: center; }
-
-/* Status Colors */
-.todo { background: #e3f2fd; color: #1976d2; }
-.inprogress { background: #fff3e0; color: #f57c00; }
-.done { background: #e8f5e9; color: #388e3c; }
-.backlog { background: #f5f5f5; color: #616161; }
-.motivation { color: #e53935; font-weight: bold; font-size: 0.85rem; }
-
-/* sync indicators */
-.sync-tag { margin-right: 8px; font-size: 0.8rem; }
-.dot.pending { color: #3498db; animation: blink 1s infinite; }
-.dot.success { color: #42b883; font-weight: bold; }
-.dot.error { color: #e53935; font-weight: bold; cursor: help; }
-@keyframes blink {
-  50% { opacity: 0; }
-}
 </style>

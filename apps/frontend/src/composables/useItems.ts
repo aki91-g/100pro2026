@@ -1,6 +1,15 @@
 import { ref } from 'vue';
-import { invoke } from '@tauri-apps/api/core';
 import type { Item } from '@/services/itemService';
+import {
+  archiveItemApi,
+  createItemApi,
+  fetchActiveItemsApi,
+  fetchArchivedItemsApi,
+  fetchDeletedItemsApi,
+  softDeleteItemApi,
+  syncItemsApi,
+  updateItemStatusApi,
+} from '@/services/apiService';
 
 /**
  * Shared state for items across the application
@@ -22,7 +31,7 @@ export function useItems() {
     isLoading.value = true;
     error.value = null;
     try {
-      const data = await invoke<Item[]>('get_active_items');
+      const data = await fetchActiveItemsApi();
       items.value = data;
       return data;
     } catch (err) {
@@ -39,7 +48,7 @@ export function useItems() {
     isLoading.value = true;
     error.value = null;
     try {
-      const data = await invoke<Item[]>('get_archived_items');
+      const data = await fetchArchivedItemsApi();
       return data;
     } catch (err) {
       error.value = String(err);
@@ -55,7 +64,7 @@ export function useItems() {
     isLoading.value = true;
     error.value = null;
     try {
-      const data = await invoke<Item[]>('get_deleted_items');
+      const data = await fetchDeletedItemsApi();
       return data;
     } catch (err) {
       error.value = String(err);
@@ -71,7 +80,7 @@ export function useItems() {
     isSyncing.value = true;
     error.value = null;
     try {
-      const syncedCount = await invoke<number>('sync_items');
+      const syncedCount = await syncItemsApi();
       // Refresh local items after sync
       await fetchActiveItems();
       return syncedCount;
@@ -92,7 +101,7 @@ export function useItems() {
     durationMinutes?: number | null
   ) {
     try {
-      const id = await invoke<string>('create_item', {
+      const id = await createItemApi({
         title,
         motivation,
         due,
@@ -111,7 +120,7 @@ export function useItems() {
   // Update item status
   async function updateItemStatus(id: string, status: Item['status']) {
     try {
-      await invoke('update_item_status', { id, status });
+      await updateItemStatusApi(id, status);
       // Update local state
       const item = items.value.find((i) => i.id === id);
       if (item) {
@@ -127,7 +136,7 @@ export function useItems() {
   // Archive item
   async function archiveItem(id: string) {
     try {
-      await invoke('archive_item', { id });
+      await archiveItemApi(id);
       // Remove from local list
       items.value = items.value.filter((i) => i.id !== id);
     } catch (err) {
@@ -140,7 +149,7 @@ export function useItems() {
   // Soft delete item
   async function softDeleteItem(id: string) {
     try {
-      await invoke('soft_delete_item', { id });
+      await softDeleteItemApi(id);
       // Remove from local list
       items.value = items.value.filter((i) => i.id !== id);
     } catch (err) {
