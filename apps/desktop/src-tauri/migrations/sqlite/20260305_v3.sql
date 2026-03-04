@@ -5,3 +5,5 @@ CREATE TABLE IF NOT EXISTS local_user (
   last_login DATETIME,
   is_active INTEGER DEFAULT 1
 );
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_local_user_single_active ON local_user(is_active) WHERE is_active = 1;

@@ -9,6 +9,11 @@ interface LocalUser {
   is_active: number;
 }
 
+interface LoginResponse {
+  id: string;
+  username: string;
+}
+
 export const useUserStore = defineStore('user', () => {
   // State
   const userId = ref<string | null>(null);
@@ -58,15 +63,15 @@ export const useUserStore = defineStore('user', () => {
   async function login(email: string, password: string) {
     try {
       // Rust handles Supabase auth and resolves identity
-      const localUser = await invoke<LocalUser>('login', { 
+      const response = await invoke<LoginResponse>('login', { 
         email,
         password,
       });
       
-      userId.value = localUser.id;
-      username.value = localUser.username;
+      userId.value = response.id;
+      username.value = response.username;
       
-      console.log(`✅ Login successful: ${username.value}`);
+      console.log(`✅ Login successful: ${response.username}`);
     } catch (error) {
       console.error('Login failed:', error);
       throw error;

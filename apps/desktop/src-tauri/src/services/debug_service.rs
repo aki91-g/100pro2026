@@ -25,16 +25,36 @@ impl DebugService {
     }
 
     pub async fn reset_all_databases(&self, user_id: &str) -> AppResult<()> {
-        self.local.empty_item_trash(user_id, true).await?;
+        // 1. Hard-delete all items for the user (including archived/deleted)
+        let all_items = self.local.get_all_items(user_id).await?;
+        for item in all_items {
+            // Hard-delete each item to remove all traces
+            let _ = self.local.hard_delete_item(user_id, item.id).await;
+        }
         
-        // Lock the remote for reading
+        // 2. Clear remote as well if available
         let remote_repo = {
             let remote_lock = self.remote.read().await;
             remote_lock.clone()
         };
         if let Some(remote_repo) = remote_repo {
-            remote_repo.empty_item_trash(user_id, true).await?;
+            // Get all remote items and hard-delete them
+            if let Ok(remote_items) = remote_repo.get_all_items(user_id).await {
+                for item in remote_items {
+                    let _ = remote_repo.hard_delete_item(user_id, item.id).await;
+                }
+            }
         }
+        
+        // 3. Final cleanup: empty any remaining trash
+        let _ = self.local.empty_item_trash(user_id, true).await;
+        if let Some(remote_repo) = {
+            let remote_lock = self.remote.read().await;
+            remote_lock.clone()
+        } {
+            let _ = remote_repo.empty_item_trash(user_id, true).await;
+        }
+        
         Ok(())
     }
 

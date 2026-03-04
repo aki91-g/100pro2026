@@ -16,10 +16,12 @@ use crate::state::AppState;
 use crate::services::{debug_service::DebugService, item_service::ItemService};
 use crate::commands::db_commands::*;
 use crate::commands::auth_commands::*;
-use crate::commands::debug::*;
 use crate::database::connection::init_sqlite;
 use crate::repositories::user_repo::UserRepository;
 use crate::repositories::profile_repo::ProfileRepository;
+
+#[cfg(debug_assertions)]
+use crate::commands::debug::*;
 
 #[tauri::command]
 fn is_dev() -> bool {
@@ -181,10 +183,14 @@ pub fn run() {
             hard_delete_item,
             empty_item_trash,
             claim_offline_items,
-            // debug commands
+            // debug commands - only compiled in debug builds
+            #[cfg(debug_assertions)]
             debug_reset_db,
+            #[cfg(debug_assertions)]
             debug_seed_data,
+            #[cfg(debug_assertions)]
             debug_full_wipe_items,
+            #[cfg(debug_assertions)]
             debug_migrate_null_users,
         ])
         .run(tauri::generate_context!())

@@ -109,7 +109,7 @@ impl ItemRepository for PostgresItemRepo {
 
     async fn update_item_details(&self, user_id: &str, id: Uuid, title: String, description: Option<String>, due: Option<DateTime<Utc>>, duration_minutes: Option<i32>, motivation: i8) -> AppResult<()> {
         let result = sqlx::query(
-            "UPDATE items SET title = $1, description = $2, due = $3, duration_minutes = $4, motivation = $5 
+            "UPDATE items SET title = $1, description = $2, due = $3, duration_minutes = $4, motivation = $5, updated_at = NOW() 
              WHERE id = $6 AND user_id = $7::uuid"
         )
         .persistent(false)

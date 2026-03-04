@@ -31,7 +31,12 @@ async fn authenticate_with_supabase(email: &str, password: &str) -> Result<Strin
         supabase_url.trim_end_matches('/')
     );
 
-    let client = reqwest::Client::new();
+    let client = reqwest::Client::builder()
+        .connect_timeout(std::time::Duration::from_secs(5))
+        .timeout(std::time::Duration::from_secs(15))
+        .build()
+        .map_err(|e| format!("Failed to build HTTP client: {}", e))?;
+    
     let response = client
         .post(endpoint)
         .header("apikey", &supabase_anon_key)
@@ -117,6 +122,22 @@ async fn fetch_username_from_profiles(
     DEFAULT_USERNAME.to_string()
 }
 
+/// Response DTO for login - sanitized to exclude sensitive fields
+#[derive(Debug, serde::Serialize, serde::Deserialize)]
+pub struct LoginResponse {
+    pub id: String,
+    pub username: String,
+}
+
+impl From<LocalUser> for LoginResponse {
+    fn from(user: LocalUser) -> Self {
+        LoginResponse {
+            id: user.id,
+            username: user.username,
+        }
+    }
+}
+
 /// Auth command: Login with Supabase and save to local DB
 #[tauri::command]
 pub async fn login(
@@ -126,7 +147,7 @@ pub async fn login(
     profile_repo: State<'_, Arc<tokio::sync::RwLock<Option<Arc<dyn ProfileRepository>>>>>,
     app_state: State<'_, AppState>,
     item_service: State<'_, Arc<ItemService>>,
-) -> Result<LocalUser, String> {
+) -> Result<LoginResponse, String> {
     if email.trim().is_empty() || password.is_empty() {
         return Err("Email and password are required".to_string());
     }
@@ -178,13 +199,13 @@ pub async fn login(
         }
     }
     
-    // 7. Return the user data
+    // 7. Return sanitized user data
     let user = user_repo.get_user_by_id(&user_id)
         .await
         .map_err(|e| format!("Failed to retrieve user: {}", e))?
         .ok_or_else(|| "User not found after login".to_string())?;
     
-    Ok(user)
+    Ok(LoginResponse::from(user))
 }
 
 /// Logout command: Deactivate local user and clear AppState

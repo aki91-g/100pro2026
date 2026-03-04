@@ -3,15 +3,19 @@ import { invoke } from '@tauri-apps/api/core';
 import type { Item } from '@/services/itemService';
 
 /**
+ * Shared state for items across the application
+ * Ensures all components see the same items/sync status
+ */
+const items = ref<Item[]>([]);
+const isLoading = ref(false);
+const error = ref<string | null>(null);
+const isSyncing = ref(false);
+
+/**
  * Composable for managing items/tasks
  * Handles fetching, creation, updates, and syncing
  */
 export function useItems() {
-  // State
-  const items = ref<Item[]>([]);
-  const isLoading = ref(false);
-  const error = ref<string | null>(null);
-  const isSyncing = ref(false);
 
   // Fetch active items
   async function fetchActiveItems() {
@@ -105,13 +109,13 @@ export function useItems() {
   }
 
   // Update item status
-  async function updateItemStatus(id: string, status: string) {
+  async function updateItemStatus(id: string, status: Item['status']) {
     try {
       await invoke('update_item_status', { id, status });
       // Update local state
       const item = items.value.find((i) => i.id === id);
       if (item) {
-        item.status = status as any;
+        item.status = status;
       }
     } catch (err) {
       error.value = String(err);
@@ -147,7 +151,7 @@ export function useItems() {
   }
 
   return {
-    // State
+    // Shared State (all instances share the same refs)
     items,
     isLoading,
     error,
