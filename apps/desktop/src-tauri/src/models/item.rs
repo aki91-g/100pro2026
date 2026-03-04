@@ -109,6 +109,7 @@ pub struct Item {
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
     pub deleted_at: Option<DateTime<Utc>>,
+    pub user_id: Option<String>,
 }
 
 impl Item {

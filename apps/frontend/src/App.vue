@@ -1,14 +1,26 @@
 <script setup lang="ts">
-import { ref, onMounted } from "vue"; // Added onMounted here
+import { ref, onMounted, watch } from "vue";
 import { invoke } from "@tauri-apps/api/core";
 
-// 1. Import the new composable
+// Composables
+import { useAuth } from "@/composables/useAuth";
+import { useItems } from "@/composables/useItems";
 import { useSyncStatus } from "@/composables/useSyncStatus";
-const { syncMap, errorMap } = useSyncStatus();
+
+// Components
+import Login from "@/components/Login.vue";
 import SyncButton from '@/components/SyncButton.vue';
 
-// --- State Management ---
-const items = ref<any[]>([]);
+// Auth
+const { isAuthenticated, userId, logout, initialize } = useAuth();
+
+// Items
+const { items, fetchActiveItems, isSyncing } = useItems();
+
+// Sync status
+const { syncMap, errorMap } = useSyncStatus();
+
+// Local state
 const greetMsg = ref("");
 const backendMsg = ref("");
 const isBackendLoading = ref(false);
@@ -16,6 +28,9 @@ const showDebugTools = ref(false);
 
 // --- Lifecycle ---
 onMounted(async () => {
+  // Initialize auth state
+  await initialize();
+  
   try {
     showDebugTools.value = await invoke("is_dev"); 
   } catch (e) {
@@ -24,12 +39,21 @@ onMounted(async () => {
   }
 });
 
+// Watch for authentication changes
+watch(isAuthenticated, async (authenticated) => {
+  if (authenticated) {
+    await loadItems();
+  } else {
+    items.value = [];
+    greetMsg.value = "";
+  }
+}, { immediate: true });
+
 // --- Desktop Bridge Logic (Rust + SQLite) ---
-async function checkDatabase() {
+async function loadItems() {
   try {
-    const data: any[] = await invoke("get_active_items");
-    items.value = data; 
-    greetMsg.value = `Connected! Showing ${data.length} tasks.`;
+    await fetchActiveItems();
+    greetMsg.value = `Connected! Showing ${items.value.length} tasks.`;
   } catch (e) {
     console.error("Fetch Error:", e);
     greetMsg.value = "Failed to load tasks.";
@@ -37,25 +61,62 @@ async function checkDatabase() {
 }
 
 async function seedDatabase() {
+  if (!isAuthenticated.value || !userId.value) {
+    greetMsg.value = "Please login first to seed data.";
+    return;
+  }
+
   try {
     await invoke("debug_seed_data");
-    await checkDatabase();
-    greetMsg.value = "Database seeded successfully!";
+    await loadItems();
+    greetMsg.value = `Database seeded successfully for user '${userId.value}'!`;
   } catch (e) {
     console.error("Rust Seed Error:", e);
-    greetMsg.value = "Seed failed. Debug mode must be active.";
+    greetMsg.value = String(e) || "Seed failed. Make sure database is empty first.";
   }
 }
 
 async function resetDatabase() {
-  if (!confirm("Are you sure? This will wipe all data!")) return;
+  if (!isAuthenticated.value || !userId.value) {
+    greetMsg.value = "Please login first to reset data.";
+    return;
+  }
+
+  if (!confirm(`Are you sure? This will wipe all data for user '${userId.value}'!`)) return;
   try {
     await invoke("debug_reset_db");
-    items.value = []; // Clear local list immediately
+    items.value = [];
     greetMsg.value = "Database wiped clean.";
   } catch (e) {
     console.error("Rust Reset Error:", e);
-    greetMsg.value = "Failed to reset database.";
+    greetMsg.value = String(e) || "Failed to reset database.";
+  }
+}
+
+async function migrateNullUserItems() {
+  if (!isAuthenticated.value || !userId.value) {
+    greetMsg.value = "Please login first to migrate data.";
+    return;
+  }
+
+  if (!confirm(`This will assign all items with NULL user_id to '${userId.value}'. Continue?`)) return;
+  try {
+    const count = await invoke<number>("debug_migrate_null_users", { assignToCurrentUser: true });
+    greetMsg.value = `✓ Migrated ${count} items to your account.`;
+    await loadItems();
+  } catch (e) {
+    console.error("Migration Error:", e);
+    greetMsg.value = String(e) || "Migration failed.";
+  }
+}
+
+async function handleLogout() {
+  if (!confirm("Are you sure you want to logout?")) return;
+  try {
+    await logout();
+    greetMsg.value = "";
+  } catch (e) {
+    console.error("Logout failed:", e);
   }
 }
 
@@ -77,10 +138,23 @@ async function fetchFromHono() {
 </script>
 
 <template>
-  <div class="container">
+  <!-- Show login screen if not authenticated -->
+  <Login v-if="!isAuthenticated" />
+
+  <!-- Main app content when authenticated -->
+  <div v-else class="container">
     <header>
-      <h1>100pro2026 <span class="badge">Monorepo Active</span></h1>
-      <SyncButton />
+      <div class="header-content">
+        <h1>100pro2026 <span class="badge">Monorepo Active</span></h1>
+        <div class="user-info">
+          <span class="user-id">👤 {{ userId }}</span>
+          <button @click="handleLogout" class="logout-btn">Logout</button>
+        </div>
+      </div>
+      <div class="sync-section">
+        <SyncButton />
+        <span v-if="isSyncing" class="syncing-indicator">🔄 Syncing...</span>
+      </div>
     </header>
 
     <main>
@@ -88,7 +162,7 @@ async function fetchFromHono() {
         <h2>1. Desktop Bridge (Rust + SQLite)</h2>
         <p class="description">Current connection to your local tasks.db.</p>
         <div class="input-group">
-          <button @click="checkDatabase">Refresh List</button>
+          <button @click="loadItems">Refresh List</button>
         </div>
         <div class="response-box" :class="{ hasValue: greetMsg }">
           {{ greetMsg || "Status unknown" }}
@@ -98,10 +172,24 @@ async function fetchFromHono() {
       <section class="card debug-section" v-if="showDebugTools">
         <h2 style="color: #d32f2f;">🛠 Debug Tools</h2>
         <p class="description">These tools are only visible in development builds.</p>
+        <p class="description" v-if="isAuthenticated" style="color: #42b883;">
+          ✓ Logged in as: <strong>{{ userId }}</strong>
+        </p>
+        <p class="description" v-else style="color: #f57c00;">
+          ⚠ Login required to use debug tools
+        </p>
         <div class="input-group">
-          <button @click="seedDatabase">Seed (Clean Slate)</button>
-          <button @click="resetDatabase" class="btn-danger">Wipe Database</button>
+          <button @click="seedDatabase" :disabled="!isAuthenticated">Seed Demo Data</button>
+          <button @click="resetDatabase" :disabled="!isAuthenticated" class="btn-danger">Wipe My Data</button>
         </div>
+        <div class="input-group" style="margin-top: 0.5rem;">
+          <button @click="migrateNullUserItems" :disabled="!isAuthenticated" class="btn-migration">
+            🔄 Claim Orphaned Items
+          </button>
+        </div>
+        <p class="description" style="font-size: 0.75rem; color: #666; margin-top: 0.5rem;">
+          💡 Tip: "Claim Orphaned Items" assigns items with NULL user_id to your account.
+        </p>
       </section>
 
       <section class="card" v-if="items.length > 0">
@@ -110,7 +198,7 @@ async function fetchFromHono() {
           <div v-for="item in items" :key="item.id" class="task-row">
             <div class="sync-tag">
               <span v-if="syncMap[item.id] === 'pending'" class="dot pending">●</span>
-              <span v-if="syncMap[item.id] === 'success'" class="dot success">Check</span>
+              <span v-if="syncMap[item.id] === 'success'" class="dot success">✓</span>
               <span v-if="syncMap[item.id] === 'error'" class="dot error" :title="errorMap[item.id]">!</span>
             </div>
 
@@ -145,18 +233,33 @@ async function fetchFromHono() {
 </template>
 
 <style scoped>
-.container { max-width: 600px; margin: 0 auto; padding: 2rem; font-family: 'Inter', sans-serif; }
-header { text-align: center; margin-bottom: 2rem; }
+.container { max-width: 700px; margin: 0 auto; padding: 2rem; font-family: 'Inter', sans-serif; }
+
+header { margin-bottom: 2rem; }
+.header-content { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; }
+.sync-section { display: flex; justify-content: center; align-items: center; gap: 1rem; }
+
+.user-info { display: flex; align-items: center; gap: 1rem; }
+.user-id { font-size: 0.9rem; color: #666; font-weight: 500; }
+.logout-btn { background: #e53935; padding: 0.4rem 0.8rem; font-size: 0.85rem; }
+.logout-btn:hover { background: #c62828; }
+.syncing-indicator { font-size: 0.85rem; color: #3498db; }
+
 .badge { font-size: 0.7rem; background: #42b883; color: white; padding: 4px 8px; border-radius: 12px; }
 
 .card { background: #f8f9fa; border-radius: 12px; padding: 1.5rem; margin-bottom: 1.5rem; border: 1px solid #eee; }
 .debug-section { border: 2px dashed #ffcdd2; background: #fff9f9; }
+.description { color: #666; font-size: 0.9rem; margin-bottom: 1rem; }
 
 .input-group { display: flex; gap: 10px; margin-bottom: 1rem; }
 button { background: #34495e; color: white; border: none; padding: 0.6rem 1.2rem; border-radius: 6px; cursor: pointer; }
 button:hover { background: #41b883; }
+button:disabled { background: #999; cursor: not-allowed; }
 .btn-danger { background: #e53935; }
 .btn-danger:hover { background: #c62828; }
+.btn-migration { background: #3498db; }
+.btn-migration:hover { background: #2980b9; }
+.btn-migration:disabled { background: #999; }
 
 .response-box { min-height: 2.5rem; background: #fff; border: 1px dashed #ccc; border-radius: 6px; padding: 0.8rem; display: flex; align-items: center; justify-content: center; font-size: 0.9rem; color: #666; }
 .response-box.hasValue { border-style: solid; border-color: #42b883; color: #2c3e50; background: #f0fff4; }
@@ -166,6 +269,7 @@ button:hover { background: #41b883; }
 .task-row { display: flex; align-items: center; background: white; padding: 12px; border-radius: 8px; border: 1px solid #e0e0e0; }
 .task-info { flex: 1; margin-left: 12px; text-align: left; }
 .task-info p { margin: 2px 0 0 0; font-size: 0.8rem; color: #777; }
+.task-meta { display: flex; align-items: center; gap: 8px; }
 .status-pill { font-size: 0.65rem; font-weight: bold; padding: 3px 6px; border-radius: 4px; min-width: 70px; text-align: center; }
 
 /* Status Colors */
@@ -173,7 +277,7 @@ button:hover { background: #41b883; }
 .inprogress { background: #fff3e0; color: #f57c00; }
 .done { background: #e8f5e9; color: #388e3c; }
 .backlog { background: #f5f5f5; color: #616161; }
-.motivation { color: #e53935; font-weight: bold; }
+.motivation { color: #e53935; font-weight: bold; font-size: 0.85rem; }
 
 /* sync indicators */
 .sync-tag { margin-right: 8px; font-size: 0.8rem; }
@@ -183,6 +287,4 @@ button:hover { background: #41b883; }
 @keyframes blink {
   50% { opacity: 0; }
 }
-
 </style>
-
