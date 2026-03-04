@@ -6,6 +6,7 @@ import { invoke } from "@tauri-apps/api/core";
  */
 export type Item = {
   id: string;
+  user_id: string | null;
   title: string;
   description: string | null;
   status: "Backlog" | "Todo" | "InProgress" | "Done";
