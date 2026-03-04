@@ -2,9 +2,17 @@ import { ref, computed } from 'vue';
 import { defineStore } from 'pinia';
 import { invoke } from '@tauri-apps/api/core';
 
+interface LocalUser {
+  id: string;
+  username: string;
+  last_login: string | null;
+  is_active: number;
+}
+
 export const useUserStore = defineStore('user', () => {
   // State
   const userId = ref<string | null>(null);
+  const username = ref<string | null>(null);
   const isInitialized = ref(false);
 
   // Getters
@@ -13,28 +21,52 @@ export const useUserStore = defineStore('user', () => {
   // Actions
   async function initialize() {
     try {
-      const currentUser = await invoke<string | null>('get_current_user');
-      userId.value = currentUser;
+      // Try to auto-login using local_user table
+      const localUser = await invoke<LocalUser | null>('auto_login');
+      
+      if (localUser) {
+        userId.value = localUser.id;
+        username.value = localUser.username;
+        console.log(`🔐 Auto-login successful: ${username.value}`);
+      } else {
+        // Fallback: Check current user from AppState
+        const currentUser = await invoke<string | null>('get_current_user');
+        userId.value = currentUser;
+        
+        // Try to get username from active local user
+        if (currentUser) {
+          try {
+            const activeUser = await invoke<LocalUser | null>('get_active_local_user');
+            if (activeUser) {
+              username.value = activeUser.username;
+            }
+          } catch (err) {
+            console.warn('Could not fetch active local user:', err);
+          }
+        }
+      }
+      
       isInitialized.value = true;
     } catch (error) {
-      console.error('Failed to get current user:', error);
+      console.error('Failed to initialize user:', error);
       userId.value = null;
+      username.value = null;
       isInitialized.value = true;
     }
   }
 
-  async function login(newUserId: string) {
+  async function login(email: string, password: string) {
     try {
-      await invoke('set_user', { userId: newUserId });
-      userId.value = newUserId;
+      // Rust handles Supabase auth and resolves identity
+      const localUser = await invoke<LocalUser>('login', { 
+        email,
+        password,
+      });
       
-      // Claim any offline items
-      try {
-        const claimedCount = await invoke<number>('claim_offline_items');
-        console.log(`Claimed ${claimedCount} offline items for user ${newUserId}`);
-      } catch (claimError) {
-        console.error('Failed to claim offline items:', claimError);
-      }
+      userId.value = localUser.id;
+      username.value = localUser.username;
+      
+      console.log(`✅ Login successful: ${username.value}`);
     } catch (error) {
       console.error('Login failed:', error);
       throw error;
@@ -43,8 +75,9 @@ export const useUserStore = defineStore('user', () => {
 
   async function logout() {
     try {
-      await invoke('clear_user');
+      await invoke('logout');
       userId.value = null;
+      username.value = null;
     } catch (error) {
       console.error('Logout failed:', error);
       throw error;
@@ -54,6 +87,7 @@ export const useUserStore = defineStore('user', () => {
   return {
     // State
     userId,
+    username,
     isInitialized,
     // Getters
     isAuthenticated,

@@ -15,7 +15,7 @@ pub struct PostgresItemRepo {
 impl ItemRepository for PostgresItemRepo {
     async fn get_all_items(&self, user_id: &str) -> AppResult<Vec<Item>> {
         let items = sqlx::query_as::<_, Item>(
-            "SELECT * FROM items WHERE user_id = $1 ORDER BY created_at DESC"
+            "SELECT * FROM items WHERE user_id = $1::uuid ORDER BY created_at DESC"
         )
         .bind(user_id)
         .persistent(false)
@@ -27,7 +27,7 @@ impl ItemRepository for PostgresItemRepo {
         // Postgres uses NULLS FIRST/LAST syntax or standard ORDER BY
         let items = sqlx::query_as::<_, Item>(
             "SELECT * FROM items 
-             WHERE user_id = $1 AND deleted_at IS NULL AND is_archived = false 
+             WHERE user_id = $1::uuid AND deleted_at IS NULL AND is_archived = false 
              ORDER BY due ASC NULLS LAST, created_at DESC"
         )
         .bind(user_id)
@@ -39,7 +39,7 @@ impl ItemRepository for PostgresItemRepo {
     async fn get_archived_items(&self, user_id: &str) -> AppResult<Vec<Item>> {
         let items = sqlx::query_as::<_, Item>(
             "SELECT * FROM items 
-             WHERE user_id = $1 AND deleted_at IS NULL AND is_archived = true 
+             WHERE user_id = $1::uuid AND deleted_at IS NULL AND is_archived = true 
              ORDER BY created_at DESC"
         )
         .bind(user_id)
@@ -51,7 +51,7 @@ impl ItemRepository for PostgresItemRepo {
     async fn get_deleted_items(&self, user_id: &str) -> AppResult<Vec<Item>> {
         let items = sqlx::query_as::<_, Item>(
             "SELECT * FROM items 
-             WHERE user_id = $1 AND deleted_at IS NOT NULL 
+             WHERE user_id = $1::uuid AND deleted_at IS NOT NULL 
              ORDER BY deleted_at DESC"
         )
         .bind(user_id)
@@ -63,7 +63,7 @@ impl ItemRepository for PostgresItemRepo {
     async fn create_item(&self, user_id: &str, id: Uuid, title: String, motivation: i8, due: Option<DateTime<Utc>>, duration_minutes: Option<i32>) -> AppResult<()> {
         let result = sqlx::query(
             r#"INSERT INTO items (id, user_id, title, due, duration_minutes, status, motivation, is_archived) 
-            VALUES ($1, $2, $3, $4, $5, 'todo', $6, false)
+            VALUES ($1, $2::uuid, $3, $4, $5, 'todo', $6, false)
             ON CONFLICT (id) DO UPDATE SET
                 title = EXCLUDED.title,
                 due = EXCLUDED.due,
@@ -86,7 +86,7 @@ impl ItemRepository for PostgresItemRepo {
 
     async fn update_item_status(&self, user_id: &str, id: Uuid, status: TaskStatus) -> AppResult<()> {
         let result = sqlx::query(
-            "UPDATE items SET status = $1, updated_at = NOW() WHERE id = $2 AND user_id = $3"
+            "UPDATE items SET status = $1, updated_at = NOW() WHERE id = $2 AND user_id = $3::uuid"
         )
         .persistent(false)
         .bind(status.as_str())
@@ -110,7 +110,7 @@ impl ItemRepository for PostgresItemRepo {
     async fn update_item_details(&self, user_id: &str, id: Uuid, title: String, description: Option<String>, due: Option<DateTime<Utc>>, duration_minutes: Option<i32>, motivation: i8) -> AppResult<()> {
         let result = sqlx::query(
             "UPDATE items SET title = $1, description = $2, due = $3, duration_minutes = $4, motivation = $5 
-             WHERE id = $6 AND user_id = $7"
+             WHERE id = $6 AND user_id = $7::uuid"
         )
         .persistent(false)
         .bind(title).bind(description).bind(due).bind(duration_minutes).bind(motivation as i16).bind(id).bind(user_id)
@@ -124,7 +124,7 @@ impl ItemRepository for PostgresItemRepo {
     async fn archive_item(&self, user_id: &str, id: Uuid) -> AppResult<()> {
         sqlx::query(
             "UPDATE items SET is_archived = true, updated_at = NOW() 
-             WHERE id = $1 AND user_id = $2 AND deleted_at IS NULL"
+             WHERE id = $1 AND user_id = $2::uuid AND deleted_at IS NULL"
         )
         .persistent(false)
         .bind(id).bind(user_id).execute(&self.pool).await?;
@@ -134,7 +134,7 @@ impl ItemRepository for PostgresItemRepo {
     async fn unarchive_item(&self, user_id: &str, id: Uuid) -> AppResult<()> {
         sqlx::query(
             "UPDATE items SET is_archived = false, updated_at = NOW() 
-             WHERE id = $1 AND user_id = $2 AND deleted_at IS NULL"
+             WHERE id = $1 AND user_id = $2::uuid AND deleted_at IS NULL"
         )
         .persistent(false)
         .bind(id).bind(user_id).execute(&self.pool).await?;
@@ -144,7 +144,7 @@ impl ItemRepository for PostgresItemRepo {
     async fn soft_delete_item(&self, user_id: &str, id: Uuid) -> AppResult<()> {
         sqlx::query(
             "UPDATE items SET deleted_at = NOW(), updated_at = NOW() 
-             WHERE id = $1 AND user_id = $2"
+             WHERE id = $1 AND user_id = $2::uuid"
         )
         .persistent(false)
         .bind(id).bind(user_id).execute(&self.pool).await?;
@@ -152,14 +152,14 @@ impl ItemRepository for PostgresItemRepo {
     }
 
     async fn restore_item(&self, user_id: &str, id: Uuid) -> AppResult<()> {
-        sqlx::query("UPDATE items SET deleted_at = NULL, updated_at = NOW() WHERE id = $1 AND user_id = $2")
+        sqlx::query("UPDATE items SET deleted_at = NULL, updated_at = NOW() WHERE id = $1 AND user_id = $2::uuid")
             .persistent(false)
             .bind(id).bind(user_id).execute(&self.pool).await?;
         Ok(())
     }
 
     async fn hard_delete_item(&self, user_id: &str, id: Uuid) -> AppResult<()> {
-        sqlx::query("DELETE FROM items WHERE id = $1 AND user_id = $2 AND deleted_at IS NOT NULL")
+        sqlx::query("DELETE FROM items WHERE id = $1 AND user_id = $2::uuid AND deleted_at IS NOT NULL")
             .persistent(false)
             .bind(id).bind(user_id).execute(&self.pool).await?;
         Ok(())
@@ -167,9 +167,9 @@ impl ItemRepository for PostgresItemRepo {
 
     async fn empty_item_trash(&self, user_id: &str, full_wipe: bool) -> AppResult<()> {
         let sql = if full_wipe {
-            "DELETE FROM items WHERE user_id = $1"
+            "DELETE FROM items WHERE user_id = $1::uuid"
         } else {
-            "DELETE FROM items WHERE user_id = $1 AND deleted_at IS NOT NULL"
+            "DELETE FROM items WHERE user_id = $1::uuid AND deleted_at IS NOT NULL"
         };
 
         sqlx::query(sql)
@@ -182,7 +182,7 @@ impl ItemRepository for PostgresItemRepo {
 
     async fn claim_offline_items(&self, user_id: &str) -> AppResult<usize> {
         let result = sqlx::query(
-            "UPDATE items SET user_id = $1, updated_at = NOW() WHERE user_id IS NULL"
+            "UPDATE items SET user_id = $1::uuid, updated_at = NOW() WHERE user_id IS NULL"
         )
         .persistent(false)
         .bind(user_id)

@@ -3,8 +3,8 @@ import { ref, computed, onUnmounted } from 'vue';
 import { useAuth } from '@/composables/useAuth';
 import { useItems } from '@/composables/useItems';
 
-const { isAuthenticated, userId } = useAuth();
-const { syncWithRemote, isSyncing } = useItems();
+const { isAuthenticated } = useAuth();
+const { syncItems: syncWithRemote, isSyncing } = useItems();
 
 const syncResult = ref<{ count: number; error: string | null }>({ count: 0, error: null });
 let errorTimer: ReturnType<typeof setTimeout> | null = null;

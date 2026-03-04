@@ -4,13 +4,14 @@ import { useAuth } from '@/composables/useAuth';
 
 const { login } = useAuth();
 
-const userIdInput = ref('');
+const emailInput = ref('');
+const passwordInput = ref('');
 const isLogging = ref(false);
 const error = ref<string | null>(null);
 
 async function handleLogin() {
-  if (!userIdInput.value.trim()) {
-    error.value = 'Please enter a user ID';
+  if (!emailInput.value.trim() || !passwordInput.value) {
+    error.value = 'Please enter both email and password';
     return;
   }
 
@@ -18,7 +19,7 @@ async function handleLogin() {
   error.value = null;
 
   try {
-    await login(userIdInput.value.trim());
+    await login(emailInput.value.trim(), passwordInput.value);
   } catch (err) {
     error.value = String(err);
   } finally {
@@ -31,14 +32,25 @@ async function handleLogin() {
   <div class="login-container">
     <div class="login-card">
       <h2>🔐 Login</h2>
-      <p class="description">Enter your user ID to access your tasks</p>
+      <p class="description">Enter your Supabase email and password</p>
       
       <form @submit.prevent="handleLogin" class="login-form">
         <div class="input-group">
           <input
-            v-model="userIdInput"
-            type="text"
-            placeholder="User ID (e.g., user@example.com)"
+            v-model="emailInput"
+            type="email"
+            placeholder="Email"
+            :disabled="isLogging"
+            class="user-input"
+            @input="error = null"
+          />
+        </div>
+
+        <div class="input-group">
+          <input
+            v-model="passwordInput"
+            type="password"
+            placeholder="Password"
             :disabled="isLogging"
             class="user-input"
             @input="error = null"
@@ -47,7 +59,7 @@ async function handleLogin() {
 
         <button
           type="submit"
-          :disabled="isLogging || !userIdInput.trim()"
+          :disabled="isLogging || !emailInput.trim() || !passwordInput"
           class="login-button"
         >
           <span v-if="isLogging">Logging in...</span>
@@ -60,7 +72,7 @@ async function handleLogin() {
       </form>
 
       <div class="info-box">
-        <p>💡 <strong>For testing:</strong> Use any string as your user ID (e.g., "test-user", "alice@example.com")</p>
+        <p>💡 <strong>Secure login:</strong> Credentials are sent to the Rust backend, which authenticates with Supabase and resolves your profile identity.</p>
       </div>
     </div>
   </div>

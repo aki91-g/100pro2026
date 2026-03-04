@@ -15,7 +15,10 @@ use tauri::Manager;
 use crate::state::AppState;
 use crate::services::{debug_service::DebugService, item_service::ItemService};
 use crate::commands::db_commands::*;
+use crate::commands::auth_commands::*;
 use crate::database::connection::init_sqlite;
+use crate::repositories::user_repo::UserRepository;
+use crate::repositories::profile_repo::ProfileRepository;
 
 #[cfg(debug_assertions)]
 use crate::commands::debug::*;
@@ -54,6 +57,7 @@ async fn clear_user(app_state: tauri::State<'_, AppState>) -> Result<(), String>
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    dotenvy::from_path(std::path::Path::new("../../../.env")).ok();
     dotenvy::dotenv().ok();
     // Useful for Linux/Wayland dev environments
     std::env::set_var("WLR_NO_HARDWARE_CURSORS", "1");
@@ -67,7 +71,7 @@ pub fn run() {
 
             // 2. Initialize AppState (CRITICAL: Use app.manage directly)
             let app_state = AppState::new();
-            app.manage(app_state);
+            app.manage(app_state.clone());
             
             let handle = app.handle().clone();
             
@@ -76,30 +80,77 @@ pub fn run() {
                 init_sqlite(&handle).await.expect("SQLite failed to initialize")
             });
 
-            let sqlite_repo = Arc::new(crate::repositories::sqlite_item_repo::SqliteItemRepo { 
+            let sqlite_item_repo = Arc::new(crate::repositories::sqlite_item_repo::SqliteItemRepo { 
                 pool: sqlite_pool.clone() 
             });
 
-            // 4. Initialize Services (Start with Local only)
-            let item_service = Arc::new(ItemService::new(sqlite_repo.clone(), None, handle.clone()));
-            let debug_service = Arc::new(DebugService::new(sqlite_repo.clone(), None));
+            // 3a. Initialize User Repository
+            let user_repo: Arc<dyn UserRepository> = Arc::new(
+                crate::repositories::sqlite_user_repo::SqliteUserRepo { 
+                    pool: sqlite_pool.clone() 
+                }
+            );
+
+            // 3b. Check for existing local user and auto-login
+            let app_state_login = app_state.clone();
+            let user_repo_login = user_repo.clone();
+            tauri::async_runtime::block_on(async move {
+                match user_repo_login.get_active_user().await {
+                    Ok(Some(user)) => {
+                        println!("🔐 Auto-login: Found active user {}", user.username);
+                        app_state_login.set_user(user.id.clone(), user.username.clone()).await;
+                        let _ = user_repo_login.update_last_login(&user.id).await;
+                    }
+                    Ok(None) => {
+                        println!("👤 No active user found - offline mode available");
+                    }
+                    Err(e) => {
+                        eprintln!("⚠️ Failed to check for active user: {}", e);
+                    }
+                }
+            });
+
+            // Register User Repository
+            app.manage(user_repo.clone());
+
+            // 4. Initialize Profile Repository to None (will be set when Postgres connects)
+            app.manage(Arc::new(tokio::sync::RwLock::new(
+                None::<Arc<dyn ProfileRepository>>
+            )));
+
+            // 5. Initialize Services (Start with Local only)
+            let item_service = Arc::new(ItemService::new(sqlite_item_repo.clone(), None, handle.clone()));
+            let debug_service = Arc::new(DebugService::new(sqlite_item_repo.clone(), None));
 
             // Register Services
             app.manage(item_service.clone());
             app.manage(debug_service.clone());
 
-            // 5. Async Postgres Connection
+            // 6. Async Postgres Connection
             let item_service_bg = item_service.clone();
             let debug_service_bg = debug_service.clone();
+            let app_handle_bg = handle.clone();
 
             tauri::async_runtime::spawn(async move {
                 if let Some(pg_pool) = crate::database::connection::init_postgres().await {
-                    let pg_repo = Arc::new(crate::repositories::postgres_item_repo::PostgresItemRepo { 
-                        pool: pg_pool 
+                    let pg_item_repo = Arc::new(crate::repositories::postgres_item_repo::PostgresItemRepo { 
+                        pool: pg_pool.clone()
                     });
                     
-                    item_service_bg.set_remote(pg_repo.clone()).await;
-                    debug_service_bg.set_remote(pg_repo).await;
+                    let pg_profile_repo: Arc<dyn ProfileRepository> = Arc::new(
+                        crate::repositories::postgres_profile_repo::PostgresProfileRepo {
+                            pool: pg_pool.clone()
+                        }
+                    );
+                    
+                    item_service_bg.set_remote(pg_item_repo.clone()).await;
+                    debug_service_bg.set_remote(pg_item_repo).await;
+                    
+                    // Update the managed ProfileRepository
+                    if let Some(profile_repo_lock) = app_handle_bg.try_state::<Arc<tokio::sync::RwLock<Option<Arc<dyn ProfileRepository>>>>>() {
+                        let mut guard = profile_repo_lock.write().await;
+                        *guard = Some(pg_profile_repo);
+                    }
                     
                     println!("🚀 Supabase connected & Remote Repositories activated.");
                 }
@@ -113,6 +164,11 @@ pub fn run() {
             set_user,
             get_current_user,
             clear_user,
+            // auth_commands
+            login,
+            logout,
+            get_active_local_user,
+            auto_login,
             // db_commands
             get_active_items,
             get_archived_items,
