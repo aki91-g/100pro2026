@@ -28,22 +28,14 @@ apps/desktop
 │   │   ├── Square89x89Logo.png
 │   │   └── StoreLogo.png
 │   ├── migrations
-│   │   ├── postgres
-│   │   └── sqlite
-│   ├── permissions
+│   │   └── 20260222000000_initial_schema.sql
 │   ├── src
 │   │   ├── commands
-│   │   ├── database
-│   │   ├── models
-│   │   ├── repositories
-│   │   ├── services
-│   │   ├── utils
+│   │   ├── database.rs
 │   │   ├── error.rs
 │   │   ├── lib.rs
-│   │   ├── main.rs
-│   │   └── state.rs
-│   ├── tests
-│   │   └── db_test.rs
+│   │   ├── logger.rs
+│   │   └── main.rs
 │   ├── build.rs
 │   ├── Cargo.lock
 │   ├── Cargo.toml
@@ -56,8 +48,6 @@ apps/desktop
 └── vite.config.ts
 ```
 [TREE-END]
-
-
 
 
 

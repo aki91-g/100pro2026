@@ -16,7 +16,7 @@ async fn setup_test_db() -> SqlitePool {
         .unwrap();
 
     // Run migrations so the 'items' table exists in memory
-    sqlx::migrate!("./migrations/sqlite")
+    sqlx::migrate!("./migrations")
         .run(&pool)
         .await
         .expect("Failed to run migrations for test");

@@ -1,31 +1,25 @@
 <script setup lang="ts">
-import { ref, computed, onUnmounted } from 'vue';
-import { useAuth } from '@/composables/useAuth';
-import { useItems } from '@/composables/useItems';
+import { ref, onUnmounted } from 'vue';
+import { syncAndRefresh } from '../services/itemService'; // Adjust path as needed
 
-const { isAuthenticated } = useAuth();
-const { syncItems: syncWithRemote, isSyncing } = useItems();
-
+const isSyncing = ref(false);
 const syncResult = ref<{ count: number; error: string | null }>({ count: 0, error: null });
 let errorTimer: ReturnType<typeof setTimeout> | null = null;
 
-const isDisabled = computed(() => !isAuthenticated.value || isSyncing.value);
-
 async function handleSync() {
-  if (!isAuthenticated.value) {
-    syncResult.value.error = "Please login first";
-    return;
-  }
-
+  isSyncing.value = true;
   syncResult.value.error = null;
   
   try {
-    await syncWithRemote();
+    // Calling the TS function we drafted earlier
+    await syncAndRefresh();
+    // In a real app, you might want the count from the invoke call here
     syncResult.value.count++; 
   } catch (err) {
     syncResult.value.error = String(err);
   } finally {
-    // Auto-clear error message after 3 seconds
+    isSyncing.value = false;
+    // Auto-clear the message after 3 seconds
     if (errorTimer) {
       clearTimeout(errorTimer);
     }
@@ -44,12 +38,11 @@ onUnmounted(() => {
   <div class="sync-container">
     <button 
       @click="handleSync" 
-      :disabled="isDisabled"
+      :disabled="isSyncing"
       :class="{ 'is-loading': isSyncing }"
       class="sync-btn"
     >
       <span v-if="isSyncing">🔄 Syncing...</span>
-      <span v-else-if="!isAuthenticated">🔒 Login to Sync</span>
       <span v-else>🔄 Sync Cloud</span>
     </button>
 

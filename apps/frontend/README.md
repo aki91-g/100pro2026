@@ -17,12 +17,7 @@ apps/frontend
 │   ├── assets
 │   │   └── vue.svg
 │   ├── components
-│   │   ├── HelloWorld.vue
-│   │   └── SyncButton.vue
-│   ├── composables
-│   │   └── useSyncStatus.ts
-│   ├── services
-│   │   └── itemService.ts
+│   │   └── HelloWorld.vue
 │   ├── App.vue
 │   ├── main.ts
 │   └── style.css
@@ -35,8 +30,6 @@ apps/frontend
 └── vite.config.ts
 ```
 [TREE-END]
-
-
 
 
 

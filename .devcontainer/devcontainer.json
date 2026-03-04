@@ -29,8 +29,7 @@
         "mhutchie.git-graph",
         "christian-kohler.path-intellisense",
         "github.vscode-github-actions",
-        "github.vscode-pull-request-github",
-        "alexcivzz.vscode-sqlite-viewer"
+        "github.vscode-pull-request-github"
       ]
     }
   }

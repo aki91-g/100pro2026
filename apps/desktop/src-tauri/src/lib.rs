@@ -1,174 +1,84 @@
 // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
 pub mod error;
+
 pub mod commands;
 pub mod database;
 pub mod models;
 pub mod repositories;
 pub mod services;
-pub mod state;
 pub mod utils;
 
 use std::sync::Arc;
+
 use tauri::Manager;
 
-// Cleaned up imports
-use crate::state::AppState;
-use crate::services::{debug_service::DebugService, item_service::ItemService};
-use crate::commands::db_commands::*;
-use crate::commands::auth_commands::*;
-use crate::database::connection::init_sqlite;
-use crate::repositories::user_repo::UserRepository;
-use crate::repositories::profile_repo::ProfileRepository;
-
+use crate::{commands::db_commands::*, services::{debug_service::DebugService, item_service::ItemService}}; 
 #[cfg(debug_assertions)]
-use crate::commands::debug::*;
+use crate::commands::debug::*; 
+use crate::database::connection::init_sqlite;
 
 #[tauri::command]
 fn is_dev() -> bool {
     cfg!(debug_assertions)
 }
 
-// ensure they use State<'_, AppState>
 #[tauri::command]
-async fn sync_items(service: tauri::State<'_, Arc<ItemService>>, app_state: tauri::State<'_, AppState>) -> Result<usize, String> {
-    let user_id = app_state.get_user_id().await?;
-    service.sync_items(&user_id).await.map_err(|e| e.to_string())
-}
-
-#[tauri::command]
-async fn set_user(app_state: tauri::State<'_, AppState>, user_id: String) -> Result<(), String> {
-    app_state.set_user_id(user_id).await;
-    Ok(())
-}
-
-#[tauri::command]
-async fn get_current_user(app_state: tauri::State<'_, AppState>) -> Result<Option<String>, String> {
-    match app_state.get_user_id().await {
-        Ok(user_id) => Ok(Some(user_id)),
-        Err(_) => Ok(None),
-    }
-}
-
-#[tauri::command]
-async fn clear_user(app_state: tauri::State<'_, AppState>) -> Result<(), String> {
-    app_state.clear_user_id().await;
-    Ok(())
+async fn sync_items(service: tauri::State<'_, Arc<ItemService>>) -> Result<usize, String> {
+    service.sync_items().await.map_err(|e| e.to_string())
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    dotenvy::from_path(std::path::Path::new("../../../.env")).ok();
     dotenvy::dotenv().ok();
-    // Useful for Linux/Wayland dev environments
     std::env::set_var("WLR_NO_HARDWARE_CURSORS", "1");
-
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .setup(|app| {
-            // 1. Initialize Logger
+            // 1. Logger
             let guard = crate::utils::logger::init(app.handle()).map_err(|e| e.to_string())?;
             app.manage(guard); 
 
-            // 2. Initialize AppState (CRITICAL: Use app.manage directly)
-            let app_state = AppState::new();
-            app.manage(app_state.clone());
-            
             let handle = app.handle().clone();
             
-            // 3. Local SQLite
+            // 2. Local SQLite (Must block so we have a DB to start with)
             let sqlite_pool = tauri::async_runtime::block_on(async {
-                init_sqlite(&handle).await.expect("SQLite failed to initialize")
+                init_sqlite(&handle).await.expect("SQLite failed")
             });
-
-            let sqlite_item_repo = Arc::new(crate::repositories::sqlite_item_repo::SqliteItemRepo { 
+            let sqlite_repo = std::sync::Arc::new(crate::repositories::sqlite_item_repo::SqliteItemRepo { 
                 pool: sqlite_pool.clone() 
             });
 
-            // 3a. Initialize User Repository
-            let user_repo: Arc<dyn UserRepository> = Arc::new(
-                crate::repositories::sqlite_user_repo::SqliteUserRepo { 
-                    pool: sqlite_pool.clone() 
-                }
-            );
+            // 3. Initialize both services with None initially
+            let item_service = Arc::new(ItemService::new(sqlite_repo.clone(), None, handle.clone()));
+            let debug_service = Arc::new(DebugService::new(sqlite_repo.clone(), None));
 
-            // 3b. Check for existing local user and auto-login
-            let app_state_login = app_state.clone();
-            let user_repo_login = user_repo.clone();
-            tauri::async_runtime::block_on(async move {
-                match user_repo_login.get_active_user().await {
-                    Ok(Some(user)) => {
-                        println!("🔐 Auto-login: Found active user {}", user.username);
-                        app_state_login.set_user(user.id.clone(), user.username.clone()).await;
-                        let _ = user_repo_login.update_last_login(&user.id).await;
-                    }
-                    Ok(None) => {
-                        println!("👤 No active user found - offline mode available");
-                    }
-                    Err(e) => {
-                        eprintln!("⚠️ Failed to check for active user: {}", e);
-                    }
-                }
-            });
+            handle.manage(item_service.clone());
+            handle.manage(debug_service.clone()); // Don't forget to manage the DebugService Arc!
 
-            // Register User Repository
-            app.manage(user_repo.clone());
-
-            // 4. Initialize Profile Repository to None (will be set when Postgres connects)
-            app.manage(Arc::new(tokio::sync::RwLock::new(
-                None::<Arc<dyn ProfileRepository>>
-            )));
-
-            // 5. Initialize Services (Start with Local only)
-            let item_service = Arc::new(ItemService::new(sqlite_item_repo.clone(), None, handle.clone()));
-            let debug_service = Arc::new(DebugService::new(sqlite_item_repo.clone(), None));
-
-            // Register Services
-            app.manage(item_service.clone());
-            app.manage(debug_service.clone());
-
-            // 6. Async Postgres Connection
+            // 4. Background Postgres Connection
             let item_service_bg = item_service.clone();
             let debug_service_bg = debug_service.clone();
-            let app_handle_bg = handle.clone();
 
             tauri::async_runtime::spawn(async move {
                 if let Some(pg_pool) = crate::database::connection::init_postgres().await {
-                    let pg_item_repo = Arc::new(crate::repositories::postgres_item_repo::PostgresItemRepo { 
-                        pool: pg_pool.clone()
+                    let pg_repo = std::sync::Arc::new(crate::repositories::postgres_item_repo::PostgresItemRepo { 
+                        pool: pg_pool 
                     });
                     
-                    let pg_profile_repo: Arc<dyn ProfileRepository> = Arc::new(
-                        crate::repositories::postgres_profile_repo::PostgresProfileRepo {
-                            pool: pg_pool.clone()
-                        }
-                    );
+                    // ACTIVATE remote for both!
+                    item_service_bg.set_remote(pg_repo.clone()).await;
+                    debug_service_bg.set_remote(pg_repo).await;
                     
-                    item_service_bg.set_remote(pg_item_repo.clone()).await;
-                    debug_service_bg.set_remote(pg_item_repo).await;
-                    
-                    // Update the managed ProfileRepository
-                    if let Some(profile_repo_lock) = app_handle_bg.try_state::<Arc<tokio::sync::RwLock<Option<Arc<dyn ProfileRepository>>>>>() {
-                        let mut guard = profile_repo_lock.write().await;
-                        *guard = Some(pg_profile_repo);
-                    }
-                    
-                    println!("🚀 Supabase connected & Remote Repositories activated.");
+                    println!("Supabase connected: Services updated.");
                 }
             });
 
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
+            // simple commands
             is_dev,
             sync_items,
-            set_user,
-            get_current_user,
-            clear_user,
-            // auth_commands
-            login,
-            logout,
-            get_active_local_user,
-            auto_login,
             // db_commands
             get_active_items,
             get_archived_items,
@@ -182,16 +92,13 @@ pub fn run() {
             restore_item,
             hard_delete_item,
             empty_item_trash,
-            claim_offline_items,
-            // debug commands - only compiled in debug builds
+            // debug
             #[cfg(debug_assertions)]
             debug_reset_db,
             #[cfg(debug_assertions)]
             debug_seed_data,
             #[cfg(debug_assertions)]
             debug_full_wipe_items,
-            #[cfg(debug_assertions)]
-            debug_migrate_null_users,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
