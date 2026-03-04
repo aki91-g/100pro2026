@@ -34,6 +34,9 @@ const backendMsg = ref("");
 const isBackendLoading = ref(false);
 const showDebugTools = ref(false);
 
+// Cancellation token for loadItems to prevent race conditions on logout
+let currentLoadToken = 0;
+
 // --- Lifecycle ---
 onMounted(async () => {
   // Initialize auth state
@@ -50,22 +53,38 @@ onMounted(async () => {
 // Watch for authentication changes
 watch(isAuthenticated, async (authenticated) => {
   if (authenticated) {
-    await loadItems();
+    // Create a new token for this authentication session
+    currentLoadToken++;
+    const sessionToken = currentLoadToken;
+    await loadItems(sessionToken);
   } else {
+    // Invalidate any in-flight loadItems by incrementing token
+    currentLoadToken++;
     items.value = [];
     greetMsg.value = "";
   }
 }, { immediate: true });
 
 // --- Desktop Bridge Logic (Rust + SQLite) ---
-async function loadItems() {
+async function loadItems(sessionToken: number) {
   try {
     await fetchActiveItems();
-    greetMsg.value = `Connected! Showing ${items.value.length} tasks.`;
+    // Only commit results if this token is still current
+    if (sessionToken === currentLoadToken) {
+      greetMsg.value = `Connected! Showing ${items.value.length} tasks.`;
+    }
   } catch (e) {
-    console.error("Fetch Error:", e);
-    greetMsg.value = "Failed to load tasks.";
+    // Only update error if token is still current
+    if (sessionToken === currentLoadToken) {
+      console.error("Fetch Error:", e);
+      greetMsg.value = "Failed to load tasks.";
+    }
   }
+}
+
+// Wrapper for manual refresh from button (no parameter needed)
+async function handleRefreshItems() {
+  await loadItems(currentLoadToken);
 }
 
 async function seedDatabase() {
@@ -76,7 +95,8 @@ async function seedDatabase() {
 
   try {
     await seedDatabaseApi();
-    await loadItems();
+    const sessionToken = currentLoadToken;
+    await loadItems(sessionToken);
     greetMsg.value = `Database seeded successfully for user '${userId.value}'!`;
   } catch (e) {
     console.error("Rust Seed Error:", e);
@@ -111,7 +131,8 @@ async function migrateNullUserItems() {
   try {
     const count = await migrateNullUserItemsApi(true);
     greetMsg.value = `✓ Migrated ${count} items to your account.`;
-    await loadItems();
+    const sessionToken = currentLoadToken;
+    await loadItems(sessionToken);
   } catch (e) {
     console.error("Migration Error:", e);
     greetMsg.value = String(e) || "Migration failed.";
@@ -168,7 +189,7 @@ async function fetchFromHono() {
         <h2>1. Desktop Bridge (Rust + SQLite)</h2>
         <p class="description">Current connection to your local tasks.db.</p>
         <div class="input-group">
-          <button @click="loadItems">Refresh List</button>
+          <button @click="handleRefreshItems">Refresh List</button>
         </div>
         <div class="response-box" :class="{ hasValue: greetMsg }">
           {{ greetMsg || "Status unknown" }}

@@ -60,10 +60,25 @@ export async function migrateNullUserItemsApi(assignToCurrentUser: boolean): Pro
 }
 
 export async function fetchHonoHelloApi(): Promise<HonoHelloResponse> {
-  const response = await fetch("http://localhost:3000/api/hello");
-  if (!response.ok) {
-    throw new Error("Network response was not ok");
-  }
+  // Use environment variable or fallback to localhost:3000
+  const honoBaseUrl = import.meta.env.VITE_HONO_BASE_URL || "http://localhost:3000";
+  const url = `${honoBaseUrl}/api/hello`;
+  
+  // Create abort controller with 5 second timeout
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 5000);
 
-  return response.json() as Promise<HonoHelloResponse>;
+  try {
+    const response = await fetch(url, {
+      signal: controller.signal,
+    });
+
+    if (!response.ok) {
+      throw new Error("Network response was not ok");
+    }
+
+    return response.json() as Promise<HonoHelloResponse>;
+  } finally {
+    clearTimeout(timeout);
+  }
 }

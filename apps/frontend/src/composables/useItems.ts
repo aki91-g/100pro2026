@@ -20,15 +20,29 @@ const isLoading = ref(false);
 const error = ref<string | null>(null);
 const isSyncing = ref(false);
 
+// Reference count for concurrent loading operations
+let loadingCount = 0;
+
 /**
  * Composable for managing items/tasks
  * Handles fetching, creation, updates, and syncing
  */
 export function useItems() {
 
+  // Request counting for concurrency-safe isLoading
+  function startLoading() {
+    loadingCount++;
+    isLoading.value = true;
+  }
+
+  function finishLoading() {
+    loadingCount = Math.max(0, loadingCount - 1);
+    isLoading.value = loadingCount > 0;
+  }
+
   // Fetch active items
   async function fetchActiveItems() {
-    isLoading.value = true;
+    startLoading();
     error.value = null;
     try {
       const data = await fetchActiveItemsApi();
@@ -39,13 +53,13 @@ export function useItems() {
       console.error('Failed to fetch active items:', err);
       throw err;
     } finally {
-      isLoading.value = false;
+      finishLoading();
     }
   }
 
   // Fetch archived items
   async function fetchArchivedItems() {
-    isLoading.value = true;
+    startLoading();
     error.value = null;
     try {
       const data = await fetchArchivedItemsApi();
@@ -55,13 +69,13 @@ export function useItems() {
       console.error('Failed to fetch archived items:', err);
       throw err;
     } finally {
-      isLoading.value = false;
+      finishLoading();
     }
   }
 
   // Fetch deleted items
   async function fetchDeletedItems() {
-    isLoading.value = true;
+    startLoading();
     error.value = null;
     try {
       const data = await fetchDeletedItemsApi();
@@ -71,7 +85,7 @@ export function useItems() {
       console.error('Failed to fetch deleted items:', err);
       throw err;
     } finally {
-      isLoading.value = false;
+      finishLoading();
     }
   }
 
@@ -100,6 +114,7 @@ export function useItems() {
     due?: string | null,
     durationMinutes?: number | null
   ) {
+    error.value = null;
     try {
       const id = await createItemApi({
         title,
@@ -119,6 +134,7 @@ export function useItems() {
 
   // Update item status
   async function updateItemStatus(id: string, status: Item['status']) {
+    error.value = null;
     try {
       await updateItemStatusApi(id, status);
       // Update local state
@@ -135,6 +151,7 @@ export function useItems() {
 
   // Archive item
   async function archiveItem(id: string) {
+    error.value = null;
     try {
       await archiveItemApi(id);
       // Remove from local list
@@ -148,6 +165,7 @@ export function useItems() {
 
   // Soft delete item
   async function softDeleteItem(id: string) {
+    error.value = null;
     try {
       await softDeleteItemApi(id);
       // Remove from local list

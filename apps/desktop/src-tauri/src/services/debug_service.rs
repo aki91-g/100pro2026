@@ -58,15 +58,7 @@ impl DebugService {
     }
 
     pub async fn seed_test_data(&self, user_id: &str) -> AppResult<()> {
-        // Check if user already has data - only seed if empty
-        let existing_items = self.local.get_all_items(user_id).await?;
-        if !existing_items.is_empty() {
-            return Err(crate::error::AppError::InvalidInput(
-                format!("User '{}' already has {} items. Clear data first to seed.", user_id, existing_items.len())
-            ));
-        }
-
-        // 1. Define the data
+        // 1. Define the seed data with hardcoded UUIDs
         let seed_configs = vec![
             (Uuid::from_u128(0x00000000000000000000000000000001), "Backlog Item", "Planning stage", TaskStatus::Backlog, 0, false, false),
             (Uuid::from_u128(0x00000000000000000000000000000002), "InP Task", "Working on this", TaskStatus::InProgress, 5, false, false),
@@ -74,12 +66,27 @@ impl DebugService {
             (Uuid::from_u128(0x00000000000000000000000000000004), "Archived Project", "Past work", TaskStatus::InProgress, 0, true, false),
             (Uuid::from_u128(0x00000000000000000000000000000005), "Ghost Task", "This was deleted", TaskStatus::Todo, 0, false, true),
         ];
+
+        // 2. Check if any seed UUID already exists (including archived/deleted items)
+        // Try to create items and handle duplicate-key errors gracefully
         let remote_lock = self.remote.read().await;
         
         for (id, title, desc, status, motivation, archived, deleted) in seed_configs {
+            // Attempt to create item; if it already exists, skip it gracefully
+            match self.local.create_item(user_id, id, title.to_string(), motivation, None, None).await {
+                Ok(_) => {
+                    println!("✓ Created local item: {}", title);
+                },
+                Err(e) if e.to_string().contains("UNIQUE constraint failed") || 
+                         e.to_string().contains("duplicate") => {
+                    // Item with this UUID already exists (may be archived/deleted); skip it
+                    println!("⊘ Item '{}' already exists (skipping)", title);
+                    continue;
+                },
+                Err(e) => return Err(e), // Other errors should fail
+            }
             
             // Seed Local
-            self.local.create_item(user_id, id, title.to_string(), motivation, None, None).await?;
             println!("✓ Created local item: {}", title);
             
             self.local.update_item_status(user_id, id, status).await?;
@@ -102,8 +109,18 @@ impl DebugService {
             
             // Seed Remote
             if let Some(ref remote_repo) = *remote_lock {
-                remote_repo.create_item(user_id, id, title.to_string(), motivation, None, None).await?;
-                println!("✓ Pushed to Supabase: {}", title);
+                // Attempt remote create with same duplicate-key handling
+                match remote_repo.create_item(user_id, id, title.to_string(), motivation, None, None).await {
+                    Ok(_) => {
+                        println!("✓ Pushed to Supabase: {}", title);
+                    },
+                    Err(e) if e.to_string().contains("UNIQUE constraint failed") || 
+                             e.to_string().contains("duplicate") => {
+                        println!("⊘ Remote item '{}' already exists (skipping remote seed)", title);
+                        continue;
+                    },
+                    Err(e) => return Err(e),
+                }
                 
                 remote_repo.update_item_status(user_id, id, status).await?;
                 
