@@ -29,7 +29,7 @@ impl DebugService {
         let all_items = self.local.get_all_items(user_id).await?;
         for item in all_items {
             // Hard-delete each item to remove all traces
-            let _ = self.local.hard_delete_item(user_id, item.id).await;
+            self.local.hard_delete_item(user_id, item.id).await?;
         }
         
         // 2. Clear remote as well if available
@@ -39,20 +39,19 @@ impl DebugService {
         };
         if let Some(remote_repo) = remote_repo {
             // Get all remote items and hard-delete them
-            if let Ok(remote_items) = remote_repo.get_all_items(user_id).await {
-                for item in remote_items {
-                    let _ = remote_repo.hard_delete_item(user_id, item.id).await;
-                }
+            let remote_items = remote_repo.get_all_items(user_id).await?;
+            for item in remote_items {
+                remote_repo.hard_delete_item(user_id, item.id).await?;
             }
         }
         
         // 3. Final cleanup: empty any remaining trash
-        let _ = self.local.empty_item_trash(user_id, true).await;
+        self.local.empty_item_trash(user_id, true).await?;
         if let Some(remote_repo) = {
             let remote_lock = self.remote.read().await;
             remote_lock.clone()
         } {
-            let _ = remote_repo.empty_item_trash(user_id, true).await;
+            remote_repo.empty_item_trash(user_id, true).await?;
         }
         
         Ok(())
@@ -170,9 +169,10 @@ impl DebugService {
         } else {
             // Delete NULL user_id items by using empty_item_trash with a special empty user_id
             // Since our repos filter by user_id, we need a direct SQL approach
-            // For now, return 0 and log - proper implementation would need raw SQL
-            println!("⚠ Deletion of NULL user_id items requires direct SQL implementation");
-            Ok(0)
+            // Not implemented yet: return explicit error so callers don't assume success
+            Err(crate::error::AppError::InvalidInput(
+                "migrate_null_user_items(None) not implemented: requires direct SQL to delete NULL user_id items".to_string()
+            ))
         }
     }
 }

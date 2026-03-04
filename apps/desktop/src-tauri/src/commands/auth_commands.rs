@@ -175,7 +175,7 @@ pub async fn login(
     match item_service.claim_offline_items(&user_id).await {
         Ok(count) => {
             if count > 0 {
-                println!("✅ Migrated {} orphaned items to user {}", count, username);
+                println!("✅ Migrated {} orphaned items", count);
                 
                 // 6. Trigger background sync to push claimed items to Supabase
                 let item_service_bg = item_service.inner().clone();
@@ -185,13 +185,13 @@ pub async fn login(
                         Ok(synced_count) => {
                             println!("🔄 Synced {} items after migration", synced_count);
                         }
-                        Err(e) => {
-                            eprintln!("⚠️ Failed to sync after migration: {}", e);
+                        Err(_) => {
+                            eprintln!("⚠️ Failed to sync after migration");
                         }
                     }
                 });
             } else {
-                println!("✓ No orphaned items found for user {}", username);
+                println!("✓ No orphaned items found");
             }
         }
         Err(e) => {
@@ -259,7 +259,7 @@ pub async fn auto_login(
             match item_service.claim_offline_items(&user.id).await {
                 Ok(count) => {
                     if count > 0 {
-                        println!("✅ Migrated {} orphaned items to user {}", count, user.username);
+                        println!("✅ Migrated {} orphaned items", count);
                         
                         // Trigger background sync to push claimed items to Supabase
                         let item_service_bg = item_service.inner().clone();
@@ -269,13 +269,13 @@ pub async fn auto_login(
                                 Ok(synced_count) => {
                                     println!("🔄 Synced {} items after migration", synced_count);
                                 }
-                                Err(e) => {
-                                    eprintln!("⚠️ Failed to sync after migration: {}", e);
+                                Err(_) => {
+                                    eprintln!("⚠️ Failed to sync after migration");
                                 }
                             }
                         });
                     } else {
-                        println!("✓ No orphaned items found for user {}", user.username);
+                        println!("✓ No orphaned items found");
                     }
                 }
                 Err(e) => {
