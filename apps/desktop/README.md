@@ -1,3 +1,36 @@
+## LOCAL-FIRST SYNC
+LOCAL CREATION:
+Item created locally → sync_status = 'local_only'
+    ↓
+sync_local_to_remote() → Included (status != 'synced')
+    ↓ (push to Postgres)
+Remote marked 'synced' → Local marked 'synced'
+    ↓
+Next cycle: sync_local_to_remote() → Skipped
+
+PULL FROM REMOTE:
+sync_items() → All Postgres items
+    ↓
+Check if exists locally
+    ↓
+Create/upsert in local DB → Mark 'synced' immediately
+    ↓ (prevents re-upload)
+If exists locally: Refreshed
+If born in remote: Logged as new pull
+
+MODIFIED ITEM:
+User edits local item → sync_status marked 'modified'
+    ↓
+sync_local_to_remote() → Included (status != 'synced')
+    ↓ (push changes to Postgres)
+Both sides marked 'synced'
+
+FAILURE RECOVERY:
+Failed push Status update → Status unchanged
+    ↓
+Next sync attempt → Retried immediately
+
+
 ## Directory
 以下はGitHub Actionsによって、pushごとに最新のツリーに入れ替わります。
 タグを編集しないでください。

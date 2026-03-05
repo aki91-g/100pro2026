@@ -92,6 +92,7 @@ impl From<String> for TaskStatus {
 
 #[derive(Debug, Serialize, Deserialize, sqlx::FromRow)]
 pub struct Item {
+    #[sqlx(try_from = "String")]
     pub id: Uuid,
     pub title: String,
     pub description: Option<String>,
@@ -109,7 +110,10 @@ pub struct Item {
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
     pub deleted_at: Option<DateTime<Utc>>,
-    pub user_id: Option<String>,
+    #[sqlx(try_from = "String")]
+    pub user_id: Uuid,
+    #[sqlx(try_from = "String")]
+    pub sync_status: String,
 }
 
 impl Item {

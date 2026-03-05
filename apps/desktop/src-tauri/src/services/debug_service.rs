@@ -28,7 +28,7 @@ impl DebugService {
         self.remote.read().await.is_some()
     }
 
-    pub async fn reset_all_databases(&self, user_id: &str) -> AppResult<()> {
+    pub async fn reset_all_databases(&self, user_id: Uuid) -> AppResult<()> {
         // 1. Hard-delete all items for the user (including archived/deleted)
         let all_items = self.local.get_all_items(user_id).await?;
         for item in all_items {
@@ -61,7 +61,7 @@ impl DebugService {
         Ok(())
     }
 
-    pub async fn seed_test_data(&self, user_id: &str) -> AppResult<()> {
+    pub async fn seed_test_data(&self, user_id: Uuid) -> AppResult<()> {
         // 1. Define the seed data with hardcoded UUIDs
         let seed_configs = vec![
             (Uuid::from_u128(0x00000000000000000000000000000001), "Backlog Item", "Planning stage", TaskStatus::Backlog, 0, false, false),
@@ -89,9 +89,6 @@ impl DebugService {
                 },
                 Err(e) => return Err(e), // Other errors should fail
             }
-            
-            // Seed Local
-            println!("✓ Created local item: {}", title);
             
             self.local.update_item_status(user_id, id, status).await?;
             
@@ -148,32 +145,4 @@ impl DebugService {
         Ok(())
     }
 
-    /// Migration function to clean up items with NULL user_id
-    /// Uses the existing claim_offline_items method to assign them to a user
-    /// Or deletes them if no user is specified
-    pub async fn migrate_null_user_items(&self, assign_to_user: Option<&str>) -> AppResult<usize> {
-        if let Some(user_id) = assign_to_user {
-            // Use claim_offline_items to assign NULL user_id items to this user
-            let local_count = self.local.claim_offline_items(user_id).await?;
-            
-            // Also do it for remote if available
-            let remote_lock = self.remote.read().await;
-            let remote_count = if let Some(ref remote_repo) = *remote_lock {
-                remote_repo.claim_offline_items(user_id).await?
-            } else {
-                0
-            };
-            
-            let total = local_count + remote_count;
-            println!("✓ Migrated {} NULL user_id items to user '{}'", total, user_id);
-            Ok(total)
-        } else {
-            // Delete NULL user_id items by using empty_item_trash with a special empty user_id
-            // Since our repos filter by user_id, we need a direct SQL approach
-            // Not implemented yet: return explicit error so callers don't assume success
-            Err(crate::error::AppError::InvalidInput(
-                "migrate_null_user_items(None) not implemented: requires direct SQL to delete NULL user_id items".to_string()
-            ))
-        }
-    }
 }

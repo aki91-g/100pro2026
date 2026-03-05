@@ -141,6 +141,7 @@ export function useItems() {
       const item = items.value.find((i) => i.id === id);
       if (item) {
         item.status = status;
+        item.sync_status = 'modified';
       }
     } catch (err) {
       error.value = String(err);

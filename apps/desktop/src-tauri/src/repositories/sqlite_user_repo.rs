@@ -12,7 +12,8 @@ pub struct SqliteUserRepo {
 impl UserRepository for SqliteUserRepo {
     async fn get_active_user(&self) -> AppResult<Option<LocalUser>> {
         let user = sqlx::query_as::<_, LocalUser>(
-            "SELECT * FROM local_user WHERE is_active = 1 LIMIT 1"
+            "SELECT CAST(id AS TEXT) AS id, username, hashed_session, last_login, is_active 
+             FROM local_user WHERE is_active = 1 LIMIT 1"
         )
         .fetch_optional(&self.pool)
         .await?;
@@ -20,11 +21,12 @@ impl UserRepository for SqliteUserRepo {
         Ok(user)
     }
     
-    async fn get_user_by_id(&self, user_id: &str) -> AppResult<Option<LocalUser>> {
+    async fn get_user_by_id(&self, user_id: &uuid::Uuid) -> AppResult<Option<LocalUser>> {
         let user = sqlx::query_as::<_, LocalUser>(
-            "SELECT * FROM local_user WHERE id = ?"
+            "SELECT CAST(id AS TEXT) AS id, username, hashed_session, last_login, is_active 
+             FROM local_user WHERE id = ?"
         )
-        .bind(user_id)
+        .bind(user_id.to_string())
         .fetch_optional(&self.pool)
         .await?;
         
@@ -33,37 +35,37 @@ impl UserRepository for SqliteUserRepo {
     
     async fn upsert_user(&self, user: &LocalUserUpdate) -> AppResult<()> {
         sqlx::query(
-            "INSERT INTO local_user (id, username, last_login, is_active) 
-             VALUES (?, ?, CURRENT_TIMESTAMP, 1)
-             ON CONFLICT(id) DO UPDATE SET
+            "INSERT INTO local_user (id, username, hashed_session, last_login, is_active) 
+            VALUES (?, ?, NULL, CURRENT_TIMESTAMP, 1)
+            ON CONFLICT(id) DO UPDATE SET
                 username = excluded.username,
                 last_login = CURRENT_TIMESTAMP,
                 is_active = 1"
         )
-        .bind(&user.id)
+        .bind(user.id.to_string())
         .bind(&user.username)
         .execute(&self.pool)
         .await?;
         
         Ok(())
     }
-    
-    async fn update_last_login(&self, user_id: &str) -> AppResult<()> {
+
+    async fn update_last_login(&self, user_id: &uuid::Uuid) -> AppResult<()> {
         sqlx::query(
             "UPDATE local_user SET last_login = CURRENT_TIMESTAMP WHERE id = ?"
         )
-        .bind(user_id)
+        .bind(user_id.to_string())
         .execute(&self.pool)
         .await?;
         
         Ok(())
     }
     
-    async fn deactivate_user(&self, user_id: &str) -> AppResult<()> {
+    async fn deactivate_user(&self, user_id: &uuid::Uuid) -> AppResult<()> {
         sqlx::query(
             "UPDATE local_user SET is_active = 0 WHERE id = ?"
         )
-        .bind(user_id)
+        .bind(user_id.to_string())
         .execute(&self.pool)
         .await?;
         

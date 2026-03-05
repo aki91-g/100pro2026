@@ -9,17 +9,16 @@ pub trait UserRepository: Send + Sync {
     async fn get_active_user(&self) -> AppResult<Option<LocalUser>>;
     
     /// Get a user by ID
-    async fn get_user_by_id(&self, user_id: &str) -> AppResult<Option<LocalUser>>;
+    async fn get_user_by_id(&self, user_id: &uuid::Uuid) -> AppResult<Option<LocalUser>>;
     
     /// Create or update a local user
     async fn upsert_user(&self, user: &LocalUserUpdate) -> AppResult<()>;
     
     /// Update the last_login timestamp for a user
-    async fn update_last_login(&self, user_id: &str) -> AppResult<()>;
+    async fn update_last_login(&self, user_id: &uuid::Uuid) -> AppResult<()>;
     
     /// Deactivate a user (logout)
-    async fn deactivate_user(&self, user_id: &str) -> AppResult<()>;
-    
+    async fn deactivate_user(&self, user_id: &uuid::Uuid) -> AppResult<()>;
     /// Clear all users (for testing/debug)
     async fn clear_all_users(&self) -> AppResult<()>;
 }

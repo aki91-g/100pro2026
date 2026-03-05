@@ -21,7 +21,7 @@ import TaskList from "@/components/TaskList.vue";
 import DebugTools from "@/components/DebugTools.vue";
 
 // Auth
-const { isAuthenticated, userId, logout, initialize } = useAuth();
+const { isAuthenticated, userId, username, logout, initialize } = useAuth();
 
 // Items
 const { items, fetchActiveItems, isSyncing } = useItems();
@@ -36,8 +36,10 @@ const isBackendLoading = ref(false);
 const showDebugTools = ref(false);
 let unlistenRemoteCatchup: UnlistenFn | null = null;
 
+type UUID = string;
+
 interface RemoteCatchupEvent {
-  user_id: string;
+  user_id: UUID;
   synced_count: number;
 }
 
@@ -86,6 +88,24 @@ watch(isAuthenticated, async (authenticated) => {
   }
 }, { immediate: true });
 
+watch(syncMap, (nextMap) => {
+  for (const item of items.value) {
+    const eventStatus = nextMap[item.id];
+
+    if (eventStatus === "pending" && item.sync_status !== "local_only") {
+      item.sync_status = "modified";
+    }
+
+    if (eventStatus === "success") {
+      item.sync_status = "synced";
+    }
+
+    if (eventStatus === "error" && item.sync_status === "synced") {
+      item.sync_status = "modified";
+    }
+  }
+}, { deep: true });
+
 // --- Desktop Bridge Logic (Rust + SQLite) ---
 async function loadItems(sessionToken: number) {
   try {
@@ -118,7 +138,7 @@ async function seedDatabase() {
     await seedDatabaseApi();
     const sessionToken = currentLoadToken;
     await loadItems(sessionToken);
-    greetMsg.value = `Database seeded successfully for user '${userId.value}'!`;
+    greetMsg.value = `Database seeded successfully for user '${username.value || "User"}'!`;
   } catch (e) {
     console.error("Rust Seed Error:", e);
     greetMsg.value = String(e) || "Seed failed. Make sure database is empty first.";
@@ -131,7 +151,7 @@ async function resetDatabase() {
     return;
   }
 
-  if (!confirm(`Are you sure? This will wipe all data for user '${userId.value}'!`)) return;
+  if (!confirm(`Are you sure? This will wipe all data for user '${username.value || "User"}'!`)) return;
   try {
     await resetDatabaseApi();
     items.value = [];
@@ -153,7 +173,7 @@ async function migrateNullUserItems() {
     return;
   }
 
-  if (!confirm(`This will assign all items with NULL user_id to '${userId.value}'. Continue?`)) return;
+  if (!confirm(`This will assign all items with NULL user_id to '${username.value || "User"}'. Continue?`)) return;
   try {
     const count = await migrateNullUserItemsApi(true);
     greetMsg.value = `✓ Migrated ${count} items to your account.`;
@@ -200,7 +220,7 @@ async function fetchFromHono() {
       <div class="header-content">
         <h1>100pro2026 <span class="badge">Monorepo Active</span></h1>
         <div class="user-info">
-          <span class="user-id">👤 {{ userId }}</span>
+          <span class="user-id">👤 {{ username || 'User' }}</span>
           <button @click="handleLogout" class="logout-btn">Logout</button>
         </div>
       </div>
@@ -225,7 +245,7 @@ async function fetchFromHono() {
       <DebugTools
         :visible="showDebugTools"
         :is-authenticated="isAuthenticated"
-        :user-id="userId"
+        :username="username"
         @seed="seedDatabase"
         @reset="resetDatabase"
         @migrate="migrateNullUserItems"
@@ -235,6 +255,7 @@ async function fetchFromHono() {
         :items="items"
         :sync-map="syncMap"
         :error-map="errorMap"
+        :is-syncing="isSyncing"
       />
 
       <section class="card">
