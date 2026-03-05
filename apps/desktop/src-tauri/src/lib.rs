@@ -130,29 +130,47 @@ pub fn run() {
             let item_service_bg = item_service.clone();
             let debug_service_bg = debug_service.clone();
             let app_handle_bg = handle.clone();
+            let app_state_bg = app_state.clone();
 
             tauri::async_runtime::spawn(async move {
-                if let Some(pg_pool) = crate::database::connection::init_postgres().await {
-                    let pg_item_repo = Arc::new(crate::repositories::postgres_item_repo::PostgresItemRepo { 
-                        pool: pg_pool.clone()
-                    });
-                    
-                    let pg_profile_repo: Arc<dyn ProfileRepository> = Arc::new(
-                        crate::repositories::postgres_profile_repo::PostgresProfileRepo {
+                loop {
+                    if let Some(pg_pool) = crate::database::connection::init_postgres().await {
+                        let pg_item_repo = Arc::new(crate::repositories::postgres_item_repo::PostgresItemRepo { 
                             pool: pg_pool.clone()
+                        });
+                        
+                        let pg_profile_repo: Arc<dyn ProfileRepository> = Arc::new(
+                            crate::repositories::postgres_profile_repo::PostgresProfileRepo {
+                                pool: pg_pool.clone()
+                            }
+                        );
+                        
+                        item_service_bg.set_remote(pg_item_repo.clone()).await;
+                        debug_service_bg.set_remote(pg_item_repo).await;
+                        
+                        // Update the managed ProfileRepository
+                        if let Some(profile_repo_lock) = app_handle_bg.try_state::<Arc<tokio::sync::RwLock<Option<Arc<dyn ProfileRepository>>>>>() {
+                            let mut guard = profile_repo_lock.write().await;
+                            *guard = Some(pg_profile_repo);
                         }
-                    );
-                    
-                    item_service_bg.set_remote(pg_item_repo.clone()).await;
-                    debug_service_bg.set_remote(pg_item_repo).await;
-                    
-                    // Update the managed ProfileRepository
-                    if let Some(profile_repo_lock) = app_handle_bg.try_state::<Arc<tokio::sync::RwLock<Option<Arc<dyn ProfileRepository>>>>>() {
-                        let mut guard = profile_repo_lock.write().await;
-                        *guard = Some(pg_profile_repo);
+
+                        if let Ok(user_id) = app_state_bg.get_user_id().await {
+                            match item_service_bg.sync_local_to_remote(&user_id).await {
+                                Ok(count) => {
+                                    println!("⬆️ Synced {} local items to remote for user {}", count, user_id);
+                                }
+                                Err(e) => {
+                                    eprintln!("⚠️ Failed to sync local items to remote on connect: {}", e);
+                                }
+                            }
+                        }
+                        
+                        println!("🚀 Supabase connected & Remote Repositories activated.");
+                        break;
                     }
-                    
-                    println!("🚀 Supabase connected & Remote Repositories activated.");
+
+                    eprintln!("⏳ Postgres unavailable, retrying connection in 10s...");
+                    tokio::time::sleep(std::time::Duration::from_secs(10)).await;
                 }
             });
 

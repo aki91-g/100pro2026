@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { ref, onMounted, watch } from "vue";
+import { ref, onMounted, onUnmounted, watch } from "vue";
+import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 
 // Composables
 import { useAuth } from "@/composables/useAuth";
@@ -33,6 +34,12 @@ const greetMsg = ref("");
 const backendMsg = ref("");
 const isBackendLoading = ref(false);
 const showDebugTools = ref(false);
+let unlistenRemoteCatchup: UnlistenFn | null = null;
+
+interface RemoteCatchupEvent {
+  user_id: string;
+  synced_count: number;
+}
 
 // Cancellation token for loadItems to prevent race conditions on logout
 let currentLoadToken = 0;
@@ -47,6 +54,20 @@ onMounted(async () => {
   } catch (e) {
     console.warn("Could not determine dev mode:", e);
     showDebugTools.value = false;
+  }
+
+  unlistenRemoteCatchup = await listen<RemoteCatchupEvent>("remote-catchup", (event) => {
+    const { user_id, synced_count } = event.payload;
+    if (userId.value && user_id === userId.value && isAuthenticated.value) {
+      greetMsg.value = `Remote connected. Synced ${synced_count} local tasks to cloud.`;
+    }
+  });
+});
+
+onUnmounted(() => {
+  if (unlistenRemoteCatchup) {
+    unlistenRemoteCatchup();
+    unlistenRemoteCatchup = null;
   }
 });
 
@@ -117,7 +138,12 @@ async function resetDatabase() {
     greetMsg.value = "Database wiped clean.";
   } catch (e) {
     console.error("Rust Reset Error:", e);
-    greetMsg.value = String(e) || "Failed to reset database.";
+    const message = String(e);
+    if (message.includes("PostgreSQL is not connected")) {
+      greetMsg.value = "Reset failed: remote database is offline. Please reconnect and try again.";
+    } else {
+      greetMsg.value = message || "Failed to reset database.";
+    }
   }
 }
 

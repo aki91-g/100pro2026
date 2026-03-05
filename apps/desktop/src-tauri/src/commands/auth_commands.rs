@@ -181,12 +181,12 @@ pub async fn login(
                 let item_service_bg = item_service.inner().clone();
                 let user_id_bg = user_id.clone();
                 tokio::spawn(async move {
-                    match item_service_bg.sync_items(&user_id_bg).await {
+                    match item_service_bg.sync_local_to_remote(&user_id_bg).await {
                         Ok(synced_count) => {
-                            println!("🔄 Synced {} items after migration", synced_count);
+                            println!("⬆️ Synced {} local items to remote after migration", synced_count);
                         }
                         Err(_) => {
-                            eprintln!("⚠️ Failed to sync after migration");
+                            eprintln!("⚠️ Failed to sync local items to remote after migration");
                         }
                     }
                 });
@@ -265,12 +265,12 @@ pub async fn auto_login(
                         let item_service_bg = item_service.inner().clone();
                         let user_id_bg = user.id.clone();
                         tokio::spawn(async move {
-                            match item_service_bg.sync_items(&user_id_bg).await {
+                            match item_service_bg.sync_local_to_remote(&user_id_bg).await {
                                 Ok(synced_count) => {
-                                    println!("🔄 Synced {} items after migration", synced_count);
+                                    println!("⬆️ Synced {} local items to remote after migration", synced_count);
                                 }
                                 Err(_) => {
-                                    eprintln!("⚠️ Failed to sync after migration");
+                                    eprintln!("⚠️ Failed to sync local items to remote after migration");
                                 }
                             }
                         });

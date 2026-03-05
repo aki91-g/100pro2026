@@ -18,6 +18,12 @@ struct SyncEvent {
     message: Option<String>,
 }
 
+#[derive(serde::Serialize, Clone)]
+struct RemoteCatchupEvent {
+    user_id: String,
+    synced_count: usize,
+}
+
 pub struct ItemService {
     repo: Arc<dyn ItemRepository>,
     // We use RwLock so we can plug in Postgres later without freezing the app
@@ -152,6 +158,82 @@ impl ItemService {
         }
 
         // Note: Local-only items are preserved as they may be pending sync (created while offline or not yet synced). They will naturally sync on the next successful remote connection.
+
+        Ok(processed_count)
+    }
+
+    pub async fn sync_local_to_remote(&self, user_id: &str) -> AppResult<usize> {
+        let remote_repo = {
+            let remote_lock = self.remote.read().await;
+            match &*remote_lock {
+                Some(repo) => repo.clone(),
+                None => {
+                    return Err(crate::error::AppError::InvalidInput(
+                        "Remote repository is not active".into(),
+                    ));
+                }
+            }
+        };
+
+        let local_items = self.repo.get_all_items(user_id).await?;
+        let mut processed_count: usize = 0;
+
+        for item in local_items {
+            let motivation = i8::try_from(item.motivation).map_err(
+                |_| crate::error::AppError::InvalidInput(format!(
+                    "Invalid motivation value for item {}: {}",
+                    item.id, item.motivation
+                ))
+            )?;
+
+            remote_repo
+                .create_item(
+                    user_id,
+                    item.id,
+                    item.title.clone(),
+                    motivation,
+                    item.due,
+                    item.duration_minutes,
+                )
+                .await?;
+
+            remote_repo
+                .update_item_status(user_id, item.id, item.status)
+                .await?;
+
+            remote_repo
+                .update_item_details(
+                    user_id,
+                    item.id,
+                    item.title,
+                    item.description,
+                    item.due,
+                    item.duration_minutes,
+                    motivation,
+                )
+                .await?;
+
+            if item.deleted_at.is_some() {
+                remote_repo.soft_delete_item(user_id, item.id).await?;
+            } else {
+                remote_repo.restore_item(user_id, item.id).await?;
+                if item.is_archived {
+                    remote_repo.archive_item(user_id, item.id).await?;
+                } else {
+                    remote_repo.unarchive_item(user_id, item.id).await?;
+                }
+            }
+
+            processed_count += 1;
+        }
+
+        let _ = self.app_handle.emit(
+            "remote-catchup",
+            RemoteCatchupEvent {
+                user_id: user_id.to_string(),
+                synced_count: processed_count,
+            },
+        );
 
         Ok(processed_count)
     }

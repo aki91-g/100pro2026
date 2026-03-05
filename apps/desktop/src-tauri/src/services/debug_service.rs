@@ -24,6 +24,10 @@ impl DebugService {
         *w = Some(remote_repo);
     }
 
+    pub async fn has_remote(&self) -> bool {
+        self.remote.read().await.is_some()
+    }
+
     pub async fn reset_all_databases(&self, user_id: &str) -> AppResult<()> {
         // 1. Hard-delete all items for the user (including archived/deleted)
         let all_items = self.local.get_all_items(user_id).await?;
