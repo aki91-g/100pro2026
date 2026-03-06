@@ -36,6 +36,8 @@ pub async fn init_sqlite(app_handle: &AppHandle) -> crate::error::AppResult<Sqli
 
     // 4. Normalize legacy UUID BLOB values to TEXT (from earlier bind behavior)
     // This prevents decode errors like: String/TEXT incompatible with SQL type BLOB.
+    let mut tx = pool.begin().await?;
+    
     let normalized_local_user = sqlx::query(
         "UPDATE local_user
          SET id = lower(
@@ -47,7 +49,7 @@ pub async fn init_sqlite(app_handle: &AppHandle) -> crate::error::AppResult<Sqli
          )
          WHERE typeof(id) = 'blob' AND length(id) = 16"
     )
-    .execute(&pool)
+    .execute(&mut *tx)
     .await?;
     println!("Normalized local_user.id rows: {}", normalized_local_user.rows_affected());
 
@@ -62,7 +64,7 @@ pub async fn init_sqlite(app_handle: &AppHandle) -> crate::error::AppResult<Sqli
          )
          WHERE typeof(id) = 'blob' AND length(id) = 16"
     )
-    .execute(&pool)
+    .execute(&mut *tx)
     .await?;
     println!("Normalized items.id rows: {}", normalized_items_id.rows_affected());
 
@@ -77,10 +79,11 @@ pub async fn init_sqlite(app_handle: &AppHandle) -> crate::error::AppResult<Sqli
          )
          WHERE typeof(user_id) = 'blob' AND length(user_id) = 16"
     )
-    .execute(&pool)
+    .execute(&mut *tx)
     .await?;
     println!("Normalized items.user_id rows: {}", normalized_items_user_id.rows_affected());
-    
+    tx.commit().await?;
+
     // 5. Verify the database file exists
     if db_path.exists() {
         println!("✅ Confirmed: Database file exists at {:?}", db_path);
