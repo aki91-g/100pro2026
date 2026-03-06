@@ -34,7 +34,7 @@ pub async fn init_sqlite(app_handle: &AppHandle) -> crate::error::AppResult<Sqli
 
     // 4. Normalize legacy UUID BLOB values to TEXT (from earlier bind behavior)
     // This prevents decode errors like: String/TEXT incompatible with SQL type BLOB.
-    let _ = sqlx::query(
+    let normalized_local_user = sqlx::query(
         "UPDATE local_user
          SET id = lower(
             hex(substr(id,1,4)) || '-' ||
@@ -46,9 +46,10 @@ pub async fn init_sqlite(app_handle: &AppHandle) -> crate::error::AppResult<Sqli
          WHERE typeof(id) = 'blob' AND length(id) = 16"
     )
     .execute(&pool)
-    .await;
+    .await?;
+    println!("Normalized local_user.id rows: {}", normalized_local_user.rows_affected());
 
-    let _ = sqlx::query(
+    let normalized_items_id = sqlx::query(
         "UPDATE items
          SET id = lower(
             hex(substr(id,1,4)) || '-' ||
@@ -60,9 +61,10 @@ pub async fn init_sqlite(app_handle: &AppHandle) -> crate::error::AppResult<Sqli
          WHERE typeof(id) = 'blob' AND length(id) = 16"
     )
     .execute(&pool)
-    .await;
+    .await?;
+    println!("Normalized items.id rows: {}", normalized_items_id.rows_affected());
 
-    let _ = sqlx::query(
+    let normalized_items_user_id = sqlx::query(
         "UPDATE items
          SET user_id = lower(
             hex(substr(user_id,1,4)) || '-' ||
@@ -74,7 +76,8 @@ pub async fn init_sqlite(app_handle: &AppHandle) -> crate::error::AppResult<Sqli
          WHERE typeof(user_id) = 'blob' AND length(user_id) = 16"
     )
     .execute(&pool)
-    .await;
+    .await?;
+    println!("Normalized items.user_id rows: {}", normalized_items_user_id.rows_affected());
     
     // 5. Verify the database file exists
     if db_path.exists() {
@@ -100,10 +103,17 @@ pub async fn init_sqlite(app_handle: &AppHandle) -> crate::error::AppResult<Sqli
     println!("📋 Tables verified: {:?}", table_names);
     
     if !table_names.contains(&"local_user") {
-        eprintln!("❌ CRITICAL: 'local_user' table NOT created! Pool may point to different file.");
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::Other,
+            "CRITICAL: 'local_user' table not created; possible wrong SQLite file",
+        ).into());
     }
+
     if !table_names.contains(&"items") {
-        eprintln!("❌ CRITICAL: 'items' table NOT created! Pool may point to different file.");
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::Other,
+            "CRITICAL: 'items' table not created; possible wrong SQLite file",
+        ).into());
     }
     
     Ok(pool)

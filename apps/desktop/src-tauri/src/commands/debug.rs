@@ -10,7 +10,7 @@ async fn ensure_remote_repo(service: &Arc<DebugService>) -> Result<(), String> {
         return Ok(());
     }
 
-    let pg_pool = init_postgres()
+    let pg_pool: sqlx::PgPool = init_postgres()
         .await
         .ok_or_else(|| {
             "PostgreSQL is not connected. Clear data aborted to avoid local/remote mismatch. Check DIRECT_URL and network connectivity.".to_string()
@@ -26,11 +26,11 @@ pub async fn debug_reset_db(
     service: State<'_, Arc<DebugService>>,
     app_state: State<'_, AppState>,
 ) -> Result<(), String> {
-    ensure_remote_repo(service.inner()).await?;
 
     let user_id = app_state.get_user_id().await
         .map_err(|_| "No user logged in. Please login first.".to_string())?;
     
+    ensure_remote_repo(service.inner()).await?;
     service.inner().reset_all_databases(user_id).await.map_err(|e| e.to_string())
 }
 
@@ -50,10 +50,10 @@ pub async fn debug_full_wipe_items(
     service: State<'_, Arc<DebugService>>,
     app_state: State<'_, AppState>,
 ) -> Result<(), String> {
-    ensure_remote_repo(service.inner()).await?;
 
     let user_id = app_state.get_user_id().await
         .map_err(|_| "No user logged in. Please login first.".to_string())?;
     
+    ensure_remote_repo(service.inner()).await?;
     service.inner().reset_all_databases(user_id).await.map_err(|e| e.to_string())
 }

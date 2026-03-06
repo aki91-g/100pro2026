@@ -16,7 +16,7 @@ Check if exists locally
 Create/upsert in local DB → Mark 'synced' immediately
     ↓ (prevents re-upload)
 If exists locally: Refreshed
-If born in remote: Logged as new pull
+If created remotely: log as newly pulled item.
 
 MODIFIED ITEM:
 User edits local item → sync_status marked 'modified'

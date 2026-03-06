@@ -10,7 +10,7 @@ const props = defineProps<Props>();
 
 function getLabel() {
   if (props.eventStatus === 'pending') return 'syncing';
-  if (props.eventStatus === 'error') return 'modified';
+  if (props.eventStatus === 'error') return 'sync error';
   if (props.eventStatus === 'success') return 'synced';
   if (props.syncStatus === 'local_only') return 'local only';
   return props.syncStatus;
@@ -22,7 +22,11 @@ function getLabel() {
     :class="[
       'sync-status-badge',
       syncStatus,
-      { pending: eventStatus === 'pending', syncing: isSyncing && syncStatus !== 'synced' }
+      {
+        pending: eventStatus === 'pending',
+        error: eventStatus === 'error',
+        syncing: isSyncing && syncStatus !== 'synced'
+      }
     ]"
     :title="eventStatus === 'error' ? errorMessage : undefined"
   >
@@ -61,6 +65,11 @@ function getLabel() {
 .pending {
   background: #ede7f6;
   color: #5e35b1;
+}
+
+.error {
+  background: `#ffebee`;
+  color: `#c62828`;
 }
 
 .syncing {

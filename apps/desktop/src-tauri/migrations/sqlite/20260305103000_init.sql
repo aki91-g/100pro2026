@@ -17,7 +17,7 @@ CREATE TABLE IF NOT EXISTS items (
 
 -- 2. Local User Table
 CREATE TABLE IF NOT EXISTS local_user (
-  id TEXT PRIMARY KEY,
+  id TEXT PRIMARY KEY NOT NULL,
   username TEXT,
   hashed_session TEXT,
   last_login DATETIME,
