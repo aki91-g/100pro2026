@@ -2,11 +2,11 @@ use std::sync::Arc;
 use serde::Deserialize;
 use tauri::State;
 use sqlx::postgres::PgPoolOptions;
+use uuid::Uuid;
 use crate::models::user::{LocalUser, LocalUserUpdate};
 use crate::repositories::user_repo::UserRepository;
 use crate::repositories::profile_repo::ProfileRepository;
 use crate::state::AppState;
-use crate::services::item_service::ItemService;
 
 const DEFAULT_USERNAME: &str = "Unknown User";
 
@@ -17,10 +17,10 @@ struct SupabaseLoginResponse {
 
 #[derive(Debug, Deserialize)]
 struct SupabaseUser {
-    id: String,
+    id: Uuid,
 }
 
-async fn authenticate_with_supabase(email: &str, password: &str) -> Result<String, String> {
+async fn authenticate_with_supabase(email: &str, password: &str) -> Result<Uuid, String> {
     let supabase_url = std::env::var("SUPABASE_URL")
         .map_err(|_| "SUPABASE_URL is not set".to_string())?;
     let supabase_anon_key = std::env::var("SUPABASE_ANON_KEY")
@@ -64,13 +64,13 @@ async fn authenticate_with_supabase(email: &str, password: &str) -> Result<Strin
 }
 
 async fn fetch_username_from_profiles(
-    user_id: &str,
+    user_id: &uuid::Uuid,
     profile_repo: &Arc<tokio::sync::RwLock<Option<Arc<dyn ProfileRepository>>>>,
 ) -> String {
     let from_managed_repo = {
         let guard = profile_repo.read().await;
         if let Some(repo) = guard.as_ref() {
-            match repo.get_profile(user_id).await {
+            match repo.get_profile(*user_id).await {
                 Ok(Some(profile)) => profile.username,
                 Ok(None) => None,
                 Err(e) => {
@@ -132,7 +132,7 @@ pub struct LoginResponse {
 impl From<LocalUser> for LoginResponse {
     fn from(user: LocalUser) -> Self {
         LoginResponse {
-            id: user.id,
+            id: user.id.to_string(),
             username: user.username,
         }
     }
@@ -146,7 +146,6 @@ pub async fn login(
     user_repo: State<'_, Arc<dyn UserRepository>>,
     profile_repo: State<'_, Arc<tokio::sync::RwLock<Option<Arc<dyn ProfileRepository>>>>>,
     app_state: State<'_, AppState>,
-    item_service: State<'_, Arc<ItemService>>,
 ) -> Result<LoginResponse, String> {
     if email.trim().is_empty() || password.is_empty() {
         return Err("Email and password are required".to_string());
@@ -160,7 +159,7 @@ pub async fn login(
 
     // 3. Save user to local SQLite
     let user_update = LocalUserUpdate {
-        id: user_id.clone(),
+        id: user_id,
         username: username.clone(),
     };
     
@@ -169,37 +168,10 @@ pub async fn login(
         .map_err(|e| format!("Failed to save user locally: {}", e))?;
 
     // 4. Set AppState to logged-in user
-    app_state.set_user(user_id.clone(), username.clone()).await;
+    app_state.set_user(user_id, username.clone()).await;
     
-    // 5. Auto-claim orphaned items
-    match item_service.claim_offline_items(&user_id).await {
-        Ok(count) => {
-            if count > 0 {
-                println!("✅ Migrated {} orphaned items", count);
-                
-                // 6. Trigger background sync to push claimed items to Supabase
-                let item_service_bg = item_service.inner().clone();
-                let user_id_bg = user_id.clone();
-                tokio::spawn(async move {
-                    match item_service_bg.sync_items(&user_id_bg).await {
-                        Ok(synced_count) => {
-                            println!("🔄 Synced {} items after migration", synced_count);
-                        }
-                        Err(_) => {
-                            eprintln!("⚠️ Failed to sync after migration");
-                        }
-                    }
-                });
-            } else {
-                println!("✓ No orphaned items found");
-            }
-        }
-        Err(e) => {
-            eprintln!("⚠️ Failed to claim orphaned items: {}", e);
-        }
-    }
     
-    // 7. Return sanitized user data
+    // 5. Return sanitized user data
     let user = user_repo.get_user_by_id(&user_id)
         .await
         .map_err(|e| format!("Failed to retrieve user: {}", e))?
@@ -243,45 +215,17 @@ pub async fn get_active_local_user(
 pub async fn auto_login(
     user_repo: State<'_, Arc<dyn UserRepository>>,
     app_state: State<'_, AppState>,
-    item_service: State<'_, Arc<ItemService>>,
+
 ) -> Result<Option<LocalUser>, String> {
     match user_repo.get_active_user().await {
         Ok(Some(user)) => {
             // Set the AppState to this user
-            app_state.set_user(user.id.clone(), user.username.clone()).await;
+            app_state.set_user(user.id, user.username.clone()).await;
             
             // Update last_login timestamp
             user_repo.update_last_login(&user.id)
                 .await
                 .map_err(|e| format!("Failed to update last login: {}", e))?;
-            
-            // Auto-claim orphaned items
-            match item_service.claim_offline_items(&user.id).await {
-                Ok(count) => {
-                    if count > 0 {
-                        println!("✅ Migrated {} orphaned items", count);
-                        
-                        // Trigger background sync to push claimed items to Supabase
-                        let item_service_bg = item_service.inner().clone();
-                        let user_id_bg = user.id.clone();
-                        tokio::spawn(async move {
-                            match item_service_bg.sync_items(&user_id_bg).await {
-                                Ok(synced_count) => {
-                                    println!("🔄 Synced {} items after migration", synced_count);
-                                }
-                                Err(_) => {
-                                    eprintln!("⚠️ Failed to sync after migration");
-                                }
-                            }
-                        });
-                    } else {
-                        println!("✓ No orphaned items found");
-                    }
-                }
-                Err(e) => {
-                    eprintln!("⚠️ Failed to claim orphaned items: {}", e);
-                }
-            }
             
             Ok(Some(user))
         }

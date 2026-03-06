@@ -2,7 +2,7 @@
 defineProps<{
   visible: boolean;
   isAuthenticated: boolean;
-  userId: string | null;
+  username: string | null;
 }>();
 
 const emit = defineEmits<{
@@ -17,7 +17,7 @@ const emit = defineEmits<{
     <h2 style="color: #d32f2f;">🛠 Debug Tools</h2>
     <p class="description">These tools are only visible in development builds.</p>
     <p class="description" v-if="isAuthenticated" style="color: #42b883;">
-      ✓ Logged in as: <strong>{{ userId }}</strong>
+      ✓ Logged in as: <strong>{{ username || 'User' }}</strong>
     </p>
     <p class="description" v-else style="color: #f57c00;">
       ⚠ Login required to use debug tools

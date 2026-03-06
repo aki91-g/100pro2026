@@ -1,12 +1,15 @@
 import { invoke } from "@tauri-apps/api/core";
 
+export type UUID = string;
+
 /**
  * Matches the Rust Item struct exactly.
  * Ensure the status strings match your Rust TaskStatus enum variants.
  */
 export type Item = {
-  id: string;
-  user_id: string | null;
+  id: UUID;
+  user_id: UUID; // Changed to mandatory, matching Rust backend
+  sync_status: "synced" | "local_only" | "modified";
   title: string;
   description: string | null;
   status: "Backlog" | "Todo" | "InProgress" | "Done";

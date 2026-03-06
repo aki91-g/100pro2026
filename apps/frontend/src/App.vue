@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { ref, onMounted, watch } from "vue";
+import { ref, onMounted, onUnmounted, watch } from "vue";
+import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 
 // Composables
 import { useAuth } from "@/composables/useAuth";
@@ -20,7 +21,7 @@ import TaskList from "@/components/TaskList.vue";
 import DebugTools from "@/components/DebugTools.vue";
 
 // Auth
-const { isAuthenticated, userId, logout, initialize } = useAuth();
+const { isAuthenticated, userId, username, logout, initialize } = useAuth();
 
 // Items
 const { items, fetchActiveItems, isSyncing } = useItems();
@@ -33,6 +34,14 @@ const greetMsg = ref("");
 const backendMsg = ref("");
 const isBackendLoading = ref(false);
 const showDebugTools = ref(false);
+let unlistenRemoteCatchup: UnlistenFn | null = null;
+
+type UUID = string;
+
+interface RemoteCatchupEvent {
+  user_id: UUID;
+  synced_count: number;
+}
 
 // Cancellation token for loadItems to prevent race conditions on logout
 let currentLoadToken = 0;
@@ -47,6 +56,20 @@ onMounted(async () => {
   } catch (e) {
     console.warn("Could not determine dev mode:", e);
     showDebugTools.value = false;
+  }
+
+  unlistenRemoteCatchup = await listen<RemoteCatchupEvent>("remote-catchup", (event) => {
+    const { user_id, synced_count } = event.payload;
+    if (userId.value && user_id === userId.value && isAuthenticated.value) {
+      greetMsg.value = `Remote connected. Synced ${synced_count} local tasks to cloud.`;
+    }
+  });
+});
+
+onUnmounted(() => {
+  if (unlistenRemoteCatchup) {
+    unlistenRemoteCatchup();
+    unlistenRemoteCatchup = null;
   }
 });
 
@@ -64,6 +87,24 @@ watch(isAuthenticated, async (authenticated) => {
     greetMsg.value = "";
   }
 }, { immediate: true });
+
+watch(syncMap, (nextMap) => {
+  for (const item of items.value) {
+    const eventStatus = nextMap[item.id];
+
+    if (eventStatus === "pending" && item.sync_status !== "local_only") {
+      item.sync_status = "modified";
+    }
+
+    if (eventStatus === "success") {
+      item.sync_status = "synced";
+    }
+
+    if (eventStatus === "error" && item.sync_status === "synced") {
+      item.sync_status = "modified";
+    }
+  }
+}, { deep: true });
 
 // --- Desktop Bridge Logic (Rust + SQLite) ---
 async function loadItems(sessionToken: number) {
@@ -97,7 +138,7 @@ async function seedDatabase() {
     await seedDatabaseApi();
     const sessionToken = currentLoadToken;
     await loadItems(sessionToken);
-    greetMsg.value = `Database seeded successfully for user '${userId.value}'!`;
+    greetMsg.value = `Database seeded successfully for user '${username.value || "User"}'!`;
   } catch (e) {
     console.error("Rust Seed Error:", e);
     greetMsg.value = String(e) || "Seed failed. Make sure database is empty first.";
@@ -110,14 +151,19 @@ async function resetDatabase() {
     return;
   }
 
-  if (!confirm(`Are you sure? This will wipe all data for user '${userId.value}'!`)) return;
+  if (!confirm(`Are you sure? This will wipe all data for user '${username.value || "User"}'!`)) return;
   try {
     await resetDatabaseApi();
     items.value = [];
     greetMsg.value = "Database wiped clean.";
   } catch (e) {
     console.error("Rust Reset Error:", e);
-    greetMsg.value = String(e) || "Failed to reset database.";
+    const message = String(e);
+    if (message.includes("PostgreSQL is not connected")) {
+      greetMsg.value = "Reset failed: remote database is offline. Please reconnect and try again.";
+    } else {
+      greetMsg.value = message || "Failed to reset database.";
+    }
   }
 }
 
@@ -127,7 +173,7 @@ async function migrateNullUserItems() {
     return;
   }
 
-  if (!confirm(`This will assign all items with NULL user_id to '${userId.value}'. Continue?`)) return;
+  if (!confirm(`This will assign all items with NULL user_id to '${username.value || "User"}'. Continue?`)) return;
   try {
     const count = await migrateNullUserItemsApi(true);
     greetMsg.value = `✓ Migrated ${count} items to your account.`;
@@ -174,7 +220,7 @@ async function fetchFromHono() {
       <div class="header-content">
         <h1>100pro2026 <span class="badge">Monorepo Active</span></h1>
         <div class="user-info">
-          <span class="user-id">👤 {{ userId }}</span>
+          <span class="user-id">👤 {{ username || 'User' }}</span>
           <button @click="handleLogout" class="logout-btn">Logout</button>
         </div>
       </div>
@@ -199,7 +245,7 @@ async function fetchFromHono() {
       <DebugTools
         :visible="showDebugTools"
         :is-authenticated="isAuthenticated"
-        :user-id="userId"
+        :username="username"
         @seed="seedDatabase"
         @reset="resetDatabase"
         @migrate="migrateNullUserItems"
@@ -209,6 +255,7 @@ async function fetchFromHono() {
         :items="items"
         :sync-map="syncMap"
         :error-map="errorMap"
+        :is-syncing="isSyncing"
       />
 
       <section class="card">

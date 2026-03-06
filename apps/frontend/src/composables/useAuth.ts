@@ -7,11 +7,12 @@ import { useUserStore } from '@/stores/user';
  */
 export function useAuth() {
   const userStore = useUserStore();
-  const { userId, isAuthenticated, isInitialized } = storeToRefs(userStore);
+  const { userId, username, isAuthenticated, isInitialized } = storeToRefs(userStore);
 
   return {
     // State
     userId,
+    username,
     isAuthenticated,
     isInitialized,
     // Actions
