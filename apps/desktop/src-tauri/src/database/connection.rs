@@ -14,8 +14,10 @@ pub async fn init_sqlite(app_handle: &AppHandle) -> crate::error::AppResult<Sqli
 
     let db_path = app_dir.join("tasks.db");
     let db_url = format!("sqlite:{}", db_path.display());
-    println!("🗄️ SQLite database path: {:?}", db_path);
-    println!("🗄️ SQLite connection URL: {}", db_url);
+    {
+        println!("🗄️ SQLite database path: {:?}", db_path);
+        println!("🗄️ SQLite connection URL: {}", db_url);
+    }
 
     // 2. Connect with options (Enables foreign keys and WAL mode for speed)
     let options = SqliteConnectOptions::from_str(&db_url)?
