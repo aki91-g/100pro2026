@@ -4,7 +4,9 @@ use tauri::State;
 use sqlx::postgres::PgPoolOptions;
 use uuid::Uuid;
 use crate::models::user::{LocalUser, LocalUserUpdate};
+use crate::models::session::LocalSession;
 use crate::repositories::user_repo::UserRepository;
+use crate::repositories::session_repo::SessionRepository;
 use crate::repositories::profile_repo::ProfileRepository;
 use crate::state::AppState;
 
@@ -144,6 +146,7 @@ pub async fn login(
     email: String,
     password: String,
     user_repo: State<'_, Arc<dyn UserRepository>>,
+    session_repo: State<'_, Arc<dyn SessionRepository>>,
     profile_repo: State<'_, Arc<tokio::sync::RwLock<Option<Arc<dyn ProfileRepository>>>>>,
     app_state: State<'_, AppState>,
 ) -> Result<LoginResponse, String> {
@@ -157,7 +160,7 @@ pub async fn login(
     // 2. Resolve username from public.profiles
     let username = fetch_username_from_profiles(&user_id, profile_repo.inner()).await;
 
-    // 3. Save user to local SQLite
+    // 3. Save user to local SQLite (local_user table)
     let user_update = LocalUserUpdate {
         id: user_id,
         username: username.clone(),
@@ -167,11 +170,16 @@ pub async fn login(
         .await
         .map_err(|e| format!("Failed to save user locally: {}", e))?;
 
-    // 4. Set AppState to logged-in user
+    // 4. Save session to local_session table
+    session_repo.save_session(&user_id, &username, None)
+        .await
+        .map_err(|e| format!("Failed to save session: {}", e))?;
+
+    // 5. Set AppState to logged-in user
     app_state.set_user(user_id, username.clone()).await;
     
     
-    // 5. Return sanitized user data
+    // 6. Return sanitized user data
     let user = user_repo.get_user_by_id(&user_id)
         .await
         .map_err(|e| format!("Failed to retrieve user: {}", e))?
@@ -180,59 +188,55 @@ pub async fn login(
     Ok(LoginResponse::from(user))
 }
 
-/// Logout command: Deactivate local user and clear AppState
+/// Logout command: Clear session and AppState
 #[tauri::command]
 pub async fn logout(
-    user_repo: State<'_, Arc<dyn UserRepository>>,
+    session_repo: State<'_, Arc<dyn SessionRepository>>,
     app_state: State<'_, AppState>,
 ) -> Result<(), String> {
-    // 1. Get current user
-    let user_id = app_state.get_user_id().await?;
-    
-    // 2. Deactivate user in local DB
-    user_repo.deactivate_user(&user_id)
+    // 1. Clear session from local_session table
+    session_repo.clear_session()
         .await
-        .map_err(|e| format!("Failed to deactivate user: {}", e))?;
+        .map_err(|e| format!("Failed to clear session: {}", e))?;
     
-    // 3. Clear AppState
+    // 2. Clear AppState
     app_state.clear_user_id().await;
     
     Ok(())
 }
 
-/// Get the currently active local user
+/// Get active session: Check local_session table for active session
 #[tauri::command]
-pub async fn get_active_local_user(
-    user_repo: State<'_, Arc<dyn UserRepository>>,
-) -> Result<Option<LocalUser>, String> {
-    user_repo.get_active_user()
+pub async fn get_active_session(
+    session_repo: State<'_, Arc<dyn SessionRepository>>,
+) -> Result<Option<LocalSession>, String> {
+    session_repo.get_active_session()
         .await
-        .map_err(|e| format!("Failed to get active user: {}", e))
+        .map_err(|e| format!("Failed to get active session: {}", e))
 }
 
-/// Auto-login: Check local_user table and restore session
+/// Auto-login: Check local_session table and restore session
 #[tauri::command]
 pub async fn auto_login(
-    user_repo: State<'_, Arc<dyn UserRepository>>,
+    session_repo: State<'_, Arc<dyn SessionRepository>>,
     app_state: State<'_, AppState>,
-
-) -> Result<Option<LocalUser>, String> {
-    match user_repo.get_active_user().await {
-        Ok(Some(user)) => {
+) -> Result<Option<LocalSession>, String> {
+    match session_repo.get_active_session().await {
+        Ok(Some(session)) => {
             // Set the AppState to this user
-            app_state.set_user(user.id, user.username.clone()).await;
+            app_state.set_user(session.user_id, session.username.clone()).await;
             
             // Update last_login timestamp
-            user_repo.update_last_login(&user.id)
+            session_repo.update_last_login()
                 .await
                 .map_err(|e| format!("Failed to update last login: {}", e))?;
             
-            Ok(Some(user))
+            Ok(Some(session))
         }
         Ok(None) => {
             app_state.clear_user_id().await;
             Ok(None)
         },
-        Err(e) => Err(format!("Failed to check for active user: {}", e))
+        Err(e) => Err(format!("Failed to check for active session: {}", e))
     }
 }
