@@ -87,17 +87,11 @@ pub async fn init_sqlite(app_handle: &AppHandle) -> crate::error::AppResult<Sqli
     }
     
     // Query schema to verify both tables were created
-    let tables: Vec<(String,)> = match sqlx::query_as(
+    let tables: Vec<(String,)> = sqlx::query_as(
         "SELECT name FROM sqlite_master WHERE type='table' AND name IN ('items', 'local_user')"
     )
     .fetch_all(&pool)
-    .await {
-        Ok(t) => t,
-        Err(e) => {
-            eprintln!("⚠️  Could not verify tables: {}", e);
-            vec![]
-        }
-    };
+    .await?;
     
     let table_names: Vec<&str> = tables.iter().map(|t| t.0.as_str()).collect();
     println!("📋 Tables verified: {:?}", table_names);
