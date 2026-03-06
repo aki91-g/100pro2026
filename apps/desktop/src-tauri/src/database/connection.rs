@@ -83,7 +83,10 @@ pub async fn init_sqlite(app_handle: &AppHandle) -> crate::error::AppResult<Sqli
     if db_path.exists() {
         println!("✅ Confirmed: Database file exists at {:?}", db_path);
     } else {
-        eprintln!("❌ ERROR: Database file NOT found at {:?}", db_path);
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::Other,
+            format!("CRITICAL: database file not found at {}", db_path.display()),
+        ).into());
     }
     
     // Query schema to verify both tables were created
