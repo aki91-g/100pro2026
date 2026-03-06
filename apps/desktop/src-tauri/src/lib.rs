@@ -106,9 +106,11 @@ pub fn run() {
             tauri::async_runtime::block_on(async move {
                 match session_repo_login.get_active_session().await {
                     Ok(Some(session)) => {
-                        println!("🔐 Auto-login: Found active session for user {}", session.username);
+                        println!("🔐 Auto-login: Found active session");
                         app_state_login.set_user(session.user_id, session.username.clone()).await;
-                        let _ = session_repo_login.update_last_login().await;
+                        if let Err(e) = session_repo_login.update_last_login().await {
+                            eprintln!("⚠️ Auto-login update_last_login failed: {}", e);
+                        }
                     }
                 
                     Ok(None) => {

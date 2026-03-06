@@ -131,6 +131,24 @@ pub struct LoginResponse {
     pub username: String,
 }
 
+/// Session DTO exposed to frontend (sanitized).
+#[derive(Debug, serde::Serialize, serde::Deserialize)]
+pub struct SafeSession {
+    pub user_id: String,
+    pub username: String,
+    pub last_login: Option<String>,
+}
+
+impl From<LocalSession> for SafeSession {
+    fn from(session: LocalSession) -> Self {
+        SafeSession {
+            user_id: session.user_id.to_string(),
+            username: session.username,
+            last_login: session.last_login,
+        }
+    }
+}
+
 impl From<LocalUser> for LoginResponse {
     fn from(user: LocalUser) -> Self {
         LoginResponse {
@@ -179,13 +197,25 @@ pub async fn login(
     app_state.set_user(user_id, username.clone()).await;
     
     
-    // 6. Return sanitized user data
-    let user = user_repo.get_user_by_id(&user_id)
-        .await
-        .map_err(|e| format!("Failed to retrieve user: {}", e))?
-        .ok_or_else(|| "User not found after login".to_string())?;
-    
-    Ok(LoginResponse::from(user))
+    // 6. Return sanitized user data. If lookup fails after successful login/session writes,
+    // do not fail the command; return a safe fallback from known values.
+    match user_repo.get_user_by_id(&user_id).await {
+        Ok(Some(user)) => Ok(LoginResponse::from(user)),
+        Ok(None) => {
+            eprintln!("⚠️ Login succeeded but local user lookup returned None; returning fallback response");
+            Ok(LoginResponse {
+                id: user_id.to_string(),
+                username,
+            })
+        }
+        Err(e) => {
+            eprintln!("⚠️ Login succeeded but failed to retrieve local user: {}. Returning fallback response", e);
+            Ok(LoginResponse {
+                id: user_id.to_string(),
+                username,
+            })
+        }
+    }
 }
 
 /// Logout command: Clear session and AppState
@@ -194,13 +224,13 @@ pub async fn logout(
     session_repo: State<'_, Arc<dyn SessionRepository>>,
     app_state: State<'_, AppState>,
 ) -> Result<(), String> {
-    // 1. Clear session from local_session table
+    // 1. Always clear in-memory auth state first.
+    app_state.clear_user_id().await;
+
+    // 2. Then clear persisted session.
     session_repo.clear_session()
         .await
         .map_err(|e| format!("Failed to clear session: {}", e))?;
-    
-    // 2. Clear AppState
-    app_state.clear_user_id().await;
     
     Ok(())
 }
@@ -209,9 +239,10 @@ pub async fn logout(
 #[tauri::command]
 pub async fn get_active_session(
     session_repo: State<'_, Arc<dyn SessionRepository>>,
-) -> Result<Option<LocalSession>, String> {
+) -> Result<Option<SafeSession>, String> {
     session_repo.get_active_session()
         .await
+        .map(|maybe_session| maybe_session.map(SafeSession::from))
         .map_err(|e| format!("Failed to get active session: {}", e))
 }
 
@@ -220,7 +251,7 @@ pub async fn get_active_session(
 pub async fn auto_login(
     session_repo: State<'_, Arc<dyn SessionRepository>>,
     app_state: State<'_, AppState>,
-) -> Result<Option<LocalSession>, String> {
+) -> Result<Option<SafeSession>, String> {
     match session_repo.get_active_session().await {
         Ok(Some(session)) => {
             // Set the AppState to this user
@@ -231,7 +262,7 @@ pub async fn auto_login(
                 .await
                 .map_err(|e| format!("Failed to update last login: {}", e))?;
             
-            Ok(Some(session))
+            Ok(Some(SafeSession::from(session)))
         }
         Ok(None) => {
             app_state.clear_user_id().await;
