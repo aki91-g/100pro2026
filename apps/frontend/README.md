@@ -17,12 +17,21 @@ apps/frontend
 │   ├── assets
 │   │   └── vue.svg
 │   ├── components
+│   │   ├── DebugTools.vue
 │   │   ├── HelloWorld.vue
-│   │   └── SyncButton.vue
+│   │   ├── Login.vue
+│   │   ├── SyncButton.vue
+│   │   ├── SyncStatusBadge.vue
+│   │   └── TaskList.vue
 │   ├── composables
+│   │   ├── useAuth.ts
+│   │   ├── useItems.ts
 │   │   └── useSyncStatus.ts
 │   ├── services
+│   │   ├── apiService.ts
 │   │   └── itemService.ts
+│   ├── stores
+│   │   └── user.ts
 │   ├── App.vue
 │   ├── main.ts
 │   └── style.css
@@ -35,6 +44,7 @@ apps/frontend
 └── vite.config.ts
 ```
 [TREE-END]
+
 
 
 

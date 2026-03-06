@@ -19,6 +19,7 @@ use crate::commands::db_commands::*;
 use crate::commands::auth_commands::*;
 use crate::database::connection::init_sqlite;
 use crate::repositories::user_repo::UserRepository;
+use crate::repositories::session_repo::SessionRepository;
 use crate::repositories::profile_repo::ProfileRepository;
 
 #[cfg(debug_assertions)]
@@ -92,31 +93,38 @@ pub fn run() {
                 }
             );
 
-            // 3b. Check for existing local user - REMOVE the separate block_on if possible
-            // Or ensure this block_on definitely waits for the one above.
+            let session_repo: Arc<dyn SessionRepository> = Arc::new(
+                crate::repositories::sqlite_session_repo::SqliteSessionRepo {
+                    pool: sqlite_pool.clone()
+                }
+            );
+
+            // 3b. Check for existing session and auto-login
             let app_state_login = app_state.clone();
-            let user_repo_login = user_repo.clone();
+            let session_repo_login = session_repo.clone();
 
             tauri::async_runtime::block_on(async move {
-                // Add a tiny sleep or a check here if init_sqlite is backgrounding the migration
-                match user_repo_login.get_active_user().await {
-                    Ok(Some(user)) => {
-                        println!("🔐 Auto-login: Found active user {}", user.username);
-                        app_state_login.set_user(user.id, user.username.clone()).await;
-                        let _ = user_repo_login.update_last_login(&user.id).await;
+                match session_repo_login.get_active_session().await {
+                    Ok(Some(session)) => {
+                        println!("🔐 Auto-login: Found active session");
+                        app_state_login.set_user(session.user_id, session.username.clone()).await;
+                        if let Err(e) = session_repo_login.update_last_login().await {
+                            eprintln!("⚠️ Auto-login update_last_login failed: {}", e);
+                        }
                     }
                 
                     Ok(None) => {
-                        println!("👤 No active user found - offline mode available");
+                        println!("👤 No active session found - login required");
                     }
                     Err(e) => {
-                        eprintln!("⚠️ Failed to check for active user: {}", e);
+                        eprintln!("⚠️ Failed to check for active session: {}", e);
                     }
                 }
             });
 
-            // Register User Repository
+            // Register User and Session Repositories
             app.manage(user_repo.clone());
+            app.manage(session_repo.clone());
 
             // 4. Initialize Profile Repository to None (will be set when Postgres connects)
             app.manage(Arc::new(tokio::sync::RwLock::new(
@@ -190,7 +198,7 @@ pub fn run() {
             // auth_commands
             login,
             logout,
-            get_active_local_user,
+            get_active_session,
             auto_login,
             // db_commands
             get_active_items,
