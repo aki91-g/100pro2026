@@ -2,14 +2,14 @@
  * Item Type Definitions
  * 
  * Centralized types for Item, UUID, and related structures.
- * Matches the Rust backend Item struct exactly.
+ * Matches both the Rust backend (Tauri) and Hono/Node.js backend (web) Item struct exactly.
  */
 
 export type UUID = string;
 
 /**
- * Matches the Rust Item struct exactly.
- * Ensure the status strings match your Rust TaskStatus enum variants.
+ * Matches the Rust backend and Hono backend Item struct exactly.
+ * Ensure the status strings match your backend's TaskStatus enum/type variants.
  */
 export type Item = {
   id: UUID;
@@ -17,7 +17,7 @@ export type Item = {
   sync_status: "synced" | "local_only" | "modified";
   title: string;
   description: string | null;
-  status: "Backlog" | "Todo" | "InProgress" | "Done";
+  status: "backlog" | "todo" | "inprogress" | "done";
   due: string | null;
   duration_minutes: number | null;
   motivation: number;

@@ -1,16 +1,3 @@
-/**
- * Hono RPC Client (Placeholder)
- * 
- * This is a placeholder for future Hono backend integration using hc (Hono Client).
- * When the Hono backend is ready, you can use type-safe RPC calls like:
- * 
- * import { hc } from 'hono/client'
- * import type { AppType } from '../backend/src/index'
- * 
- * const client = hc<AppType>('/api')
- * const res = await client.items.$get()
- */
-
 import type { Item } from '@/types/item';
 
 export interface HonoItemsClient {
@@ -31,96 +18,132 @@ export interface CreateItemPayload {
   durationMinutes?: number | null;
 }
 
-/**
- * Placeholder Hono client implementation
- * Replace this with actual Hono RPC client when backend is ready
- */
 export class HonoClient implements HonoItemsClient {
   private baseUrl: string;
+  private tokenGetter: (() => string | null) | null = null;
 
   constructor(baseUrl?: string) {
     this.baseUrl = baseUrl || import.meta.env.VITE_HONO_BASE_URL || 'http://localhost:3000';
   }
 
   /**
+   * Set the token getter function to avoid Pinia instance errors
+   */
+  setTokenGetter(fn: () => string | null): void {
+    this.tokenGetter = fn;
+  }
+
+  /**
+   * Get headers with Authorization token if available
+   */
+  private getHeaders(): HeadersInit {
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+    };
+
+    // Get token via the injected function
+    if (this.tokenGetter) {
+      try {
+        const token = this.tokenGetter();
+        if (token) {
+          headers['Authorization'] = `Bearer ${token}`;
+        }
+      } catch (error) {
+        // Keep request functional even if store is not ready yet.
+        console.warn('Token getter failed. Sending request without Authorization header.');
+      }
+    }
+
+    return headers;
+  }
+
+  /**
    * Generic GET request
    */
   async get(path: string): Promise<Response> {
-    const response = await fetch(`${this.baseUrl}${path}`);
-    if (!response.ok) throw new Error(`GET ${path} failed`);
+    const response = await fetch(`${this.baseUrl}${path}`, {
+      method: 'GET',
+      headers: this.getHeaders(),
+    });
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(`GET ${path} failed: ${errorData.error || response.statusText}`);
+    }
     return response;
   }
 
   /**
-   * Generic POST request
+   * Generic HTTP request with configurable method
    */
-  async post(path: string, body?: unknown): Promise<Response> {
+  async request(path: string, body?: unknown, method: string = 'POST'): Promise<Response> {
     const response = await fetch(`${this.baseUrl}${path}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      method,
+      headers: this.getHeaders(),
       body: body ? JSON.stringify(body) : undefined,
     });
-    if (!response.ok) throw new Error(`POST ${path} failed`);
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(`${method} ${path} failed: ${errorData.error || response.statusText}`);
+    }
     return response;
   }
 
+  /**
+   * POST request wrapper
+   */
+  async post(path: string, body?: unknown): Promise<Response> {
+    return this.request(path, body, 'POST');
+  }
+
+  /**
+   * PATCH request wrapper
+   */
+  async patch(path: string, body?: unknown): Promise<Response> {
+    return this.request(path, body, 'PATCH');
+  }
+
+  /**
+   * DELETE request wrapper
+   */
+  async delete(path: string, body?: unknown): Promise<Response> {
+    return this.request(path, body, 'DELETE');
+  }
+
   async getActiveItems(): Promise<Item[]> {
-    const response = await fetch(`${this.baseUrl}/api/items/active`);
-    if (!response.ok) throw new Error('Failed to fetch active items');
+    const response = await this.get('/api/items/active');
     return response.json();
   }
 
   async getArchivedItems(): Promise<Item[]> {
-    const response = await fetch(`${this.baseUrl}/api/items/archived`);
-    if (!response.ok) throw new Error('Failed to fetch archived items');
+    const response = await this.get('/api/items/archived');
     return response.json();
   }
 
   async getDeletedItems(): Promise<Item[]> {
-    const response = await fetch(`${this.baseUrl}/api/items/deleted`);
-    if (!response.ok) throw new Error('Failed to fetch deleted items');
+    const response = await this.get('/api/items/deleted');
     return response.json();
   }
 
   async createItem(payload: CreateItemPayload): Promise<string> {
-    const response = await fetch(`${this.baseUrl}/api/items`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-    });
-    if (!response.ok) throw new Error('Failed to create item');
+    const response = await this.post('/api/items', payload);
     const data = await response.json();
     return data.id;
   }
 
   async updateItemStatus(id: string, status: Item['status']): Promise<void> {
-    const response = await fetch(`${this.baseUrl}/api/items/${id}/status`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ status }),
-    });
-    if (!response.ok) throw new Error('Failed to update item status');
+    await this.patch(`/api/items/${id}/status`, { status });
   }
 
   async archiveItem(id: string): Promise<void> {
-    const response = await fetch(`${this.baseUrl}/api/items/${id}/archive`, {
-      method: 'POST',
-    });
-    if (!response.ok) throw new Error('Failed to archive item');
+    await this.post(`/api/items/${id}/archive`);
   }
 
   async softDeleteItem(id: string): Promise<void> {
-    const response = await fetch(`${this.baseUrl}/api/items/${id}`, {
-      method: 'DELETE',
-    });
-    if (!response.ok) throw new Error('Failed to delete item');
+    await this.delete(`/api/items/${id}`);
   }
 
   async syncItems(): Promise<number> {
-    const response = await fetch(`${this.baseUrl}/api/items/sync`, {
-      method: 'POST',
-    });
-    if (!response.ok) throw new Error('Failed to sync items');
+    const response = await this.post('/api/items/sync');
     const data = await response.json();
     return data.count || 0;
   }

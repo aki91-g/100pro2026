@@ -15,7 +15,10 @@
         "title": "100pro2026",
         "width": 800,
         "height": 600,
-        "alwaysOnTop": false
+        "x": 0,
+        "y": 0,
+        "alwaysOnTop": false,
+        "visible": true
       }
     ],
     "security": {
