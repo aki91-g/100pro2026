@@ -121,12 +121,14 @@ function normalizeItem(row: ItemRow): ItemRow {
   };
 }
 
-function parseStatus(raw: string | undefined): TaskStatus {
-  const value = (raw ?? '').toLowerCase();
+function parseStatus(raw: unknown): TaskStatus | null {
+  if (typeof raw !== 'string') return null;
+  const value = raw.toLowerCase();
+  if (value === 'backlog') return 'backlog';
   if (value === 'todo') return 'todo';
   if (value === 'inprogress') return 'inprogress';
   if (value === 'done') return 'done';
-  return 'backlog';
+  return null;
 }
 
 async function parseJson<T>(c: Context, fallback: T): Promise<T> {
@@ -264,8 +266,14 @@ async function handleCreateItem(c: Context<AppEnv>): Promise<Response> {
 
 async function handleUpdateItemStatus(c: Context<AppEnv>): Promise<Response> {
   const body = await parseJson(c, { id: '', status: '' });
+
   if (!body.id || !body.status) {
     return c.json({ error: 'id and status are required' }, 400);
+  }
+
+  const validatedStatus = parseStatus(body.status);
+  if (!validatedStatus) {
+    return c.json({ error: 'invalid status' }, 400);
   }
 
   const { token } = c.get('auth');
@@ -273,7 +281,10 @@ async function handleUpdateItemStatus(c: Context<AppEnv>): Promise<Response> {
 
   const { error } = await supabase
     .from('items')
-    .update({ status: parseStatus(body.status) })
+    .update({ 
+      status: validatedStatus,
+      updated_at: new Date().toISOString()
+    })
     .eq('id', body.id);
 
   if (error) return c.json({ error: error.message }, 400);
@@ -401,9 +412,17 @@ app.patch('/api/items/:id/status', async (c) => {
     return c.json({ error: 'status is required' }, 400);
   }
 
+  const validatedStatus = parseStatus(body.status);
+  if (!validatedStatus) {
+    return c.json({ error: 'invalid status' }, 400);
+  }
+
   const { error } = await supabase
     .from('items')
-    .update({ status: parseStatus(body.status) })
+    .update({ 
+      status: validatedStatus,
+      updated_at: new Date().toISOString() 
+    })
     .eq('id', id);
 
   if (error) return c.json({ error: error.message }, 400);
