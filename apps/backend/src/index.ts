@@ -232,10 +232,17 @@ async function handleCreateItem(c: Context<AppEnv>): Promise<Response> {
       duration_minutes: null as number | null,
     });
 
-    const title = (body.title ?? '').trim();
-    const motivation = Number(body.motivation ?? 0);
-    const due = body.due ?? null;
-    const durationMinutes = body.duration_minutes ?? body.durationMinutes ?? null;
+    const title = typeof body.title === 'string' ? body.title.trim() : '';
+    const motivation =
+      typeof body.motivation === 'number' && Number.isFinite(body.motivation)
+        ? body.motivation
+        : 0;
+    const due = typeof body.due === 'string' ? body.due : null;
+    const rawDuration = body.duration_minutes ?? body.durationMinutes;
+    const durationMinutes =
+      typeof rawDuration === 'number' && Number.isFinite(rawDuration)
+        ? rawDuration
+        : null;
 
     if (!title) {
       return c.json({ error: 'title is required' }, 400);
@@ -334,8 +341,8 @@ app.get('/api/hello', (c) => {
 // Auth endpoints
 app.post('/api/auth/login', async (c) => {
   const body = await parseJson(c, { email: '', password: '' });
-  const email = (body.email ?? '').trim();
-  const password = body.password ?? '';
+  const email = typeof body.email === 'string' ? body.email.trim() : '';
+  const password = typeof body.password === 'string' ? body.password : '';
 
   if (!email || !password) {
     return c.json({ error: 'Email and password are required' }, 400);
