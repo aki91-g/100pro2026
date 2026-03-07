@@ -17,7 +17,7 @@ export type Item = {
   sync_status: "synced" | "local_only" | "modified";
   title: string;
   description: string | null;
-  status: "Backlog" | "Todo" | "InProgress" | "Done";
+  status: "backlog" | "todo" | "inprogress" | "done";
   due: string | null;
   duration_minutes: number | null;
   motivation: number;

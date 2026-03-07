@@ -6,11 +6,15 @@ import { honoClient } from './honoClient';
 export interface LoginResponse {
   id: string;
   username: string;
+  access_token: string;
+  refresh_token?: string;
+  expires_at?: number;
 }
 
 export interface LocalSession {
   id: string;
   username: string;
+  access_token?: string | null;
   last_login: string | null;
   is_active: number;
 }

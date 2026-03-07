@@ -7,6 +7,7 @@ export const useUserStore = defineStore('user', () => {
   const userId = ref<string | null>(null);
   const username = ref<string | null>(null);
   const isInitialized = ref(false);
+  const accessToken = ref<string | null>(null);
 
   // Getters
   const isAuthenticated = computed(() => userId.value !== null);
@@ -20,6 +21,7 @@ export const useUserStore = defineStore('user', () => {
       if (localUser) {
         userId.value = localUser.id;
         username.value = localUser.username;
+        accessToken.value = localUser.access_token ?? null;
         console.log('🔐 Auto-login successful');
       } else {
         // Fallback: Check active session
@@ -27,6 +29,7 @@ export const useUserStore = defineStore('user', () => {
         if (activeSession) {
           userId.value = activeSession.id;
           username.value = activeSession.username;
+          accessToken.value = activeSession.access_token ?? null;
         }
       }
       
@@ -35,7 +38,9 @@ export const useUserStore = defineStore('user', () => {
       console.error('Failed to initialize user:', error);
       userId.value = null;
       username.value = null;
+      accessToken.value = null;
       isInitialized.value = true;
+      
     }
   }
 
@@ -46,7 +51,7 @@ export const useUserStore = defineStore('user', () => {
       
       userId.value = response.id;
       username.value = response.username;
-      
+      accessToken.value = response.access_token ?? null;
       console.log('✅ Login successful');
     } catch (error) {
       console.error('Login failed:', error);
@@ -59,6 +64,7 @@ export const useUserStore = defineStore('user', () => {
       await authRepository.logout();
       userId.value = null;
       username.value = null;
+      accessToken.value = null;
     } catch (error) {
       console.error('Logout failed:', error);
       throw error;
@@ -70,6 +76,7 @@ export const useUserStore = defineStore('user', () => {
     userId,
     username,
     isInitialized,
+    accessToken,
     // Getters
     isAuthenticated,
     // Actions
