@@ -7,7 +7,7 @@ This document describes the refactored frontend architecture following the Repos
 
 ### 1. Repository Pattern Implementation
 
-**New Directory: `src/services/api/`**
+**New Directory: `src/api/`**
 
 #### `config.ts`
 - Determines which backend to use (Tauri local or Hono remote)
@@ -78,15 +78,17 @@ src/
 │   ├── useAuth.ts                  # Auth state management
 │   ├── useItems.ts                 # Item operations (enhanced)
 │   └── useSyncStatus.ts            # Real-time sync tracking
+├── api/                            # NEW: Repository layer
+│   ├── config.ts                  # API mode selection
+│   ├── itemRepository.ts          # Abstract repository
+│   ├── authRepository.ts          # Auth repository
+│   ├── debugRepository.ts         # Debug repository
+│   └── honoClient.ts              # Hono placeholder
 ├── services/
-│   ├── api/                        # NEW: Repository layer
-│   │   ├── config.ts              # API mode selection
-│   │   ├── itemRepository.ts     # Abstract repository
-│   │   └── honoClient.ts         # Hono placeholder
 │   ├── apiService.ts              # Legacy (deprecated)
 │   └── itemService.ts             # Types
 ├── components/
-│   ├── Login.vue
+│   ├── Login.vue                  # Kept for backward compatibility
 │   ├── SyncButton.vue
 │   ├── TaskList.vue
 │   └── DebugTools.vue
@@ -198,8 +200,6 @@ No changes needed in components or composables!
 
 ## Next Steps
 
-1. Create `AuthRepository` for login/logout operations
-2. Create `DebugRepository` for seed/reset/migrate commands
-3. Implement Hono backend with matching API contracts
+1. Implement Hono backend with matching API contracts
 4. Add unit tests for repositories
 5. Add E2E tests for repository switching

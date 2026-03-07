@@ -4,17 +4,27 @@
 
 ### Files Created
 
-1. **`src/services/api/config.ts`**
+1. **`src/api/config.ts`**
    - API mode configuration
    - Determines Tauri vs Hono backend
 
-2. **`src/services/api/itemRepository.ts`**
+2. **`src/api/itemRepository.ts`**
    - Abstract repository interface
    - TauriItemRepository implementation
    - HonoItemRepository implementation
    - Factory for selecting implementation
 
-3. **`src/services/api/honoClient.ts`**
+3. **`src/api/authRepository.ts`**
+   - Authentication repository
+   - TauriAuthRepository and HonoAuthRepository implementations
+   - Methods: login, logout, getActiveSession, autoLogin
+
+4. **`src/api/debugRepository.ts`**
+   - Debug operations repository
+   - TauriDebugRepository and HonoDebugRepository implementations
+   - Methods: isDevMode, seedDatabase, resetDatabase, migrateNullUserItems
+
+5. **`src/api/honoClient.ts`**
    - Placeholder Hono client
    - RESTful API fallback
    - Ready for hc (Hono RPC) integration

@@ -36,7 +36,9 @@ async function handleLogin() {
       
       <form @submit.prevent="handleLogin" class="login-form">
         <div class="input-group">
+          <label for="email-input">Email</label>
           <input
+            id="email-input"
             v-model="emailInput"
             type="email"
             placeholder="Email"
@@ -47,7 +49,9 @@ async function handleLogin() {
         </div>
 
         <div class="input-group">
+          <label for="password-input">Password</label>
           <input
+            id="password-input"
             v-model="passwordInput"
             type="password"
             placeholder="Password"
@@ -67,7 +71,7 @@ async function handleLogin() {
         </button>
 
         <Transition name="fade">
-          <p v-if="error" class="error-msg">{{ error }}</p>
+          <p v-if="error" class="error-msg" role="alert" aria-live="assertive">{{ error }}</p>
         </Transition>
       </form>
 
@@ -119,6 +123,13 @@ h2 {
 .input-group {
   display: flex;
   flex-direction: column;
+}
+
+label {
+  margin-bottom: 0.5rem;
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: #2c3e50;
 }
 
 .user-input {

@@ -20,7 +20,7 @@ export const useUserStore = defineStore('user', () => {
       if (localUser) {
         userId.value = localUser.id;
         username.value = localUser.username;
-        console.log(`🔐 Auto-login successful: ${username.value}`);
+        console.log('🔐 Auto-login successful');
       } else {
         // Fallback: Check active session
         const activeSession = await authRepository.getActiveSession();
@@ -47,7 +47,7 @@ export const useUserStore = defineStore('user', () => {
       userId.value = response.id;
       username.value = response.username;
       
-      console.log(`✅ Login successful: ${response.username}`);
+      console.log('✅ Login successful');
     } catch (error) {
       console.error('Login failed:', error);
       throw error;

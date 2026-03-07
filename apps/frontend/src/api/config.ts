@@ -7,20 +7,24 @@ export type ApiMode = 'tauri' | 'hono';
 
 /**
  * Gets the current API mode based on environment or runtime detection
- * For now, we default to Tauri since Hono backend isn't implemented yet
+ * Priority: environment variable > Tauri detection > default to Hono (browser)
  */
 export function getApiMode(): ApiMode {
-  // Check if we're running in Tauri
+  // Check environment variable first
+  if (import.meta.env.VITE_API_MODE === 'tauri') {
+    return 'tauri';
+  }
+  if (import.meta.env.VITE_API_MODE === 'hono') {
+    return 'hono';
+  }
+
+  // Check if we're running in Tauri runtime
   if ((window as any).__TAURI_INTERNALS__) {
     return 'tauri';
   }
 
-  // Future: Check environment variable for Hono mode
-  // if (import.meta.env.VITE_API_MODE === 'hono') {
-  //   return 'hono';
-  // }
-
-  return 'tauri';
+  // Default to Hono for browser environments
+  return 'hono';
 }
 
 /**
