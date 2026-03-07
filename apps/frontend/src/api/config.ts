@@ -5,6 +5,8 @@
 
 export type ApiMode = 'tauri' | 'hono';
 
+let cachedApiMode: ApiMode | null = null;
+
 /**
  * Gets the current API mode based on runtime detection and environment settings.
  *
@@ -14,25 +16,33 @@ export type ApiMode = 'tauri' | 'hono';
  * - Browser default is `hono`.
  */
 export function getApiMode(): ApiMode {
+  if (cachedApiMode) {
+    return cachedApiMode;
+  }
+
   const hasWindow = typeof window !== 'undefined';
   const runtime = hasWindow ? (window as any) : undefined;
   const isTauriRuntime = !!runtime?.__TAURI__ || !!runtime?.__TAURI_INTERNALS__;
 
   // Never fall back to Hono when running inside Tauri.
   if (isTauriRuntime) {
-    return 'tauri';
+    cachedApiMode = 'tauri';
+    return cachedApiMode;
   }
 
   // Environment override applies outside Tauri runtime.
   if (import.meta.env.VITE_API_MODE === 'tauri') {
-    return 'tauri';
+    cachedApiMode = 'tauri';
+    return cachedApiMode;
   }
   if (import.meta.env.VITE_API_MODE === 'hono') {
-    return 'hono';
+    cachedApiMode = 'hono';
+    return cachedApiMode;
   }
 
   // Default to Hono for browser environments
-  return 'hono';
+  cachedApiMode = 'hono';
+  return cachedApiMode;
 }
 
 /**

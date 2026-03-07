@@ -45,15 +45,31 @@ type AppEnv = { Variables: { auth: AuthContext } };
 
 const app = new Hono<AppEnv>();
 
-// CORS configuration: restrict origins in production
-const allowedOrigins = process.env.NODE_ENV === 'production' 
-  ? (process.env.CORS_ALLOWED_ORIGINS?.split(',') || ['http://localhost:3000'])
-  : ['http://localhost:3000', 'http://localhost:5173', 'http://127.0.0.1:5173', 'http://127.0.0.1:3000'];
+const corsAllowAll = process.env.CORS_ALLOW_ALL === 'true';
+const corsAllowedOrigins = (process.env.CORS_ALLOWED_ORIGINS ?? '')
+  .split(',')
+  .map((origin) => origin.trim())
+  .filter((origin) => origin.length > 0);
+
+function isOriginAllowed(origin: string | undefined): boolean {
+  if (!origin) return true;
+  if (corsAllowAll) return true;
+  return corsAllowedOrigins.includes(origin);
+}
+
+app.use('/api/*', async (c, next) => {
+  const origin = c.req.header('Origin');
+  if (!isOriginAllowed(origin)) {
+    return c.json({ error: 'CORS origin forbidden' }, 403);
+  }
+  await next();
+});
 
 app.use('/api/*', cors({
   origin: (origin) => {
-    if (!origin) return '*'; // Allow requests without origin header
-    return allowedOrigins.includes(origin) ? origin : (process.env.NODE_ENV === 'production' ? null : origin);
+    if (!origin) return '*';
+    if (corsAllowAll) return origin;
+    return corsAllowedOrigins.includes(origin) ? origin : '';
   },
   credentials: true,
 }));
@@ -153,9 +169,51 @@ async function fetchProfileUsername(token: string, userId: string): Promise<stri
   return username ? username : 'Unknown User';
 }
 
-/**
- * Handle create item request with parsed context
- */
+async function handleGetActiveItems(c: Context<AppEnv>): Promise<Response> {
+  const { token } = c.get('auth');
+  const supabase = createSupabaseWithToken(token);
+
+  const { data, error } = await supabase
+    .from('items')
+    .select('*')
+    .is('deleted_at', null)
+    .eq('is_archived', false)
+    .order('due', { ascending: true, nullsFirst: false })
+    .order('created_at', { ascending: false });
+
+  if (error) return c.json({ error: error.message }, 400);
+  return c.json((data ?? []).map((row) => normalizeItem(row as ItemRow)));
+}
+
+async function handleGetArchivedItems(c: Context<AppEnv>): Promise<Response> {
+  const { token } = c.get('auth');
+  const supabase = createSupabaseWithToken(token);
+
+  const { data, error } = await supabase
+    .from('items')
+    .select('*')
+    .is('deleted_at', null)
+    .eq('is_archived', true)
+    .order('created_at', { ascending: false });
+
+  if (error) return c.json({ error: error.message }, 400);
+  return c.json((data ?? []).map((row) => normalizeItem(row as ItemRow)));
+}
+
+async function handleGetDeletedItems(c: Context<AppEnv>): Promise<Response> {
+  const { token } = c.get('auth');
+  const supabase = createSupabaseWithToken(token);
+
+  const { data, error } = await supabase
+    .from('items')
+    .select('*')
+    .not('deleted_at', 'is', null)
+    .order('deleted_at', { ascending: false });
+
+  if (error) return c.json({ error: error.message }, 400);
+  return c.json((data ?? []).map((row) => normalizeItem(row as ItemRow)));
+}
+
 async function handleCreateItem(c: Context<AppEnv>): Promise<Response> {
   try {
     const { userId, token } = c.get('auth');
@@ -195,9 +253,60 @@ async function handleCreateItem(c: Context<AppEnv>): Promise<Response> {
 
     if (error) return c.json({ error: error.message }, 400);
     return c.json({ id: data.id });
-  } catch (err) {
+  } catch {
     return c.json({ error: 'Failed to create item' }, 500);
   }
+}
+
+async function handleUpdateItemStatus(c: Context<AppEnv>): Promise<Response> {
+  const body = await parseJson(c, { id: '', status: '' });
+  if (!body.id || !body.status) {
+    return c.json({ error: 'id and status are required' }, 400);
+  }
+
+  const { token } = c.get('auth');
+  const supabase = createSupabaseWithToken(token);
+
+  const { error } = await supabase
+    .from('items')
+    .update({ status: parseStatus(body.status) })
+    .eq('id', body.id);
+
+  if (error) return c.json({ error: error.message }, 400);
+  return c.body(null, 204);
+}
+
+async function handleArchiveItem(c: Context<AppEnv>): Promise<Response> {
+  const body = await parseJson(c, { id: '' });
+  if (!body.id) return c.json({ error: 'id is required' }, 400);
+
+  const { token } = c.get('auth');
+  const supabase = createSupabaseWithToken(token);
+
+  const { error } = await supabase
+    .from('items')
+    .update({ is_archived: true })
+    .eq('id', body.id)
+    .is('deleted_at', null);
+
+  if (error) return c.json({ error: error.message }, 400);
+  return c.body(null, 204);
+}
+
+async function handleSoftDeleteItem(c: Context<AppEnv>): Promise<Response> {
+  const body = await parseJson(c, { id: '' });
+  if (!body.id) return c.json({ error: 'id is required' }, 400);
+
+  const { token } = c.get('auth');
+  const supabase = createSupabaseWithToken(token);
+
+  const { error } = await supabase
+    .from('items')
+    .update({ deleted_at: new Date().toISOString() })
+    .eq('id', body.id);
+
+  if (error) return c.json({ error: error.message }, 400);
+  return c.body(null, 204);
 }
 
 app.get('/api/hello', (c) => {
@@ -268,58 +377,15 @@ app.use('/api/debug/*', requireAuth);
 app.use('/api/commands/*', requireAuth);
 
 // Items endpoints
-app.get('/api/items/active', async (c) => {
-  const { token } = c.get('auth');
-  const supabase = createSupabaseWithToken(token);
+app.get('/api/items/active', async (c) => handleGetActiveItems(c));
 
-  const { data, error } = await supabase
-    .from('items')
-    .select('*')
-    .is('deleted_at', null)
-    .eq('is_archived', false)
-    .order('due', { ascending: true, nullsFirst: false })
-    .order('created_at', { ascending: false });
+app.get('/api/items/archived', async (c) => handleGetArchivedItems(c));
 
-  if (error) return c.json({ error: error.message }, 400);
-  return c.json((data ?? []).map((row) => normalizeItem(row as ItemRow)));
-});
+app.get('/api/items/deleted', async (c) => handleGetDeletedItems(c));
 
-app.get('/api/items/archived', async (c) => {
-  const { token } = c.get('auth');
-  const supabase = createSupabaseWithToken(token);
+app.post('/api/items', async (c) => handleCreateItem(c));
 
-  const { data, error } = await supabase
-    .from('items')
-    .select('*')
-    .is('deleted_at', null)
-    .eq('is_archived', true)
-    .order('created_at', { ascending: false });
-
-  if (error) return c.json({ error: error.message }, 400);
-  return c.json((data ?? []).map((row) => normalizeItem(row as ItemRow)));
-});
-
-app.get('/api/items/deleted', async (c) => {
-  const { token } = c.get('auth');
-  const supabase = createSupabaseWithToken(token);
-
-  const { data, error } = await supabase
-    .from('items')
-    .select('*')
-    .not('deleted_at', 'is', null)
-    .order('deleted_at', { ascending: false });
-
-  if (error) return c.json({ error: error.message }, 400);
-  return c.json((data ?? []).map((row) => normalizeItem(row as ItemRow)));
-});
-
-app.post('/api/items', requireAuth, async (c) => {
-  return handleCreateItem(c);
-});
-
-app.post('/api/items/create', requireAuth, async (c) => {
-  return handleCreateItem(c);
-});
+app.post('/api/items/create', async (c) => handleCreateItem(c));
 
 app.patch('/api/items/:id/status', async (c) => {
   const { token } = c.get('auth');
@@ -340,23 +406,7 @@ app.patch('/api/items/:id/status', async (c) => {
   return c.body(null, 204);
 });
 
-app.post('/api/items/update-status', requireAuth, async (c) => {
-  const body = await parseJson(c, { id: '', status: '' });
-  if (!body.id || !body.status) {
-    return c.json({ error: 'id and status are required' }, 400);
-  }
-
-  const { token } = c.get('auth');
-  const supabase = createSupabaseWithToken(token);
-
-  const { error } = await supabase
-    .from('items')
-    .update({ status: parseStatus(body.status) })
-    .eq('id', body.id);
-
-  if (error) return c.json({ error: error.message }, 400);
-  return c.body(null, 204);
-});
+app.post('/api/items/update-status', async (c) => handleUpdateItemStatus(c));
 
 app.post('/api/items/:id/archive', async (c) => {
   const { token } = c.get('auth');
@@ -373,22 +423,7 @@ app.post('/api/items/:id/archive', async (c) => {
   return c.body(null, 204);
 });
 
-app.post('/api/items/archive', requireAuth, async (c) => {
-  const body = await parseJson(c, { id: '' });
-  if (!body.id) return c.json({ error: 'id is required' }, 400);
-
-  const { token } = c.get('auth');
-  const supabase = createSupabaseWithToken(token);
-
-  const { error } = await supabase
-    .from('items')
-    .update({ is_archived: true })
-    .eq('id', body.id)
-    .is('deleted_at', null);
-
-  if (error) return c.json({ error: error.message }, 400);
-  return c.body(null, 204);
-});
+app.post('/api/items/archive', async (c) => handleArchiveItem(c));
 
 app.delete('/api/items/:id', async (c) => {
   const { token } = c.get('auth');
@@ -404,21 +439,7 @@ app.delete('/api/items/:id', async (c) => {
   return c.body(null, 204);
 });
 
-app.post('/api/items/soft-delete', requireAuth, async (c) => {
-  const body = await parseJson(c, { id: '' });
-  if (!body.id) return c.json({ error: 'id is required' }, 400);
-
-  const { token } = c.get('auth');
-  const supabase = createSupabaseWithToken(token);
-
-  const { error } = await supabase
-    .from('items')
-    .update({ deleted_at: new Date().toISOString() })
-    .eq('id', body.id);
-
-  if (error) return c.json({ error: error.message }, 400);
-  return c.body(null, 204);
-});
+app.post('/api/items/soft-delete', async (c) => handleSoftDeleteItem(c));
 
 app.post('/api/items/sync', (c) => c.json({ count: 0 }));
 
@@ -546,57 +567,19 @@ app.post('/api/debug/migrate', async (c) => {
 });
 
 // Tauri command aliases
-app.get('/api/commands/get_active_items', (c) => {
-  return app.request(new Request(new URL('/api/items/active', c.req.url).toString(), { headers: c.req.raw.headers }));
-});
+app.get('/api/commands/get_active_items', async (c) => handleGetActiveItems(c));
 
-app.get('/api/commands/get_archived_items', (c) => {
-  return app.request(new Request(new URL('/api/items/archived', c.req.url).toString(), { headers: c.req.raw.headers }));
-});
+app.get('/api/commands/get_archived_items', async (c) => handleGetArchivedItems(c));
 
-app.get('/api/commands/get_deleted_items', (c) => {
-  return app.request(new Request(new URL('/api/items/deleted', c.req.url).toString(), { headers: c.req.raw.headers }));
-});
+app.get('/api/commands/get_deleted_items', async (c) => handleGetDeletedItems(c));
 
-app.post('/api/commands/create_item', async (c) => {
-  return app.request(
-    new Request(new URL('/api/items/create', c.req.url).toString(), {
-      method: 'POST',
-      headers: c.req.raw.headers,
-      body: await c.req.raw.text(),
-    }),
-  );
-});
+app.post('/api/commands/create_item', async (c) => handleCreateItem(c));
 
-app.post('/api/commands/update_item_status', async (c) => {
-  return app.request(
-    new Request(new URL('/api/items/update-status', c.req.url).toString(), {
-      method: 'POST',
-      headers: c.req.raw.headers,
-      body: await c.req.raw.text(),
-    }),
-  );
-});
+app.post('/api/commands/update_item_status', async (c) => handleUpdateItemStatus(c));
 
-app.post('/api/commands/archive_item', async (c) => {
-  return app.request(
-    new Request(new URL('/api/items/archive', c.req.url).toString(), {
-      method: 'POST',
-      headers: c.req.raw.headers,
-      body: await c.req.raw.text(),
-    }),
-  );
-});
+app.post('/api/commands/archive_item', async (c) => handleArchiveItem(c));
 
-app.post('/api/commands/soft_delete_item', async (c) => {
-  return app.request(
-    new Request(new URL('/api/items/soft-delete', c.req.url).toString(), {
-      method: 'POST',
-      headers: c.req.raw.headers,
-      body: await c.req.raw.text(),
-    }),
-  );
-});
+app.post('/api/commands/soft_delete_item', async (c) => handleSoftDeleteItem(c));
 
 app.post('/api/commands/sync_items', (c) => c.json(0));
 
