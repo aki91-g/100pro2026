@@ -131,7 +131,11 @@ function parseStatus(raw: string | undefined): TaskStatus {
 
 async function parseJson<T>(c: Context, fallback: T): Promise<T> {
   try {
-    return await c.req.json<T>();
+    const parsed = await c.req.json<T>();
+    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+      return { ...fallback, ...(parsed as any) };
+    }
+    return parsed;
   } catch {
     return fallback;
   }
@@ -226,7 +230,7 @@ async function handleCreateItem(c: Context<AppEnv>): Promise<Response> {
       duration_minutes: null as number | null,
     });
 
-    const title = body.title.trim();
+    const title = (body.title ?? '').trim();
     const motivation = Number(body.motivation ?? 0);
     const due = body.due ?? null;
     const durationMinutes = body.duration_minutes ?? body.durationMinutes ?? null;
@@ -319,8 +323,8 @@ app.get('/api/hello', (c) => {
 // Auth endpoints
 app.post('/api/auth/login', async (c) => {
   const body = await parseJson(c, { email: '', password: '' });
-  const email = body.email.trim();
-  const password = body.password;
+  const email = (body.email ?? '').trim();
+  const password = body.password ?? '';
 
   if (!email || !password) {
     return c.json({ error: 'Email and password are required' }, 400);
@@ -581,7 +585,7 @@ app.post('/api/commands/archive_item', async (c) => handleArchiveItem(c));
 
 app.post('/api/commands/soft_delete_item', async (c) => handleSoftDeleteItem(c));
 
-app.post('/api/commands/sync_items', (c) => c.json(0));
+app.post('/api/commands/sync_items', (c) => c.json({ count: 0 }));
 
 serve({ fetch: app.fetch, port: PORT }, () => {
   console.log(`Hono server running on http://localhost:${PORT}`);
