@@ -1,15 +1,6 @@
 import { ref } from 'vue';
-import type { Item } from '@/services/itemService';
-import {
-  archiveItemApi,
-  createItemApi,
-  fetchActiveItemsApi,
-  fetchArchivedItemsApi,
-  fetchDeletedItemsApi,
-  softDeleteItemApi,
-  syncItemsApi,
-  updateItemStatusApi,
-} from '@/services/apiService';
+import type { Item } from '@/types/item';
+import { itemRepository } from '@/api/itemRepository';
 
 /**
  * Shared state for items across the application
@@ -23,9 +14,12 @@ const isSyncing = ref(false);
 // Reference count for concurrent loading operations
 let loadingCount = 0;
 
+// Session token for preventing race conditions on auth state changes
+let currentLoadToken = 0;
+
 /**
  * Composable for managing items/tasks
- * Handles fetching, creation, updates, and syncing
+ * Handles fetching, creation, updates, and syncing with race condition protection
  */
 export function useItems() {
 
@@ -40,17 +34,48 @@ export function useItems() {
     isLoading.value = loadingCount > 0;
   }
 
-  // Fetch active items
-  async function fetchActiveItems() {
+  /**
+   * Get the current load token (for external callers like MainDashboard)
+   */
+  function getCurrentToken(): number {
+    return currentLoadToken;
+  }
+
+  /**
+   * Invalidate current session (e.g., on logout)
+   */
+  function invalidateSession(): void {
+    currentLoadToken++;
+    items.value = [];
+  }
+
+  /**
+   * Start a new load session and return its token
+   */
+  function startNewSession(): number {
+    currentLoadToken++;
+    return currentLoadToken;
+  }
+
+  // Fetch active items with session token protection
+  async function fetchActiveItems(sessionToken?: number): Promise<Item[]> {
     startLoading();
     error.value = null;
     try {
-      const data = await fetchActiveItemsApi();
-      items.value = data;
+      const data = await itemRepository.getActiveItems();
+      
+      // Only update if this is the current session
+      if (sessionToken === undefined || sessionToken === currentLoadToken) {
+        items.value = data;
+      }
+      
       return data;
     } catch (err) {
-      error.value = String(err);
-      console.error('Failed to fetch active items:', err);
+      // Only update error if this is the current session
+      if (sessionToken === undefined || sessionToken === currentLoadToken) {
+        error.value = String(err);
+        console.error('Failed to fetch active items:', err);
+      }
       throw err;
     } finally {
       finishLoading();
@@ -58,11 +83,11 @@ export function useItems() {
   }
 
   // Fetch archived items
-  async function fetchArchivedItems() {
+  async function fetchArchivedItems(): Promise<Item[]> {
     startLoading();
     error.value = null;
     try {
-      const data = await fetchArchivedItemsApi();
+      const data = await itemRepository.getArchivedItems();
       return data;
     } catch (err) {
       error.value = String(err);
@@ -74,11 +99,11 @@ export function useItems() {
   }
 
   // Fetch deleted items
-  async function fetchDeletedItems() {
+  async function fetchDeletedItems(): Promise<Item[]> {
     startLoading();
     error.value = null;
     try {
-      const data = await fetchDeletedItemsApi();
+      const data = await itemRepository.getDeletedItems();
       return data;
     } catch (err) {
       error.value = String(err);
@@ -90,11 +115,11 @@ export function useItems() {
   }
 
   // Sync with remote
-  async function syncItems() {
+  async function syncItems(): Promise<number> {
     isSyncing.value = true;
     error.value = null;
     try {
-      const syncedCount = await syncItemsApi();
+      const syncedCount = await itemRepository.syncItems();
       // Refresh local items after sync
       await fetchActiveItems();
       return syncedCount;
@@ -113,10 +138,10 @@ export function useItems() {
     motivation: number,
     due?: string | null,
     durationMinutes?: number | null
-  ) {
+  ): Promise<string> {
     error.value = null;
     try {
-      const id = await createItemApi({
+      const id = await itemRepository.createItem({
         title,
         motivation,
         due,
@@ -133,10 +158,10 @@ export function useItems() {
   }
 
   // Update item status
-  async function updateItemStatus(id: string, status: Item['status']) {
+  async function updateItemStatus(id: string, status: Item['status']): Promise<void> {
     error.value = null;
     try {
-      await updateItemStatusApi(id, status);
+      await itemRepository.updateItemStatus(id, status);
       // Update local state
       const item = items.value.find((i) => i.id === id);
       if (item) {
@@ -151,10 +176,10 @@ export function useItems() {
   }
 
   // Archive item
-  async function archiveItem(id: string) {
+  async function archiveItem(id: string): Promise<void> {
     error.value = null;
     try {
-      await archiveItemApi(id);
+      await itemRepository.archiveItem(id);
       // Remove from local list
       items.value = items.value.filter((i) => i.id !== id);
     } catch (err) {
@@ -165,10 +190,10 @@ export function useItems() {
   }
 
   // Soft delete item
-  async function softDeleteItem(id: string) {
+  async function softDeleteItem(id: string): Promise<void> {
     error.value = null;
     try {
-      await softDeleteItemApi(id);
+      await itemRepository.softDeleteItem(id);
       // Remove from local list
       items.value = items.value.filter((i) => i.id !== id);
     } catch (err) {
@@ -184,6 +209,10 @@ export function useItems() {
     isLoading,
     error,
     isSyncing,
+    // Session Management
+    getCurrentToken,
+    invalidateSession,
+    startNewSession,
     // Actions
     fetchActiveItems,
     fetchArchivedItems,

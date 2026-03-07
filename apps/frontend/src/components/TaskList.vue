@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { Item } from "@/services/itemService";
+import type { Item } from "@/types/item";
 import SyncStatusBadge from "@/components/SyncStatusBadge.vue";
 
 defineProps<{

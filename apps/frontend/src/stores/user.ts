@@ -1,18 +1,6 @@
 import { ref, computed } from 'vue';
 import { defineStore } from 'pinia';
-import { invoke } from '@tauri-apps/api/core';
-
-interface LocalUser {
-  id: string;
-  username: string;
-  last_login: string | null;
-  is_active: number;
-}
-
-interface LoginResponse {
-  id: string;
-  username: string;
-}
+import { authRepository } from '@/api/authRepository';
 
 export const useUserStore = defineStore('user', () => {
   // State
@@ -27,27 +15,18 @@ export const useUserStore = defineStore('user', () => {
   async function initialize() {
     try {
       // Try to auto-login using local_user table
-      const localUser = await invoke<LocalUser | null>('auto_login');
+      const localUser = await authRepository.autoLogin();
       
       if (localUser) {
         userId.value = localUser.id;
         username.value = localUser.username;
         console.log(`🔐 Auto-login successful: ${username.value}`);
       } else {
-        // Fallback: Check current user from AppState
-        const currentUser = await invoke<string | null>('get_current_user');
-        userId.value = currentUser;
-        
-        // Try to get username from active local user
-        if (currentUser) {
-          try {
-            const activeUser = await invoke<LocalUser | null>('get_active_local_user');
-            if (activeUser) {
-              username.value = activeUser.username;
-            }
-          } catch (err) {
-            console.warn('Could not fetch active local user:', err);
-          }
+        // Fallback: Check active session
+        const activeSession = await authRepository.getActiveSession();
+        if (activeSession) {
+          userId.value = activeSession.id;
+          username.value = activeSession.username;
         }
       }
       
@@ -62,11 +41,8 @@ export const useUserStore = defineStore('user', () => {
 
   async function login(email: string, password: string) {
     try {
-      // Rust handles Supabase auth and resolves identity
-      const response = await invoke<LoginResponse>('login', { 
-        email,
-        password,
-      });
+      // Auth repository handles authentication
+      const response = await authRepository.login(email, password);
       
       userId.value = response.id;
       username.value = response.username;
@@ -80,7 +56,7 @@ export const useUserStore = defineStore('user', () => {
 
   async function logout() {
     try {
-      await invoke('logout');
+      await authRepository.logout();
       userId.value = null;
       username.value = null;
     } catch (error) {
