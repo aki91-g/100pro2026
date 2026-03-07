@@ -1,5 +1,4 @@
 import type { Item } from '@/types/item';
-import { useUserStore } from '@/stores/user'; // ユーザー情報を取得するためにインポート
 
 export interface HonoItemsClient {
   getActiveItems(): Promise<Item[]>;
@@ -21,23 +20,38 @@ export interface CreateItemPayload {
 
 export class HonoClient implements HonoItemsClient {
   private baseUrl: string;
+  private tokenGetter: (() => string | null) | null = null;
 
   constructor(baseUrl?: string) {
     this.baseUrl = baseUrl || import.meta.env.VITE_HONO_BASE_URL || 'http://localhost:3000';
   }
 
   /**
-   * 共通のヘッダー取得メソッド
+   * Set the token getter function to avoid Pinia instance errors
+   */
+  setTokenGetter(fn: () => string | null): void {
+    this.tokenGetter = fn;
+  }
+
+  /**
+   * Get headers with Authorization token if available
    */
   private getHeaders(): HeadersInit {
-    const userStore = useUserStore();
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
     };
 
-    // Supabaseのアクセストークンがあればヘッダーに載せる
-    if (userStore.accessToken) {
-      headers['Authorization'] = `Bearer ${userStore.accessToken}`;
+    // Get token via the injected function
+    if (this.tokenGetter) {
+      try {
+        const token = this.tokenGetter();
+        if (token) {
+          headers['Authorization'] = `Bearer ${token}`;
+        }
+      } catch (error) {
+        // Keep request functional even if store is not ready yet.
+        console.warn('Token getter failed. Sending request without Authorization header.');
+      }
     }
 
     return headers;
@@ -59,9 +73,9 @@ export class HonoClient implements HonoItemsClient {
   }
 
   /**
-   * Generic POST request
+   * Generic HTTP request with configurable method
    */
-  async post(path: string, body?: unknown, method: string = 'POST'): Promise<Response> {
+  async request(path: string, body?: unknown, method: string = 'POST'): Promise<Response> {
     const response = await fetch(`${this.baseUrl}${path}`, {
       method,
       headers: this.getHeaders(),
@@ -72,6 +86,27 @@ export class HonoClient implements HonoItemsClient {
       throw new Error(`${method} ${path} failed: ${errorData.error || response.statusText}`);
     }
     return response;
+  }
+
+  /**
+   * POST request wrapper
+   */
+  async post(path: string, body?: unknown): Promise<Response> {
+    return this.request(path, body, 'POST');
+  }
+
+  /**
+   * PATCH request wrapper
+   */
+  async patch(path: string, body?: unknown): Promise<Response> {
+    return this.request(path, body, 'PATCH');
+  }
+
+  /**
+   * DELETE request wrapper
+   */
+  async delete(path: string, body?: unknown): Promise<Response> {
+    return this.request(path, body, 'DELETE');
   }
 
   async getActiveItems(): Promise<Item[]> {
@@ -96,8 +131,7 @@ export class HonoClient implements HonoItemsClient {
   }
 
   async updateItemStatus(id: string, status: Item['status']): Promise<void> {
-    // Hono側が PATCH で待ち受けている場合は method を指定
-    await this.post(`/api/items/${id}/status`, { status }, 'PATCH');
+    await this.patch(`/api/items/${id}/status`, { status });
   }
 
   async archiveItem(id: string): Promise<void> {
@@ -105,8 +139,7 @@ export class HonoClient implements HonoItemsClient {
   }
 
   async softDeleteItem(id: string): Promise<void> {
-    // 物理削除ではなく論理削除（deleted_at更新）なので、API設計に合わせて DELETE を使用
-    await this.post(`/api/items/${id}`, undefined, 'DELETE');
+    await this.delete(`/api/items/${id}`);
   }
 
   async syncItems(): Promise<number> {

@@ -7,7 +7,7 @@ import dotenv from 'dotenv';
 import { resolve } from 'node:path';
 
 dotenv.config({ path: resolve(process.cwd(), '.env') });
-dotenv.config({ path: resolve(process.cwd(), '../../.env') });
+dotenv.config({ path: resolve(process.cwd(), '../../.env'), override: true });
 
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY;
@@ -44,7 +44,19 @@ type AuthContext = {
 type AppEnv = { Variables: { auth: AuthContext } };
 
 const app = new Hono<AppEnv>();
-app.use('/api/*', cors());
+
+// CORS configuration: restrict origins in production
+const allowedOrigins = process.env.NODE_ENV === 'production' 
+  ? (process.env.CORS_ALLOWED_ORIGINS?.split(',') || ['http://localhost:3000'])
+  : ['http://localhost:3000', 'http://localhost:5173', 'http://127.0.0.1:5173', 'http://127.0.0.1:3000'];
+
+app.use('/api/*', cors({
+  origin: (origin) => {
+    if (!origin) return '*'; // Allow requests without origin header
+    return allowedOrigins.includes(origin) ? origin : (process.env.NODE_ENV === 'production' ? null : origin);
+  },
+  credentials: true,
+}));
 
 function parseBearerToken(header: string | undefined): string | null {
   if (!header) return null;
@@ -139,6 +151,53 @@ async function fetchProfileUsername(token: string, userId: string): Promise<stri
 
   const username = data?.username?.trim();
   return username ? username : 'Unknown User';
+}
+
+/**
+ * Handle create item request with parsed context
+ */
+async function handleCreateItem(c: Context<AppEnv>): Promise<Response> {
+  try {
+    const { userId, token } = c.get('auth');
+    const supabase = createSupabaseWithToken(token);
+    const body = await parseJson(c, {
+      title: '',
+      motivation: 0,
+      due: null as string | null,
+      durationMinutes: null as number | null,
+      duration_minutes: null as number | null,
+    });
+
+    const title = body.title.trim();
+    const motivation = Number(body.motivation ?? 0);
+    const due = body.due ?? null;
+    const durationMinutes = body.duration_minutes ?? body.durationMinutes ?? null;
+
+    if (!title) {
+      return c.json({ error: 'title is required' }, 400);
+    }
+
+    const { data, error } = await supabase
+      .from('items')
+      .insert({
+        user_id: userId,
+        title,
+        description: null,
+        status: 'todo',
+        sync_status: 'synced',
+        due,
+        duration_minutes: durationMinutes,
+        motivation,
+        is_archived: false,
+      })
+      .select('id')
+      .single();
+
+    if (error) return c.json({ error: error.message }, 400);
+    return c.json({ id: data.id });
+  } catch (err) {
+    return c.json({ error: 'Failed to create item' }, 500);
+  }
 }
 
 app.get('/api/hello', (c) => {
@@ -254,54 +313,12 @@ app.get('/api/items/deleted', async (c) => {
   return c.json((data ?? []).map((row) => normalizeItem(row as ItemRow)));
 });
 
-app.post('/api/items', async (c) => {
-  const { userId, token } = c.get('auth');
-  const supabase = createSupabaseWithToken(token);
-  const body = await parseJson(c, {
-    title: '',
-    motivation: 0,
-    due: null as string | null,
-    durationMinutes: null as number | null,
-    duration_minutes: null as number | null,
-  });
-
-  const title = body.title.trim();
-  const motivation = Number(body.motivation ?? 0);
-  const due = body.due ?? null;
-  const durationMinutes = body.duration_minutes ?? body.durationMinutes ?? null;
-
-  if (!title) {
-    return c.json({ error: 'title is required' }, 400);
-  }
-
-  const { data, error } = await supabase
-    .from('items')
-    .insert({
-      user_id: userId,
-      title,
-      description: null,
-      status: 'todo',
-      sync_status: 'synced',
-      due,
-      duration_minutes: durationMinutes,
-      motivation,
-      is_archived: false,
-    })
-    .select('id')
-    .single();
-
-  if (error) return c.json({ error: error.message }, 400);
-  return c.json({ id: data.id });
+app.post('/api/items', requireAuth, async (c) => {
+  return handleCreateItem(c);
 });
 
-app.post('/api/items/create', async (c) => {
-  return app.request(
-    new Request(new URL('/api/items', c.req.url).toString(), {
-      method: 'POST',
-      headers: c.req.raw.headers,
-      body: await c.req.raw.text(),
-    }),
-  );
+app.post('/api/items/create', requireAuth, async (c) => {
+  return handleCreateItem(c);
 });
 
 app.patch('/api/items/:id/status', async (c) => {
@@ -323,19 +340,22 @@ app.patch('/api/items/:id/status', async (c) => {
   return c.body(null, 204);
 });
 
-app.post('/api/items/update-status', async (c) => {
+app.post('/api/items/update-status', requireAuth, async (c) => {
   const body = await parseJson(c, { id: '', status: '' });
   if (!body.id || !body.status) {
     return c.json({ error: 'id and status are required' }, 400);
   }
 
-  return app.request(
-    new Request(new URL(`/api/items/${body.id}/status`, c.req.url).toString(), {
-      method: 'PATCH',
-      headers: c.req.raw.headers,
-      body: JSON.stringify({ status: body.status }),
-    }),
-  );
+  const { token } = c.get('auth');
+  const supabase = createSupabaseWithToken(token);
+
+  const { error } = await supabase
+    .from('items')
+    .update({ status: parseStatus(body.status) })
+    .eq('id', body.id);
+
+  if (error) return c.json({ error: error.message }, 400);
+  return c.body(null, 204);
 });
 
 app.post('/api/items/:id/archive', async (c) => {
@@ -353,16 +373,21 @@ app.post('/api/items/:id/archive', async (c) => {
   return c.body(null, 204);
 });
 
-app.post('/api/items/archive', async (c) => {
+app.post('/api/items/archive', requireAuth, async (c) => {
   const body = await parseJson(c, { id: '' });
   if (!body.id) return c.json({ error: 'id is required' }, 400);
 
-  return app.request(
-    new Request(new URL(`/api/items/${body.id}/archive`, c.req.url).toString(), {
-      method: 'POST',
-      headers: c.req.raw.headers,
-    }),
-  );
+  const { token } = c.get('auth');
+  const supabase = createSupabaseWithToken(token);
+
+  const { error } = await supabase
+    .from('items')
+    .update({ is_archived: true })
+    .eq('id', body.id)
+    .is('deleted_at', null);
+
+  if (error) return c.json({ error: error.message }, 400);
+  return c.body(null, 204);
 });
 
 app.delete('/api/items/:id', async (c) => {
@@ -379,16 +404,20 @@ app.delete('/api/items/:id', async (c) => {
   return c.body(null, 204);
 });
 
-app.post('/api/items/soft-delete', async (c) => {
+app.post('/api/items/soft-delete', requireAuth, async (c) => {
   const body = await parseJson(c, { id: '' });
   if (!body.id) return c.json({ error: 'id is required' }, 400);
 
-  return app.request(
-    new Request(new URL(`/api/items/${body.id}`, c.req.url).toString(), {
-      method: 'DELETE',
-      headers: c.req.raw.headers,
-    }),
-  );
+  const { token } = c.get('auth');
+  const supabase = createSupabaseWithToken(token);
+
+  const { error } = await supabase
+    .from('items')
+    .update({ deleted_at: new Date().toISOString() })
+    .eq('id', body.id);
+
+  if (error) return c.json({ error: error.message }, 400);
+  return c.body(null, 204);
 });
 
 app.post('/api/items/sync', (c) => c.json({ count: 0 }));
@@ -399,6 +428,9 @@ app.get('/api/debug/dev-mode', (c) => {
 });
 
 app.post('/api/debug/seed', async (c) => {
+  if (process.env.NODE_ENV === 'production') {
+    return c.json({ error: 'Forbidden' }, 403);
+  }
   const { userId, token } = c.get('auth');
   const supabase = createSupabaseWithToken(token);
 
@@ -479,6 +511,9 @@ app.post('/api/debug/seed', async (c) => {
 });
 
 app.post('/api/debug/reset', async (c) => {
+  if (process.env.NODE_ENV === 'production') {
+    return c.json({ error: 'Forbidden' }, 403);
+  }
   const { token } = c.get('auth');
   const supabase = createSupabaseWithToken(token);
 
