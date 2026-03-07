@@ -1,0 +1,37 @@
+/**
+ * Item Type Definitions
+ * 
+ * Centralized types for Item, UUID, and related structures.
+ * Matches the Rust backend Item struct exactly.
+ */
+
+export type UUID = string;
+
+/**
+ * Matches the Rust Item struct exactly.
+ * Ensure the status strings match your Rust TaskStatus enum variants.
+ */
+export type Item = {
+  id: UUID;
+  user_id: UUID; // Changed to mandatory, matching Rust backend
+  sync_status: "synced" | "local_only" | "modified";
+  title: string;
+  description: string | null;
+  status: "Backlog" | "Todo" | "InProgress" | "Done";
+  due: string | null;
+  duration_minutes: number | null;
+  motivation: number;
+  is_archived: boolean;
+  created_at: string;
+  updated_at: string;
+  deleted_at: string | null;
+};
+
+/**
+ * Result object for UI state updates
+ */
+export type RefreshResult = {
+  active: Item[];
+  archived: Item[];
+  deleted: Item[];
+};

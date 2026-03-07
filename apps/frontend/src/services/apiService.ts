@@ -7,23 +7,23 @@ export interface HonoHelloResponse {
 }
 
 export async function isDevMode(): Promise<boolean> {
-  return invoke<boolean>("is_dev");
+  return invoke<boolean>("is_dev", {});
 }
 
 export async function fetchActiveItemsApi(): Promise<Item[]> {
-  return invoke<Item[]>("get_active_items");
+  return invoke<Item[]>("get_active_items", {});
 }
 
 export async function fetchArchivedItemsApi(): Promise<Item[]> {
-  return invoke<Item[]>("get_archived_items");
+  return invoke<Item[]>("get_archived_items", {});
 }
 
 export async function fetchDeletedItemsApi(): Promise<Item[]> {
-  return invoke<Item[]>("get_deleted_items");
+  return invoke<Item[]>("get_deleted_items", {});
 }
 
 export async function syncItemsApi(): Promise<number> {
-  return invoke<number>("sync_items");
+  return invoke<number>("sync_items", {});
 }
 
 export async function createItemApi(payload: {
@@ -48,11 +48,11 @@ export async function softDeleteItemApi(id: string): Promise<void> {
 }
 
 export async function seedDatabaseApi(): Promise<void> {
-  await invoke("debug_seed_data");
+  await invoke("debug_seed_data", {});
 }
 
 export async function resetDatabaseApi(): Promise<void> {
-  await invoke("debug_reset_db");
+  await invoke("debug_reset_db", {});
 }
 
 export async function migrateNullUserItemsApi(assignToCurrentUser: boolean): Promise<number> {
