@@ -2,6 +2,11 @@ import { invoke } from '@tauri-apps/api/core';
 import { getApiMode } from './config';
 import { honoClient } from './honoClient';
 
+export interface HonoHelloResponse {
+  message: string;
+  timestamp: string;
+}
+
 /**
  * Abstract debug repository interface
  */
@@ -10,6 +15,7 @@ export interface DebugRepository {
   seedDatabase(): Promise<void>;
   resetDatabase(): Promise<void>;
   migrateNullUserItems(assignToCurrentUser: boolean): Promise<number>;
+  fetchHonoHello(): Promise<HonoHelloResponse>;
 }
 
 /**
@@ -30,6 +36,33 @@ export class TauriDebugRepository implements DebugRepository {
 
   async migrateNullUserItems(assignToCurrentUser: boolean): Promise<number> {
     return invoke<number>('debug_migrate_null_users', { assignToCurrentUser });
+  }
+
+  async fetchHonoHello(): Promise<HonoHelloResponse> {
+    // Tauri can still call the Hono API for testing purposes
+    const honoBaseUrl = import.meta.env.VITE_HONO_BASE_URL;
+    if (!honoBaseUrl) {
+      throw new Error('HONO_BASE_URL is not defined in environment variables');
+    }
+    const url = `${honoBaseUrl}/api/hello`;
+    
+    // Create abort controller with 5 second timeout
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 5000);
+
+    try {
+      const response = await fetch(url, {
+        signal: controller.signal,
+      });
+
+      if (!response.ok) {
+        throw new Error('Network response was not ok');
+      }
+
+      return response.json() as Promise<HonoHelloResponse>;
+    } finally {
+      clearTimeout(timeout);
+    }
   }
 }
 
@@ -57,6 +90,11 @@ export class HonoDebugRepository implements DebugRepository {
     });
     const data = await response.json();
     return data.count;
+  }
+
+  async fetchHonoHello(): Promise<HonoHelloResponse> {
+    const response = await honoClient.get('/api/hello');
+    return response.json();
   }
 }
 

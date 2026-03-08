@@ -1,5 +1,5 @@
 import { ref } from 'vue';
-import { debugRepository } from '@/api/debugRepository';
+import { debugRepository, type HonoHelloResponse } from '@/api/debugRepository';
 
 /**
  * Composable for debug operations
@@ -75,6 +75,20 @@ export function useDebug() {
     }
   }
 
+  /**
+   * Fetch hello message from Hono backend for connectivity testing
+   */
+  async function fetchHonoHello(): Promise<HonoHelloResponse> {
+    error.value = null;
+
+    try {
+      return await debugRepository.fetchHonoHello();
+    } catch (err) {
+      error.value = String(err);
+      throw err;
+    }
+  }
+
   return {
     // State
     isDevMode,
@@ -85,5 +99,6 @@ export function useDebug() {
     seedDatabase,
     resetDatabase,
     migrateNullUserItems,
+    fetchHonoHello,
   };
 }
