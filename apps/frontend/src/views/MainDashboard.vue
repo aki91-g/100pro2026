@@ -8,9 +8,6 @@ import { useItems } from '@/composables/useItems';
 import { useSyncStatus } from '@/composables/useSyncStatus';
 import { useDebug } from '@/composables/useDebug';
 
-// Services
-import { fetchHonoHelloApi } from '@/services/apiService';
-
 // Components
 import SyncButton from '@/components/SyncButton.vue';
 import TaskList from '@/components/TaskList.vue';
@@ -24,6 +21,7 @@ const {
   items,
   isSyncing,
   fetchActiveItems,
+  createItem,
   startNewSession,
   invalidateSession,
   getCurrentToken,
@@ -41,6 +39,12 @@ const backendMsg = ref('');
 const isBackendLoading = ref(false);
 const showDebugTools = ref(false);
 let unlistenRemoteCatchup: UnlistenFn | null = null;
+
+// New Item Form state
+const newItemTitle = ref('');
+const newItemDuration = ref<number | null>(null);
+const newItemMotivation = ref<number>(5);
+const isCreating = ref(false);
 
 type UUID = string;
 
@@ -121,6 +125,33 @@ async function handleRefreshItems() {
   await loadItems(getCurrentToken());
 }
 
+// --- Create New Item ---
+async function handleCreateItem() {
+  if (!newItemTitle.value.trim()) {
+    return;
+  }
+
+  isCreating.value = true;
+  try {
+    await createItem(
+      newItemTitle.value.trim(),
+      newItemMotivation.value,
+      null, // due date
+      newItemDuration.value
+    );
+    // Clear form after successful creation
+    newItemTitle.value = '';
+    newItemDuration.value = null;
+    newItemMotivation.value = 5;
+    greetMsg.value = `✓ Item created successfully! Showing ${items.value.length} tasks.`;
+  } catch (e) {
+    console.error('Create Item Error:', e);
+    greetMsg.value = 'Failed to create item.';
+  } finally {
+    isCreating.value = false;
+  }
+}
+
 // --- Debug Commands ---
 async function seedDatabase() {
   if (!userId.value) {
@@ -189,7 +220,7 @@ async function migrateNullUserItems() {
 async function fetchFromHono() {
   isBackendLoading.value = true;
   try {
-    const data = await fetchHonoHelloApi();
+    const data = await debug.fetchHonoHello();
     backendMsg.value = `${data.message} (${new Date(data.timestamp).toLocaleTimeString()})`;
   } catch (e) {
     console.error('Hono Error:', e);
@@ -229,6 +260,55 @@ async function fetchFromHono() {
         @reset="resetDatabase"
         @migrate="migrateNullUserItems"
       />
+
+      <section class="card">
+        <h2>Add New Item</h2>
+        <p class="description">Create a new task to add to your list.</p>
+        <form @submit.prevent="handleCreateItem" class="new-item-form">
+          <div class="form-row">
+            <div class="form-field">
+              <label for="item-title">Title *</label>
+              <input 
+                id="item-title"
+                v-model="newItemTitle"
+                type="text" 
+                placeholder="Enter task title"
+                :disabled="isCreating"
+              />
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-field">
+              <label for="item-duration">Duration (minutes)</label>
+              <input 
+                id="item-duration"
+                v-model.number="newItemDuration"
+                type="number" 
+                placeholder="Optional"
+                :disabled="isCreating"
+                min="1"
+              />
+            </div>
+            <div class="form-field">
+              <label for="item-motivation">Motivation (1-10)</label>
+              <select 
+                id="item-motivation"
+                v-model.number="newItemMotivation"
+                :disabled="isCreating"
+              >
+                <option v-for="n in 10" :key="n" :value="n">{{ n }}</option>
+              </select>
+            </div>
+          </div>
+          <button 
+            type="submit" 
+            :disabled="!newItemTitle.trim() || isCreating"
+            class="create-button"
+          >
+            {{ isCreating ? 'Creating...' : 'Create Item' }}
+          </button>
+        </form>
+      </section>
 
       <TaskList :items="items" :sync-map="syncMap" :error-map="errorMap" :is-syncing="isSyncing" />
 
@@ -321,4 +401,76 @@ button:disabled {
   color: #2c3e50;
   background: #f0fff4;
 }
+
+/* New Item Form Styles */
+.new-item-form {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.form-row {
+  display: flex;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.form-field {
+  flex: 1;
+  min-width: 200px;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.form-field label {
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: #555;
+}
+
+.form-field input,
+.form-field select {
+  padding: 0.7rem;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  font-size: 0.95rem;
+  font-family: inherit;
+  background: #fff;
+}
+
+.form-field input:focus,
+.form-field select:focus {
+  outline: none;
+  border-color: #41b883;
+  box-shadow: 0 0 0 3px rgba(65, 184, 131, 0.1);
+}
+
+.form-field input:disabled,
+.form-field select:disabled {
+  background: #f5f5f5;
+  cursor: not-allowed;
+}
+
+.create-button {
+  align-self: flex-start;
+  background: #41b883;
+  color: white;
+  border: none;
+  padding: 0.8rem 1.8rem;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: 500;
+  transition: background 0.2s;
+}
+
+.create-button:hover:not(:disabled) {
+  background: #35a379;
+}
+
+.create-button:disabled {
+  background: #999;
+  cursor: not-allowed;
+}
+
 </style>
