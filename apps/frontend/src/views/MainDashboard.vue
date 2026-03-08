@@ -133,11 +133,15 @@ async function handleCreateItem() {
 
   isCreating.value = true;
   try {
+    const duration =
+    newItemDuration.value === '' || newItemDuration.value === null
+      ? null
+      : newItemDuration.value;
     await createItem(
       newItemTitle.value.trim(),
       newItemMotivation.value,
       null, // due date
-      newItemDuration.value
+      duration
     );
     // Clear form after successful creation
     newItemTitle.value = '';

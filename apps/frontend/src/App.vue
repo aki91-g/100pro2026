@@ -1,5 +1,3 @@
-// frontend/src/App.vue
-
 <script setup lang="ts">
 import { onMounted, watch } from 'vue';
 

@@ -40,7 +40,10 @@ export class TauriDebugRepository implements DebugRepository {
 
   async fetchHonoHello(): Promise<HonoHelloResponse> {
     // Tauri can still call the Hono API for testing purposes
-    const honoBaseUrl = import.meta.env.VITE_HONO_BASE_URL || 'http://localhost:3000';
+    const honoBaseUrl = import.meta.env.VITE_HONO_BASE_URL;
+    if (!honoBaseUrl) {
+      throw new Error('HONO_BASE_URL is not defined in environment variables');
+    }
     const url = `${honoBaseUrl}/api/hello`;
     
     // Create abort controller with 5 second timeout

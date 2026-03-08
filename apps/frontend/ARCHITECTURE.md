@@ -56,7 +56,7 @@ Helper exports:
 
 ## File Structure
 ```text
-frontend/
+apps/frontend/
 ├── src/
 │   ├── api/
 │   │   ├── authRepository.ts
@@ -432,9 +432,11 @@ if (usesHonoBackend()) {
 
 ### Example 4: Hono token injection from bootstrap
 ```ts
+import { createPinia } from 'pinia';
 import { honoClient } from '@/api/honoClient';
 import { useUserStore } from '@/stores/user';
 
+const pinia = createPinia();
 honoClient.setTokenGetter(() => useUserStore(pinia).accessToken ?? null);
 ```
 
