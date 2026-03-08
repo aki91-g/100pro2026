@@ -134,7 +134,7 @@ async function handleCreateItem() {
   isCreating.value = true;
   try {
     const duration =
-    newItemDuration.value === null || newItemDuration.value === null
+    newItemDuration.value === null
       ? null
       : newItemDuration.value;
     await createItem(
