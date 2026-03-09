@@ -1,20 +1,27 @@
 import { serve } from '@hono/node-server';
-import type { Context, MiddlewareHandler } from 'hono';
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { createClient } from '@supabase/supabase-js';
 import dotenv from 'dotenv';
 import { resolve } from 'node:path';
+import { existsSync } from 'node:fs'; 
+import type { Context, MiddlewareHandler } from 'hono';
 
-dotenv.config({ path: resolve(process.cwd(), '.env') });
-dotenv.config({ path: resolve(process.cwd(), '../../.env'), override: true });
+const rootEnvPath = resolve(process.cwd(), '../../.env');
+
+if (!process.env.SUPABASE_URL) {
+  if (existsSync(rootEnvPath)) {
+    dotenv.config({ path: rootEnvPath });
+  }
+}
 
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY;
 const PORT = Number(process.env.PORT ?? 3000);
 
 if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
-  throw new Error('SUPABASE_URL and SUPABASE_ANON_KEY must be set');
+  console.error('CRITICAL ERROR: SUPABASE_URL or SUPABASE_ANON_KEY is not defined.');
+  process.exit(1);
 }
 
 type TaskStatus = 'backlog' | 'todo' | 'inprogress' | 'done';
