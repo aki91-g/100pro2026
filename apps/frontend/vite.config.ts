@@ -4,6 +4,7 @@ import { fileURLToPath, URL } from 'node:url'
 
 export default defineConfig({
   plugins: [vue()],
+  envDir: '../../',
   resolve: {
     alias: {
       // This maps '@' to the 'src' directory relative to this config file
