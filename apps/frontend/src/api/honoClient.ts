@@ -24,7 +24,7 @@ export class HonoClient implements HonoItemsClient {
   private tokenGetter: (() => string | null) | null = null;
 
   constructor(baseUrl?: string) {
-    this.baseUrl = baseUrl || import.meta.env.VITE_HONO_BASE_URL;
+    this.baseUrl = baseUrl || import.meta.env.VITE_HONO_BASE_URL || 'https://localhost:3000';
   }
 
   /**
