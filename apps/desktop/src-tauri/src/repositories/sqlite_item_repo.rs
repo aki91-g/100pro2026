@@ -51,18 +51,19 @@ impl ItemRepository for SqliteItemRepo {
         Ok(items)
     }
 
-    async fn create_item(&self, user_id: Uuid, id: uuid::Uuid, title: String, motivation: i8, due: Option<chrono::DateTime<chrono::Utc>>, duration_minutes: Option<i32>) -> AppResult<()> {
+    async fn create_item(&self, user_id: Uuid, id: uuid::Uuid, title: String, description: Option<String>, motivation: Option<i32>, due: chrono::DateTime<chrono::Utc>, duration_minutes: Option<i32>) -> AppResult<()> {
         let result = sqlx::query(
-            "INSERT INTO items (id, user_id, title, due, duration_minutes, status, motivation, is_archived, sync_status) 
-             VALUES (?, ?, ?, ?, ?, 'todo', ?, 0, 'local_only')
+            "INSERT INTO items (id, user_id, title, description, due, duration_minutes, status, motivation, is_archived, sync_status) 
+             VALUES (?, ?, ?, ?, ?, ?, 'todo', ?, 0, 'local_only')
              ON CONFLICT(id) DO UPDATE SET
                 title = excluded.title,
+                description = excluded.description,
                 due = excluded.due,
                 duration_minutes = excluded.duration_minutes,
                 motivation = excluded.motivation,
                 updated_at = CURRENT_TIMESTAMP"
         )
-        .bind(id.to_string()).bind(user_id.to_string()).bind(title).bind(due).bind(duration_minutes).bind(motivation)
+        .bind(id.to_string()).bind(user_id.to_string()).bind(title).bind(description).bind(due).bind(duration_minutes).bind(motivation)
         .execute(&self.pool).await?;
 
         if result.rows_affected() != 1 {
@@ -110,7 +111,7 @@ impl ItemRepository for SqliteItemRepo {
         Ok(())
     }
 
-    async fn update_item_details(&self, user_id: Uuid, id: Uuid, title: String, description: Option<String>, due: Option<DateTime<Utc>>, duration_minutes: Option<i32>, motivation: i8) -> AppResult<()> {
+    async fn update_item_details(&self, user_id: Uuid, id: Uuid, title: String, description: Option<String>, due: DateTime<Utc>, duration_minutes: Option<i32>, motivation: Option<i32>) -> AppResult<()> {
         sqlx::query(
             "UPDATE items SET title = ?, description = ?, due = ?, duration_minutes = ?, motivation = ?, updated_at = CURRENT_TIMESTAMP 
              WHERE id = ? AND user_id = ?"

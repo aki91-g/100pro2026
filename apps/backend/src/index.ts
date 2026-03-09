@@ -27,9 +27,9 @@ type ItemRow = {
   description: string | null;
   status: TaskStatus;
   sync_status: SyncStatus;
-  due: string | null;
+  due: string;
   duration_minutes: number | null;
-  motivation: number;
+  motivation: number | null;
   is_archived: boolean;
   created_at: string;
   updated_at: string;
@@ -105,7 +105,7 @@ function createAnonSupabase() {
 }
 
 function normalizeIso(value: string | null): string | null {
-  if (!value) return null;
+  if (value === null) return null;
   const d = new Date(value);
   if (Number.isNaN(d.getTime())) return value;
   return d.toISOString();
@@ -114,7 +114,7 @@ function normalizeIso(value: string | null): string | null {
 function normalizeItem(row: ItemRow): ItemRow {
   return {
     ...row,
-    due: normalizeIso(row.due),
+    due: normalizeIso(row.due) ?? row.due,
     created_at: normalizeIso(row.created_at) ?? row.created_at,
     updated_at: normalizeIso(row.updated_at) ?? row.updated_at,
     deleted_at: normalizeIso(row.deleted_at),
@@ -226,8 +226,9 @@ async function handleCreateItem(c: Context<AppEnv>): Promise<Response> {
     const supabase = createSupabaseWithToken(token);
     const body = await parseJson(c, {
       title: '',
-      motivation: 0,
-      due: null as string | null,
+      description: null as string | null,
+      motivation: null as number | null,
+      due: '',
       durationMinutes: null as number | null,
       duration_minutes: null as number | null,
     });
@@ -236,16 +237,16 @@ async function handleCreateItem(c: Context<AppEnv>): Promise<Response> {
     const motivation =
       typeof body.motivation === 'number' && Number.isFinite(body.motivation)
         ? body.motivation
-        : 0;
-    const due = typeof body.due === 'string' ? body.due : null;
+        : null;
+    const due = typeof body.due === 'string' ? body.due.trim() : '';
     const rawDuration = body.duration_minutes ?? body.durationMinutes;
     const durationMinutes =
       typeof rawDuration === 'number' && Number.isFinite(rawDuration)
         ? rawDuration
         : null;
 
-    if (!title) {
-      return c.json({ error: 'title is required' }, 400);
+    if (!title || !due) {
+      return c.json({ error: 'title and due are required' }, 400);
     }
 
     const { data, error } = await supabase
@@ -253,7 +254,7 @@ async function handleCreateItem(c: Context<AppEnv>): Promise<Response> {
       .insert({
         user_id: userId,
         title,
-        description: null,
+        description: body.description,
         status: 'todo',
         sync_status: 'synced',
         due,
@@ -395,7 +396,6 @@ app.post('/api/auth/auto-login', requireAuth, async (c) => {
 });
 
 app.use('/api/items/*', requireAuth);
-app.use('/api/debug/*', requireAuth);
 app.use('/api/commands/*', requireAuth);
 
 // Items endpoints
@@ -472,129 +472,6 @@ app.delete('/api/items/:id', async (c) => {
 app.post('/api/items/soft-delete', async (c) => handleSoftDeleteItem(c));
 
 app.post('/api/items/sync', (c) => c.json({ count: 0 }));
-
-// Debug endpoints
-app.get('/api/debug/dev-mode', (c) => {
-  return c.json({ isDevMode: process.env.NODE_ENV !== 'production' });
-});
-
-app.post('/api/debug/seed', async (c) => {
-  if (process.env.NODE_ENV === 'production') {
-    return c.json({ error: 'Forbidden' }, 403);
-  }
-  const { userId, token } = c.get('auth');
-  const supabase = createSupabaseWithToken(token);
-
-  const seedRows = [
-    {
-      id: '00000000-0000-0000-0000-000000000001',
-      user_id: userId,
-      title: 'Backlog Item',
-      description: 'Planning stage',
-      status: 'backlog' as TaskStatus,
-      sync_status: 'synced' as SyncStatus,
-      motivation: 0,
-      is_archived: false,
-      deleted_at: null,
-      due: null,
-      duration_minutes: null,
-    },
-    {
-      id: '00000000-0000-0000-0000-000000000002',
-      user_id: userId,
-      title: 'InP Task',
-      description: 'Working on this',
-      status: 'inprogress' as TaskStatus,
-      sync_status: 'synced' as SyncStatus,
-      motivation: 5,
-      is_archived: false,
-      deleted_at: null,
-      due: null,
-      duration_minutes: null,
-    },
-    {
-      id: '00000000-0000-0000-0000-000000000003',
-      user_id: userId,
-      title: 'Finished Task',
-      description: 'Ready to be archived',
-      status: 'done' as TaskStatus,
-      sync_status: 'synced' as SyncStatus,
-      motivation: 2,
-      is_archived: false,
-      deleted_at: null,
-      due: null,
-      duration_minutes: null,
-    },
-    {
-      id: '00000000-0000-0000-0000-000000000004',
-      user_id: userId,
-      title: 'Archived Project',
-      description: 'Past work',
-      status: 'inprogress' as TaskStatus,
-      sync_status: 'synced' as SyncStatus,
-      motivation: 0,
-      is_archived: true,
-      deleted_at: null,
-      due: null,
-      duration_minutes: null,
-    },
-    {
-      id: '00000000-0000-0000-0000-000000000005',
-      user_id: userId,
-      title: 'Ghost Task',
-      description: 'This was deleted',
-      status: 'todo' as TaskStatus,
-      sync_status: 'synced' as SyncStatus,
-      motivation: 0,
-      is_archived: false,
-      deleted_at: new Date().toISOString(),
-      due: null,
-      duration_minutes: null,
-    },
-  ];
-
-  const { error } = await supabase
-    .from('items')
-    .upsert(seedRows, { onConflict: 'id' });
-
-  if (error) return c.json({ error: error.message }, 400);
-  return c.body(null, 204);
-});
-
-app.post('/api/debug/reset', async (c) => {
-  if (process.env.NODE_ENV === 'production') {
-    return c.json({ error: 'Forbidden' }, 403);
-  }
-  const { token } = c.get('auth');
-  const supabase = createSupabaseWithToken(token);
-
-  const { error } = await supabase
-    .from('items')
-    .delete()
-    .not('id', 'is', null);
-
-  if (error) return c.json({ error: error.message }, 400);
-  return c.body(null, 204);
-});
-
-app.post('/api/debug/migrate', async (c) => {
-  const { token } = c.get('auth');
-  const supabase = createSupabaseWithToken(token);
-  const body = await parseJson(c, { assignToCurrentUser: false });
-
-  if (!body.assignToCurrentUser) {
-    return c.json({ count: 0 });
-  }
-
-  // user_id is NOT NULL in current schema; keep endpoint for compatibility.
-  const { count, error } = await supabase
-    .from('items')
-    .select('id', { count: 'exact', head: true })
-    .is('user_id', null);
-
-  if (error) return c.json({ error: error.message }, 400);
-  return c.json({ count: count ?? 0 });
-});
 
 // Tauri command aliases
 app.get('/api/commands/get_active_items', async (c) => handleGetActiveItems(c));

@@ -14,21 +14,13 @@ use uuid::Uuid;
 
 // Cleaned up imports
 use crate::state::AppState;
-use crate::services::{debug_service::DebugService, item_service::ItemService};
+use crate::services::item_service::ItemService;
 use crate::commands::db_commands::*;
 use crate::commands::auth_commands::*;
 use crate::database::connection::init_sqlite;
 use crate::repositories::user_repo::UserRepository;
 use crate::repositories::session_repo::SessionRepository;
 use crate::repositories::profile_repo::ProfileRepository;
-
-#[cfg(debug_assertions)]
-use crate::commands::debug::*;
-
-#[tauri::command]
-fn is_dev() -> bool {
-    cfg!(debug_assertions)
-}
 
 // ensure they use State<'_, AppState>
 #[tauri::command]
@@ -133,15 +125,12 @@ pub fn run() {
 
             // 5. Initialize Services (Start with Local only)
             let item_service = Arc::new(ItemService::new(sqlite_item_repo.clone(), None, handle.clone()));
-            let debug_service = Arc::new(DebugService::new(sqlite_item_repo.clone(), None));
 
             // Register Services
             app.manage(item_service.clone());
-            app.manage(debug_service.clone());
 
             // 6. Async Postgres Connection
             let item_service_bg = item_service.clone();
-            let debug_service_bg = debug_service.clone();
             let app_handle_bg = handle.clone();
             let app_state_bg = app_state.clone();
 
@@ -159,7 +148,6 @@ pub fn run() {
                         );
                         
                         item_service_bg.set_remote(pg_item_repo.clone()).await;
-                        debug_service_bg.set_remote(pg_item_repo).await;
                         
                         // Update the managed ProfileRepository
                         if let Some(profile_repo_lock) = app_handle_bg.try_state::<Arc<tokio::sync::RwLock<Option<Arc<dyn ProfileRepository>>>>>() {
@@ -190,7 +178,6 @@ pub fn run() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
-            is_dev,
             sync_items,
             set_user,
             get_current_user,
@@ -213,13 +200,6 @@ pub fn run() {
             restore_item,
             hard_delete_item,
             empty_item_trash,
-            // debug commands - only compiled in debug builds
-            #[cfg(debug_assertions)]
-            debug_reset_db,
-            #[cfg(debug_assertions)]
-            debug_seed_data,
-            #[cfg(debug_assertions)]
-            debug_full_wipe_items,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

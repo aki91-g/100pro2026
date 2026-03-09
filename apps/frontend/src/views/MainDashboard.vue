@@ -6,15 +6,12 @@ import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 import { useAuth } from '@/composables/useAuth';
 import { useItems } from '@/composables/useItems';
 import { useSyncStatus } from '@/composables/useSyncStatus';
-import { useDebug } from '@/composables/useDebug';
 
 // Components
-import SyncButton from '@/components/SyncButton.vue';
 import TaskList from '@/components/TaskList.vue';
-import DebugTools from '@/components/DebugTools.vue';
 
 // Auth
-const { userId, username } = useAuth();
+const { userId } = useAuth();
 
 // Items with session management
 const {
@@ -23,25 +20,19 @@ const {
   fetchActiveItems,
   createItem,
   startNewSession,
-  invalidateSession,
   getCurrentToken,
 } = useItems();
 
 // Sync status
 const { syncMap, errorMap } = useSyncStatus();
 
-// Debug operations
-const debug = useDebug();
-
 // Local state
 const greetMsg = ref('');
-const backendMsg = ref('');
-const isBackendLoading = ref(false);
-const showDebugTools = ref(false);
 let unlistenRemoteCatchup: UnlistenFn | null = null;
 
 // New Item Form state
 const newItemTitle = ref('');
+const newItemDue = ref('');
 const newItemDuration = ref<number | null>(null);
 const newItemMotivation = ref<number>(5);
 const isCreating = ref(false);
@@ -55,12 +46,10 @@ interface RemoteCatchupEvent {
 
 // --- Lifecycle ---
 onMounted(async () => {
-  try {
-    showDebugTools.value = await debug.checkDevMode();
-  } catch (e) {
-    console.warn('Could not determine dev mode:', e);
-    showDebugTools.value = false;
-  }
+  // Initialize due with a valid datetime-local value for better UX.
+  const now = new Date();
+  now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
+  newItemDue.value = now.toISOString().slice(0, 16);
 
   unlistenRemoteCatchup = await listen<RemoteCatchupEvent>('remote-catchup', (event) => {
     const { user_id, synced_count } = event.payload;
@@ -127,24 +116,25 @@ async function handleRefreshItems() {
 
 // --- Create New Item ---
 async function handleCreateItem() {
-  if (!newItemTitle.value.trim()) {
+  if (!newItemTitle.value.trim() || !newItemDue.value.trim()) {
     return;
   }
 
+  const dueIso = new Date(newItemDue.value).toISOString();
+
   isCreating.value = true;
   try {
-    const duration =
-    newItemDuration.value === null
-      ? null
-      : newItemDuration.value;
     await createItem(
       newItemTitle.value.trim(),
       newItemMotivation.value,
-      null, // due date
-      duration
+      dueIso,
+      newItemDuration.value
     );
     // Clear form after successful creation
     newItemTitle.value = '';
+    const now = new Date();
+    now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
+    newItemDue.value = now.toISOString().slice(0, 16);
     newItemDuration.value = null;
     newItemMotivation.value = 5;
     greetMsg.value = `✓ Item created successfully! Showing ${items.value.length} tasks.`;
@@ -155,92 +145,13 @@ async function handleCreateItem() {
     isCreating.value = false;
   }
 }
-
-// --- Debug Commands ---
-async function seedDatabase() {
-  if (!userId.value) {
-    greetMsg.value = 'Please login first to seed data.';
-    return;
-  }
-
-  try {
-    await debug.seedDatabase();
-    const sessionToken = getCurrentToken();
-    await loadItems(sessionToken);
-    greetMsg.value = `Database seeded successfully for user '${username.value || 'User'}'!`;
-  } catch (e) {
-    console.error('Rust Seed Error:', e);
-    greetMsg.value = String(e) || 'Seed failed. Make sure database is empty first.';
-  }
-}
-
-async function resetDatabase() {
-  if (!userId.value) {
-    greetMsg.value = 'Please login first to reset data.';
-    return;
-  }
-
-  if (!confirm(`Are you sure? This will wipe all data for user '${username.value || 'User'}'!`))
-    return;
-  try {
-    await debug.resetDatabase();
-    invalidateSession();
-    greetMsg.value = 'Database wiped clean.';
-  } catch (e) {
-    console.error('Rust Reset Error:', e);
-    const message = String(e);
-    if (message.includes('PostgreSQL is not connected')) {
-      greetMsg.value = 'Reset failed: remote database is offline. Please reconnect and try again.';
-    } else {
-      greetMsg.value = message || 'Failed to reset database.';
-    }
-  }
-}
-
-async function migrateNullUserItems() {
-  if (!userId.value) {
-    greetMsg.value = 'Please login first to migrate data.';
-    return;
-  }
-
-  if (
-    !confirm(
-      `This will assign all items with NULL user_id to '${username.value || 'User'}'. Continue?`
-    )
-  )
-    return;
-  try {
-    const count = await debug.migrateNullUserItems(true);
-    greetMsg.value = `✓ Migrated ${count} items to your account.`;
-    const sessionToken = getCurrentToken();
-    await loadItems(sessionToken);
-  } catch (e) {
-    console.error('Migration Error:', e);
-    greetMsg.value = String(e) || 'Migration failed.';
-  }
-}
-
-// --- Backend API Logic (Hono) ---
-async function fetchFromHono() {
-  isBackendLoading.value = true;
-  try {
-    const data = await debug.fetchHonoHello();
-    backendMsg.value = `${data.message} (${new Date(data.timestamp).toLocaleTimeString()})`;
-  } catch (e) {
-    console.error('Hono Error:', e);
-    backendMsg.value = 'Hono connection failed. Check CORS or Server status.';
-  } finally {
-    isBackendLoading.value = false;
-  }
-}
 </script>
 
 <template>
   <div class="container">
     <header>
       <div class="sync-section">
-        <SyncButton />
-        <span v-if="isSyncing" class="syncing-indicator">🔄 Syncing...</span>
+        <span v-if="isSyncing" class="syncing-indicator">Syncing in background...</span>
       </div>
     </header>
 
@@ -256,15 +167,6 @@ async function fetchFromHono() {
         </div>
       </section>
 
-      <DebugTools
-        :visible="showDebugTools"
-        :is-authenticated="!!userId"
-        :username="username || ''"
-        @seed="seedDatabase"
-        @reset="resetDatabase"
-        @migrate="migrateNullUserItems"
-      />
-
       <section class="card">
         <h2>Add New Item</h2>
         <p class="description">Create a new task to add to your list.</p>
@@ -277,6 +179,15 @@ async function fetchFromHono() {
                 v-model="newItemTitle"
                 type="text" 
                 placeholder="Enter task title"
+                :disabled="isCreating"
+              />
+            </div>
+            <div class="form-field">
+              <label for="item-due">Due *</label>
+              <input
+                id="item-due"
+                v-model="newItemDue"
+                type="datetime-local"
                 :disabled="isCreating"
               />
             </div>
@@ -306,7 +217,7 @@ async function fetchFromHono() {
           </div>
           <button 
             type="submit" 
-            :disabled="!newItemTitle.trim() || isCreating"
+            :disabled="!newItemTitle.trim() || !newItemDue.trim() || isCreating"
             class="create-button"
           >
             {{ isCreating ? 'Creating...' : 'Create Item' }}
@@ -315,17 +226,6 @@ async function fetchFromHono() {
       </section>
 
       <TaskList :items="items" :sync-map="syncMap" :error-map="errorMap" :is-syncing="isSyncing" />
-
-      <section class="card">
-        <h2>2. Backend API (Hono)</h2>
-        <p class="description">Communication with the shared Hono server.</p>
-        <button @click="fetchFromHono" :disabled="isBackendLoading">
-          {{ isBackendLoading ? 'Connecting...' : 'Ping Hono' }}
-        </button>
-        <div class="response-box" :class="{ hasValue: backendMsg }">
-          {{ backendMsg || 'Ready for request' }}
-        </div>
-      </section>
     </main>
   </div>
 </template>

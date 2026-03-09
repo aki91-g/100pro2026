@@ -159,6 +159,6 @@ pub async fn init_postgres() -> Option<sqlx::PgPool> {
         return None;
     }
 
-    println!("REMOTE ACTIVE: Ready for seeding!");
+    println!("REMOTE ACTIVE: connected to remote database.");
     Some(pool)
 }

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, watch } from 'vue';
+import { onMounted, onUnmounted, watch } from 'vue';
 
 // Composables
 import { useAuth } from '@/composables/useAuth';
@@ -12,8 +12,8 @@ import MainDashboard from '@/views/MainDashboard.vue';
 // Auth
 const { isAuthenticated, username, logout, initialize } = useAuth();
 
-// Items (for session management)
-const { startNewSession, invalidateSession } = useItems();
+// Items (for session management and automated sync)
+const { startNewSession, invalidateSession, startAutoSync, stopAutoSync } = useItems();
 
 // --- Lifecycle ---
 onMounted(async () => {
@@ -21,15 +21,21 @@ onMounted(async () => {
   await initialize();
 });
 
+onUnmounted(() => {
+  stopAutoSync();
+});
+
 // Watch for authentication changes
 watch(
   isAuthenticated,
   async (authenticated) => {
     if (authenticated) {
-      // Start a new session when user logs in
-      startNewSession();
+      // Start a new session and background sync loop when user logs in
+      const sessionToken = startNewSession();
+      startAutoSync(sessionToken);
     } else {
-      // Invalidate session and clear items when user logs out
+      // Stop sync loop, invalidate session, and clear items on logout
+      stopAutoSync();
       invalidateSession();
     }
   },

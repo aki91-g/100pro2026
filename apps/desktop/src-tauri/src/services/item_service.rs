@@ -153,12 +153,7 @@ impl ItemService {
             // Check if item exists locally
             let exists_locally = local_ids.contains(&remote_item.id);
             
-            let motivation = i8::try_from(remote_item.motivation).map_err(
-                |_| crate::error::AppError::InvalidInput(format!(
-                    "Invalid motivation value for item {}: {}", 
-                    remote_item.id, remote_item.motivation
-                ))
-            )?;
+            let motivation = remote_item.motivation;
 
             // Create or upsert the item in local DB
             self.repo
@@ -166,6 +161,7 @@ impl ItemService {
                     user_id,
                     remote_item.id,
                     remote_item.title.clone(),
+                    remote_item.description.clone(),
                     motivation,
                     remote_item.due,
                     remote_item.duration_minutes,
@@ -283,15 +279,10 @@ impl ItemService {
                 continue;
             }
 
-            let motivation = i8::try_from(item.motivation).map_err(
-                |_| crate::error::AppError::InvalidInput(format!(
-                    "Invalid motivation value for item {}: {}",
-                    item.id, item.motivation
-                ))
-            )?;
+            let motivation = item.motivation;
 
             // Normalize timestamps to second-precision to avoid SQLite/Postgres mismatches
-            let normalized_due = item.due.map(Self::normalize_timestamp);
+            let normalized_due = Self::normalize_timestamp(item.due);
             let _normalized_updated = Self::normalize_timestamp(item.updated_at);
 
             // Push item to remote: create or upsert
@@ -300,6 +291,7 @@ impl ItemService {
                     user_id,
                     item.id,
                     item.title.clone(),
+                    item.description.clone(),
                     motivation,
                     normalized_due,
                     item.duration_minutes,
@@ -377,14 +369,15 @@ impl ItemService {
         &self,
         user_id: Uuid,
         title: String,
-        motivation: i8,
-        due: Option<DateTime<Utc>>,
+        description: Option<String>,
+        motivation: Option<i32>,
+        due: DateTime<Utc>,
         duration_minutes: Option<i32>,
     ) -> AppResult<Uuid> {
         let id = Uuid::new_v4();
 
         // 1. Local Write (Immediate)
-        self.repo.create_item(user_id, id, title.clone(), motivation, due, duration_minutes).await?;
+        self.repo.create_item(user_id, id, title.clone(), description.clone(), motivation, due, duration_minutes).await?;
         self.mark_local_sync_status(user_id, id, "local_only").await;
         info!("Local item created: {} ({}) for user {}", title, id, user_id);
 
@@ -400,7 +393,7 @@ impl ItemService {
             let _ = handle.emit("sync-status", SyncEvent { id, status: "pending".into(), message: None });
 
             tokio::spawn(async move {
-                match remote_repo.create_item(user_id_copy, id, title_clone, motivation, due, duration_minutes).await {
+                match remote_repo.create_item(user_id_copy, id, title_clone, description.clone(), motivation, due, duration_minutes).await {
                     Ok(_) => {
                         if let Err(e) = remote_repo.update_sync_status(user_id_copy, id, "synced").await {
                             error!("Failed to set remote sync status for {}: {}", id, e);
@@ -458,9 +451,9 @@ impl ItemService {
         id: Uuid,
         title: String,
         description: Option<String>,
-        due: Option<DateTime<Utc>>,
+        due: DateTime<Utc>,
         duration_minutes: Option<i32>,
-        motivation: i8,
+        motivation: Option<i32>,
     ) -> AppResult<()> {
         self.repo.update_item_details(user_id, id, title.clone(), description.clone(), due, duration_minutes, motivation).await?;
         self.mark_local_sync_status(user_id, id, "modified").await;

@@ -18,9 +18,9 @@ export type Item = {
   title: string;
   description: string | null;
   status: "backlog" | "todo" | "inprogress" | "done";
-  due: string | null;
+  due: string;
   duration_minutes: number | null;
-  motivation: number;
+  motivation: number | null;
   is_archived: boolean;
   created_at: string;
   updated_at: string;
