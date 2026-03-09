@@ -1,5 +1,6 @@
 import type { Item } from '@/types/item';
 
+
 export interface HonoItemsClient {
   getActiveItems(): Promise<Item[]>;
   getArchivedItems(): Promise<Item[]>;
@@ -23,7 +24,7 @@ export class HonoClient implements HonoItemsClient {
   private tokenGetter: (() => string | null) | null = null;
 
   constructor(baseUrl?: string) {
-    this.baseUrl = baseUrl || import.meta.env.VITE_HONO_BASE_URL || 'http://localhost:3000';
+    this.baseUrl = baseUrl || import.meta.env.VITE_HONO_BASE_URL || 'https://localhost:3000';
   }
 
   /**
@@ -76,7 +77,8 @@ export class HonoClient implements HonoItemsClient {
    * Generic HTTP request with configurable method
    */
   async request(path: string, body?: unknown, method: string = 'POST'): Promise<Response> {
-    const response = await fetch(`${this.baseUrl}${path}`, {
+    const url = `${this.baseUrl}/${path}`.replace(/\/+/g, '/').replace(':/', '://');
+    const response = await fetch(url, {
       method,
       headers: this.getHeaders(),
       body: body ? JSON.stringify(body) : undefined,
