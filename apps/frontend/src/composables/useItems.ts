@@ -136,7 +136,7 @@ export function useItems() {
     }
   }
 
-  async function syncAndRefresh(sessionToken?: number): Promise<number> {
+  async function syncAndRefresh(_sessionToken?: number): Promise<number> {
     if (autoSyncInFlight) {
       return 0;
     }
