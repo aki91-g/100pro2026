@@ -32,12 +32,13 @@ pub async fn create_item(
     service: State<'_, Arc<ItemService>>,
     app_state: State<'_, AppState>,
     title: String, 
-    motivation: i8, 
-    due: Option<DateTime<Utc>>, 
+    description: Option<String>,
+    motivation: Option<i32>, 
+    due: DateTime<Utc>, 
     duration_minutes: Option<i32>, 
 ) -> CommandResult<Uuid> {
     let user_id = app_state.get_user_id().await?;
-    service.create_item(user_id, title, motivation, due, duration_minutes).await.map_err(|e| e.to_string())
+    service.create_item(user_id, title, description, motivation, due, duration_minutes).await.map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -53,9 +54,9 @@ pub async fn update_item_details(
     id: Uuid,
     title: String,
     description: Option<String>,
-    due: Option<DateTime<Utc>>,
+    due: DateTime<Utc>,
     duration_minutes: Option<i32>,
-    motivation: i8,
+    motivation: Option<i32>,
 ) -> CommandResult<()> {
     let user_id = app_state.get_user_id().await?;
     service.update_item_details(user_id, id, title, description, due, duration_minutes, motivation).await.map_err(|e| e.to_string())

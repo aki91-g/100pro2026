@@ -13,8 +13,8 @@ export interface HonoItemsClient {
 
 export interface CreateItemPayload {
   title: string;
-  motivation: number;
-  due?: string | null;
+  motivation: number | null;
+  due: string;
   durationMinutes?: number | null;
 }
 

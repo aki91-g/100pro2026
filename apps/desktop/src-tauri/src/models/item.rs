@@ -98,10 +98,10 @@ pub struct Item {
     pub description: Option<String>,
     pub status: TaskStatus,
     
-    pub due: Option<DateTime<Utc>>, 
+    pub due: DateTime<Utc>,
     pub duration_minutes: Option<i32>, 
     
-    pub motivation: i32, 
+    pub motivation: Option<i32>, 
     
     // SQLite uses 0/1 for booleans. 
     // We tell sqlx to map the SQLite Integer to a Rust bool.

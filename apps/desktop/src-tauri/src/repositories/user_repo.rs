@@ -19,6 +19,6 @@ pub trait UserRepository: Send + Sync {
     
     /// Deactivate a user (logout)
     async fn deactivate_user(&self, user_id: &uuid::Uuid) -> AppResult<()>;
-    /// Clear all users (for testing/debug)
+    /// Clear all local users (for testing only)
     async fn clear_all_users(&self) -> AppResult<()>;
 }

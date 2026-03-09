@@ -11,6 +11,10 @@ const isLoading = ref(false);
 const error = ref<string | null>(null);
 const isSyncing = ref(false);
 
+// Auto-sync state shared across composable instances
+let autoSyncTimer: ReturnType<typeof setInterval> | null = null;
+let autoSyncInFlight = false;
+
 // Reference count for concurrent loading operations
 let loadingCount = 0;
 
@@ -132,11 +136,44 @@ export function useItems() {
     }
   }
 
+  async function syncAndRefresh(_sessionToken?: number): Promise<number> {
+    if (autoSyncInFlight) {
+      return 0;
+    }
+
+    autoSyncInFlight = true;
+    try {
+      const count = await syncItems();
+      return count;
+    } finally {
+      autoSyncInFlight = false;
+    }
+  }
+
+  function startAutoSync(sessionToken?: number, intervalMs: number = 30000): void {
+    if (autoSyncTimer) {
+      return;
+    }
+
+    autoSyncTimer = setInterval(() => {
+      void syncAndRefresh(sessionToken).catch((err) => {
+        console.error('Auto-sync failed:', err);
+      });
+    }, intervalMs);
+  }
+
+  function stopAutoSync(): void {
+    if (autoSyncTimer) {
+      clearInterval(autoSyncTimer);
+      autoSyncTimer = null;
+    }
+  }
+
   // Create a new item
   async function createItem(
     title: string,
-    motivation: number,
-    due?: string | null,
+    motivation: number | null,
+    due: string,
     durationMinutes?: number | null
   ): Promise<string> {
     error.value = null;
@@ -218,6 +255,9 @@ export function useItems() {
     fetchArchivedItems,
     fetchDeletedItems,
     syncItems,
+    syncAndRefresh,
+    startAutoSync,
+    stopAutoSync,
     createItem,
     updateItemStatus,
     archiveItem,

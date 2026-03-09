@@ -13,13 +13,13 @@ pub trait ItemRepository: Send + Sync {
     async fn get_deleted_items(&self, user_id: Uuid) -> AppResult<Vec<Item>>;
 
     // POST logic
-    async fn create_item(&self, user_id: Uuid, id: Uuid, title: String, motivation: i8, due: Option<DateTime<Utc>>, duration_minutes: Option<i32>) -> AppResult<()>;
 
+    async fn create_item(&self, user_id: Uuid, id: Uuid, title: String, description: Option<String>, motivation: Option<i32>, due: DateTime<Utc>, duration_minutes: Option<i32>) -> AppResult<()>;
     // UPDATE logic
     async fn update_item_status(&self, user_id: Uuid, id: Uuid, status: TaskStatus) -> AppResult<()>;
     async fn update_sync_status(&self, user_id: Uuid, id: Uuid, sync_status: &str) -> AppResult<()>;
-    async fn update_item_details(&self, user_id: Uuid, id: Uuid, title: String, description: Option<String>, due: Option<DateTime<Utc>>, duration_minutes: Option<i32>, motivation: i8) -> AppResult<()>;
 
+    async fn update_item_details(&self, user_id: Uuid, id: Uuid, title: String, description: Option<String>, due: DateTime<Utc>, duration_minutes: Option<i32>, motivation: Option<i32>) -> AppResult<()>;
     // ARCHIVE logic
     async fn archive_item(&self, user_id: Uuid, id: Uuid) -> AppResult<()>;
     async fn unarchive_item(&self, user_id: Uuid, id: Uuid) -> AppResult<()>;

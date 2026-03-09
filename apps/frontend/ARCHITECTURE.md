@@ -14,11 +14,14 @@ The architecture separates responsibilities into:
 - Views/Components: presentation and interaction
 
 ## Core Design Decisions
-- Repository Pattern for `items`, `auth`, and `debug` operations.
+- Repository Pattern for `items` and `auth` operations.
 - Runtime API mode switching via `src/api/config.ts` with memoized mode detection.
 - Session token race protection in `useItems.ts` using `currentLoadToken`.
 - Pinia-safe token injection into `HonoClient` via deferred token getter from `main.ts`.
 - Strong alignment with backend contract fields (`snake_case` item properties like `duration_minutes`, `sync_status`).
+- **Automated 30-second sync**: Background interval timer synchronizes items automatically when authenticated, with in-flight guard to prevent concurrent syncs.
+- **Schema enforcement**: `due` field is mandatory across all layers (frontend type, backend model, database schema), `motivation` is nullable.
+- **No debug layer**: Debug tools, manual sync buttons, and seed/reset commands removed for production readiness.
 
 ## Data And Control Flow
 ### Authentication flow
@@ -33,6 +36,13 @@ The architecture separates responsibilities into:
 3. Fetches pass session token into `fetchActiveItems(token)`.
 4. `useItems()` applies results only if token still matches `currentLoadToken`.
 5. Logout calls `invalidateSession()`, increments token, and clears in-memory items.
+
+### Automated sync flow
+1. `App.vue` calls `startAutoSync()` from `useItems()` when user authenticates.
+2. `useItems()` starts a 30-second interval timer that calls `syncItems()` automatically.
+3. In-flight guard prevents concurrent sync operations (checks `isSyncing.value`).
+4. On logout or unmount, `stopAutoSync()` clears the interval timer.
+5. Manual sync via UI still works and respects same in-flight guard.
 
 ### API mode and transport flow
 1. Repositories call `getApiMode()` once (memoized).
@@ -61,19 +71,15 @@ apps/frontend/
 │   ├── api/
 │   │   ├── authRepository.ts
 │   │   ├── config.ts
-│   │   ├── debugRepository.ts
 │   │   ├── honoClient.ts
 │   │   └── itemRepository.ts
 │   ├── assets/
 │   │   └── vue.svg
 │   ├── components/
-│   │   ├── DebugTools.vue
-│   │   ├── SyncButton.vue
 │   │   ├── SyncStatusBadge.vue
 │   │   └── TaskList.vue
 │   ├── composables/
 │   │   ├── useAuth.ts
-│   │   ├── useDebug.ts
 │   │   ├── useItems.ts
 │   │   └── useSyncStatus.ts
 │   ├── layouts/
@@ -116,10 +122,12 @@ Description:
 - Orchestrates initialization and auth-state transitions.
 - Uses composables, not direct transport calls.
 - Routes between `LoginView` and `MainDashboard`.
+- Manages automated sync lifecycle: starts `autoSync` on authentication, stops on unmount.
 
 Key Functions/Exported Members:
 - Default Vue component export.
 - Internal handlers: `handleLogout()` and lifecycle/watch hooks.
+- Sync lifecycle: calls `startAutoSync()` when authenticated, `stopAutoSync()` on unmount.
 
 ### `src/api/config.ts`
 Description:
@@ -138,10 +146,11 @@ Description:
 - Repository Pattern abstraction for item operations.
 - Provides identical interface for Tauri and Hono backends.
 - Contains composite methods (`refreshItems`, `syncAndRefresh`) used by composables.
+- **Schema enforcement**: `CreateItemPayload` requires `due: string` (mandatory), `motivation: number | null` (nullable).
 
 Key Functions/Exported Members:
 - `ItemRepository` interface.
-- `CreateItemPayload` type.
+- `CreateItemPayload` type with mandatory `due` field.
 - `itemRepository` singleton.
 - Internal classes: `TauriItemRepository`, `HonoItemRepository`.
 
@@ -157,30 +166,17 @@ Key Functions/Exported Members:
 - `authRepository` singleton.
 - `TauriAuthRepository`, `HonoAuthRepository` classes.
 
-### `src/api/debugRepository.ts`
-Description:
-- Repository abstraction for dev/debug operations.
-- Keeps dev tools backend-agnostic.
-- Used by `useDebug` composable.
-- Also provides `fetchHonoHello()` for backend connectivity testing.
-
-Key Functions/Exported Members:
-- `DebugRepository` interface.
-- `debugRepository` singleton.
-- `TauriDebugRepository`, `HonoDebugRepository` classes.
-- `HonoHelloResponse` interface.
-- Methods: `isDevMode()`, `seedDatabase()`, `resetDatabase()`, `migrateNullUserItems()`, `fetchHonoHello()`.
-
 ### `src/api/honoClient.ts`
 Description:
 - HTTP transport client for Hono backend.
 - Handles common request logic and Authorization header injection.
 - Keeps auth lookup lazy via injected token getter.
+- **Schema alignment**: `CreateItemPayload` matches frontend `Item` type with mandatory `due` and nullable `motivation`.
 
 Key Functions/Exported Members:
 - `HonoClient` class.
 - `HonoItemsClient` interface.
-- `CreateItemPayload` type.
+- `CreateItemPayload` type with mandatory `due: string`, nullable `motivation: number | null`.
 - `honoClient` singleton.
 - Request helpers: `get`, `request`, `post`, `patch`, `delete`.
 
@@ -191,27 +187,6 @@ Description:
 
 Key Functions/Exported Members:
 - Static SVG file, no exports.
-
-### `src/components/DebugTools.vue`
-Description:
-- Presentational debug actions panel.
-- Emits events to parent instead of owning data logic.
-- Keeps UI/behavior split clean with `MainDashboard.vue`.
-
-Key Functions/Exported Members:
-- Default Vue component export.
-- Emits: `seed`, `reset`, `migrate`.
-- Props: `visible`, `isAuthenticated`, `username`.
-
-### `src/components/SyncButton.vue`
-Description:
-- Sync action control bound to auth and sync state.
-- Uses composables (`useAuth`, `useItems`) for behavior.
-- Displays sync error feedback with auto-clear timer.
-
-Key Functions/Exported Members:
-- Default Vue component export.
-- Internal handler: `handleSync()`.
 
 ### `src/components/SyncStatusBadge.vue`
 Description:
@@ -240,26 +215,20 @@ Description:
 Key Functions/Exported Members:
 - `useAuth()` returning refs/actions: `isAuthenticated`, `initialize`, `login`, `logout`, etc.
 
-### `src/composables/useDebug.ts`
-Description:
-- Stateful debug workflow layer.
-- Wraps `debugRepository` with local loading/error refs for UI.
-
-Key Functions/Exported Members:
-- `useDebug()`
-- Actions: `checkDevMode`, `seedDatabase`, `resetDatabase`, `migrateNullUserItems`, `fetchHonoHello`.
-
 ### `src/composables/useItems.ts`
 Description:
 - Core item workflow and shared state module.
 - Implements race-safe session token strategy.
 - Delegates persistence to `itemRepository`.
+- **Automated sync**: Manages 30-second interval timer with `startAutoSync()`/`stopAutoSync()` and in-flight guard.
+- **Schema enforcement**: `createItem()` requires `due` parameter (no default, no optional).
 
 Key Functions/Exported Members:
 - `useItems()`
-- Shared refs: `items`, `isLoading`, `isSyncing`, `error`.
+- Shared refs: `items`, `isLoading`, `isSyncing`, `error`, `autoSyncTimer`, `isAutoSyncEnabled`.
 - Session controls: `getCurrentToken`, `startNewSession`, `invalidateSession`.
-- Actions: `fetchActiveItems`, `createItem`, `syncItems`, etc.
+- Sync controls: `startAutoSync`, `stopAutoSync`.
+- Actions: `fetchActiveItems`, `createItem(title, motivation, due, durationMinutes)`, `syncItems`, etc.
 
 ### `src/composables/useSyncStatus.ts`
 Description:
@@ -284,12 +253,13 @@ Key Functions/Exported Members:
 
 ### `src/types/item.ts`
 Description:
-- Canonical item contract used across UI, composables, and repositories.
+- **Source of truth**: Canonical item contract used across UI, composables, and repositories.
 - Mirrors backend payload naming (`snake_case`).
+- **Schema enforcement**: `due: string` is mandatory (no optional/undefined), `motivation: number | null` is explicitly nullable.
 
 Key Functions/Exported Members:
 - `UUID` type.
-- `Item` type.
+- `Item` type with mandatory `due: string` and nullable `motivation: number | null`.
 - `RefreshResult` type.
 
 ### `src/views/LoginView.vue`
@@ -305,14 +275,15 @@ Key Functions/Exported Members:
 ### `src/views/MainDashboard.vue`
 Description:
 - Main authenticated workspace.
-- Composes auth, items, debug, and sync-status workflows.
-- Handles remote catch-up events and Hono hello ping.
-- Includes "Add New Item" form for creating tasks with validation and loading states.
+- Composes auth, items, and sync-status workflows.
+- Handles remote catch-up events.
+- **"Add New Item" form**: Includes `title`, `due` (datetime-local input, required), `motivation` (nullable), `durationMinutes` fields with validation and loading states.
+- **No debug tools**: All seed/reset/migrate/ping commands removed for production readiness.
 
 Key Functions/Exported Members:
 - Default Vue component export.
-- Internal actions: `loadItems`, `handleRefreshItems`, `handleCreateItem`, `seedDatabase`, `resetDatabase`, `migrateNullUserItems`, `fetchFromHono`.
-- Form state: `newItemTitle`, `newItemDuration`, `newItemMotivation`, `isCreating`.
+- Internal actions: `loadItems`, `handleRefreshItems`, `handleCreateItem`.
+- Form state: `newItemTitle`, `newItemDue` (required), `newItemDuration`, `newItemMotivation` (nullable), `isCreating`.
 
 ### `src/style.css`
 Description:
@@ -388,14 +359,15 @@ Key Functions/Exported Members:
 
 ## Usage Examples (Current)
 
-### Example 1: Repository usage with backend abstraction
+### Example 1: Repository usage with schema enforcement
 ```ts
 import { itemRepository } from '@/api/itemRepository';
 
+// `due` is now mandatory - no longer nullable
 const id = await itemRepository.createItem({
   title: 'Portfolio task',
-  motivation: 7,
-  due: null,
+  motivation: 7,  // nullable - can be null
+  due: '2024-03-15T10:00:00Z',  // required - must provide valid ISO string
   durationMinutes: 45,
 });
 
@@ -440,17 +412,26 @@ const pinia = createPinia();
 honoClient.setTokenGetter(() => useUserStore(pinia).accessToken ?? null);
 ```
 
-## Quick Audit (Messy / Dead Code)
-Current cleanup candidates identified during audit:
+### Example 5: Automated sync lifecycle
+```ts
+import { useItems } from '@/composables/useItems';
 
-- `src/style.css`: scaffold defaults (`color-scheme: light dark`, centered body/app) may conflict with custom UI system.
+// In App.vue lifecycle
+const { startAutoSync, stopAutoSync, isAutoSyncEnabled } = useItems();
 
-**Recently Cleaned (March 2026):**
-- ✅ Removed `src/components/HelloWorld.vue` (unused Vite starter)
-- ✅ Removed `src/components/Login.vue` (legacy duplicate)
-- ✅ Removed `src/api/service.ts` (migrated `fetchHonoHelloApi` to `debugRepository.ts`)
+// Start sync on authentication
+watch(isAuthenticated, (authenticated) => {
+  if (authenticated) {
+    startAutoSync(); // Starts 30-second interval timer
+    console.log('Auto-sync enabled:', isAutoSyncEnabled.value);
+  }
+});
 
-No blocking code issues remain. The codebase follows repository pattern consistently.
+// Stop sync on unmount
+onUnmounted(() => {
+  stopAutoSync(); // Clears interval timer
+});
+```
 
 ## Build Verification
 Last verified command:
@@ -460,4 +441,44 @@ cd apps/frontend
 pnpm run build
 ```
 
-Result: successful TypeScript and Vite production build.
+Result: successful TypeScript and Vite production build (✓ 43 modules built in 874ms).
+
+## Schema Alignment Summary
+
+### Database Schema (PostgreSQL & SQLite v3 migrations)
+- `due`: `TIMESTAMPTZ NOT NULL` (PostgreSQL) / `TEXT NOT NULL` (SQLite)
+- `motivation`: `INTEGER` (nullable, no constraint)
+
+### Backend Rust (Tauri)
+- `Item` model: `due: DateTime<Utc>` (required), `motivation: Option<i32>` (nullable)
+- All repository traits and implementations aligned with mandatory `due` and nullable `motivation`
+
+### Backend Hono (Node.js)
+- `ItemRow` type: `due: string` (required), `motivation: number | null` (nullable)
+- `normalizeIso()` handles nullable timestamps correctly
+
+### Frontend (Vue 3 + TypeScript)
+- **Item type** (source of truth): `due: string` (required), `motivation: number | null` (nullable)
+- `CreateItemPayload` enforces mandatory `due` field
+- Form validation requires `due` input before item creation
+- Automated 30-second sync with in-flight guard
+
+### Migration Strategy
+- V3 migrations delete any existing items with NULL `due` values
+- Alters `due` column to NOT NULL constraint
+- Preserves nullable `motivation` column (no changes)
+
+## Production Readiness Changes
+
+### Debug Layer Removal
+All debug-related code removed for production:
+- **Deleted files**: `DebugTools.vue`, `SyncButton.vue`, `useDebug.ts`, `debugRepository.ts`
+- **Removed commands**: `seed_database`, `reset_database`, `migrate_null_user_items` from Rust commands
+- **Removed services**: `DebugService` from Rust backend
+- **Cleaned UI**: Removed debug panel, Hono ping button, and manual seed/reset actions from `MainDashboard.vue`
+
+### Automated Sync Implementation
+- **Interval**: 30-second automatic synchronization when authenticated
+- **Guards**: In-flight protection prevents concurrent sync operations
+- **Lifecycle**: Auto-starts on authentication, auto-stops on logout/unmount
+- **Manual sync**: Still available via UI action, respects same in-flight guard
