@@ -1,27 +1,20 @@
 import { serve } from '@hono/node-server';
+import type { Context, MiddlewareHandler } from 'hono';
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { createClient } from '@supabase/supabase-js';
 import dotenv from 'dotenv';
 import { resolve } from 'node:path';
-import { existsSync } from 'node:fs'; 
-import type { Context, MiddlewareHandler } from 'hono';
 
-const rootEnvPath = resolve(process.cwd(), '../../.env');
-
-if (!process.env.SUPABASE_URL) {
-  if (existsSync(rootEnvPath)) {
-    dotenv.config({ path: rootEnvPath });
-  }
-}
+dotenv.config({ path: resolve(process.cwd(), '.env') });
+dotenv.config({ path: resolve(process.cwd(), '../../.env'), override: true });
 
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY;
 const PORT = Number(process.env.PORT ?? 3000);
 
 if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
-  console.error('CRITICAL ERROR: SUPABASE_URL or SUPABASE_ANON_KEY is not defined.');
-  process.exit(1);
+  throw new Error('SUPABASE_URL and SUPABASE_ANON_KEY must be set');
 }
 
 type TaskStatus = 'backlog' | 'todo' | 'inprogress' | 'done';
@@ -339,7 +332,12 @@ async function handleSoftDeleteItem(c: Context<AppEnv>): Promise<Response> {
   return c.body(null, 204);
 }
 
-app.get('/health', (c) => c.text('OK', 200));
+app.get('/api/hello', (c) => {
+  return c.json({
+    message: 'Hello from Hono (Backend)!',
+    timestamp: new Date().toISOString(),
+  });
+});
 
 // Auth endpoints
 app.post('/api/auth/login', async (c) => {
