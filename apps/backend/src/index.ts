@@ -339,12 +339,7 @@ async function handleSoftDeleteItem(c: Context<AppEnv>): Promise<Response> {
   return c.body(null, 204);
 }
 
-app.get('/api/hello', (c) => {
-  return c.json({
-    message: 'Hello from Hono (Backend)!',
-    timestamp: new Date().toISOString(),
-  });
-});
+app.get('/health', (c) => c.text('OK', 200));
 
 // Auth endpoints
 app.post('/api/auth/login', async (c) => {
