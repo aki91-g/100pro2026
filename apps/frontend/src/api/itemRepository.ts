@@ -14,6 +14,7 @@ import { honoClient } from './honoClient';
 
 export interface CreateItemPayload {
   title: string;
+  description?: string | null;
   motivation: number | null;
   due: string;
   durationMinutes?: number | null;

@@ -144,7 +144,6 @@ export function useItems() {
     autoSyncInFlight = true;
     try {
       const count = await syncItems();
-      await fetchActiveItems(sessionToken);
       return count;
     } finally {
       autoSyncInFlight = false;
