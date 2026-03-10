@@ -1,26 +1,49 @@
 import type { Item } from './item';
 
-/**
- * graph rendering data types
- */
+export type GraphTimeRangeKey = '1d' | '3d' | '1w' | '2w' | '1m';
+export type GraphAxisField = 'duration_minutes' | 'motivation' | 'status';
+export type GraphVisualField = 'none' | 'duration_minutes' | 'motivation' | 'status';
+export type GraphMarker = 'circle' | 'triangle-left' | 'triangle-right';
+
 export interface Point {
   x: number;
   y: number;
 }
 
-/**
- * metadata for rendering an item on the graph (position, color, etc.)
- * This is derived from the base Item data but includes additional properties needed for visualization.
- */
+export interface GraphTick {
+  position: number;
+  label: string;
+}
+
 export interface GraphItem extends Item {
+  point: Point;
+  target: Point;
+  radius: number;
+  color: string;
+  marker: GraphMarker;
+  timeDiffMs: number;
+  yValue: number;
+  isOverdue: boolean;
+  isClamped: boolean;
+  priority: number;
+  index?: number;
+  x?: number;
+  y?: number;
+  vx?: number;
+  vy?: number;
+}
+
+export interface GraphGroup {
+  key: string;
+  items: GraphItem[];
   point: Point;
   radius: number;
   color: string;
+  marker: GraphMarker;
+  label: string;
+  representative: GraphItem;
 }
 
-/**
- * range & grid lines configuration for the graph
- */
 export interface GraphConfig {
   padding: {
     top: number;
@@ -28,18 +51,29 @@ export interface GraphConfig {
     bottom: number;
     left: number;
   };
-  gridLines: number[]; // [0, 25, 50, 75, 100] など
   defaultMotivation: number;
+  defaultRadius: number;
+  minRadius: number;
+  maxRadius: number;
+  collisionPadding: number;
+  groupDistance: number;
+  tickCount: number;
+  timeRanges: Record<GraphTimeRangeKey, number>;
+  palette: string[];
+  neutralColor: string;
+  overdueShade: string;
 }
 
-/**
- * interaction state for the graph (hovered/selected item, zoom range, etc.)
- */
-export interface GraphState {
-  hoveredItemId: string | null;
-  selectedItemId: string | null;
-  viewRange: {
-    start: Date;
-    end: Date;
-  } | null;
+export interface GraphLayout {
+  width: number;
+  height: number;
+  plotLeft: number;
+  plotRight: number;
+  plotTop: number;
+  plotBottom: number;
+  innerWidth: number;
+  innerHeight: number;
+  originX: number;
+  yMax: number;
+  nowMs: number;
 }
