@@ -146,7 +146,7 @@ watch(
   { deep: true, immediate: true },
 );
 
-watch([selectedRange, selectedYField, selectedColorField, selectedRadiusField], () => {
+watch([selectedRange, selectedYField, selectedColorField, selectedRadiusField, groupingEnabled], () => {
   hoveredGroup.value = null;
   refreshNow();
 });
