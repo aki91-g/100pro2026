@@ -489,4 +489,6 @@ serve({
   fetch: app.fetch,
   port: Number(port),
   hostname: '0.0.0.0'
+}, (info) => {
+  console.log(`Server is listening on http://0.0.0.0:${info.port}`);
 });
