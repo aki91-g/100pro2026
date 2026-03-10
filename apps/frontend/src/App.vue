@@ -51,6 +51,7 @@ async function handleLogout() {
     console.error('Logout failed:', e);
   }
 }
+
 </script>
 
 <template>
@@ -66,6 +67,7 @@ async function handleLogout() {
           <span class="user-id">👤 {{ username || 'User' }}</span>
           <button @click="handleLogout" class="logout-btn">Logout</button>
         </div>
+
       </div>
     </header>
 
