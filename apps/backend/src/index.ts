@@ -220,6 +220,7 @@ async function handleCreateItem(c: Context<AppEnv>): Promise<Response> {
     const { userId, token } = c.get('auth');
     const supabase = createSupabaseWithToken(token);
     const body = await parseJson(c, {
+      id: '',
       title: '',
       description: null as string | null,
       motivation: null as number | null,
@@ -247,6 +248,7 @@ async function handleCreateItem(c: Context<AppEnv>): Promise<Response> {
     const { data, error } = await supabase
       .from('items')
       .insert({
+        id: body.id || crypto.randomUUID(),
         user_id: userId,
         title,
         description: body.description,
