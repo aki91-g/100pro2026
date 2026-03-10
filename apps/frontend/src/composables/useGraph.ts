@@ -37,8 +37,9 @@ export function useGraph(
     graphItems.value = activeItems.map(item => {
       const t = new Date(item.due).getTime();
       const x = config.padding.left + ((t - minTime) / timeRange) * width;
-      const m = item.motivation ?? config.defaultMotivation;
-      const y = (canvas.height / (window.devicePixelRatio || 1)) - config.padding.bottom - (m / 100) * height;
+      const rawMotivation = item.motivation ?? config.defaultMotivation;
+      const motivationPercent = rawMotivation <= 10 ? rawMotivation * 10 : rawMotivation;
+      const y = (canvas.height / (window.devicePixelRatio || 1)) - config.padding.bottom - (motivationPercent / 100) * height;
 
       return {
         ...item,

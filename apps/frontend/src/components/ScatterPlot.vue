@@ -48,7 +48,7 @@ const updateCanvasSize = () => {
   const ctx = canvas.getContext('2d');
   if (ctx) ctx.scale(dpr, dpr);
 
-  draw();
+  updateData(props.items);
 };
 
 const handleMouseMove = (event: MouseEvent) => {

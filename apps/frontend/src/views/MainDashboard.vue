@@ -221,9 +221,9 @@ const testFetch = async () => {
               />
             </div>
             <div class="form-field">
-              <label for="item-title">Title *</label>
+              <label for="item-description">Description</label>
               <input 
-                id="item-title"
+                id="item-description"
                 v-model="newItemDescription"
                 type="text" 
                 placeholder="Enter task description"
