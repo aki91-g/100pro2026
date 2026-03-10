@@ -3,15 +3,10 @@ import type { Context, MiddlewareHandler } from 'hono';
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { createClient } from '@supabase/supabase-js';
-import dotenv from 'dotenv';
-import { resolve } from 'node:path';
-
-dotenv.config({ path: resolve(process.cwd(), '.env') });
-dotenv.config({ path: resolve(process.cwd(), '../../.env'), override: true });
 
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY;
-const PORT = Number(process.env.PORT ?? 3000);
+const port = process.env.PORT || 10000;
 
 if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
   throw new Error('SUPABASE_URL and SUPABASE_ANON_KEY must be set');
@@ -490,6 +485,10 @@ app.post('/api/commands/soft_delete_item', async (c) => handleSoftDeleteItem(c))
 
 app.post('/api/commands/sync_items', (c) => c.json({ count: 0 }));
 
-serve({ fetch: app.fetch, port: PORT }, () => {
-  console.log(`Hono server running on http://localhost:${PORT}`);
+serve({
+  fetch: app.fetch,
+  port: Number(port),
+  hostname: '0.0.0.0'
+}, (info) => {
+  console.log(`Server is listening on http://0.0.0.0:${info.port}`);
 });

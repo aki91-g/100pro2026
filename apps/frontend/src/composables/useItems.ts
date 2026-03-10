@@ -170,23 +170,18 @@ export function useItems() {
   }
 
   // Create a new item
-  async function createItem(
+  async function createItem(payload: {
     title: string,
+    description: string | null,
     motivation: number | null,
     due: string,
     durationMinutes?: number | null
-  ): Promise<string> {
+  }): Promise<string> {
     error.value = null;
-    try {
-      const id = await itemRepository.createItem({
-        title,
-        motivation,
-        due,
-        durationMinutes,
-      });
-      // Refresh items after creation
-      await fetchActiveItems();
-      return id;
+  try {
+    const id = await itemRepository.createItem(payload);
+    await fetchActiveItems();
+    return id;
     } catch (err) {
       error.value = String(err);
       console.error('Failed to create item:', err);

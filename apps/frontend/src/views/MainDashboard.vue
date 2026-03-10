@@ -9,6 +9,7 @@ import { useSyncStatus } from '@/composables/useSyncStatus';
 
 // Components
 import TaskList from '@/components/TaskList.vue';
+import ScatterPlot from '@/components/ScatterPlot.vue';
 
 // Auth
 const { userId } = useAuth();
@@ -32,6 +33,7 @@ let unlistenRemoteCatchup: UnlistenFn | null = null;
 
 // New Item Form state
 const newItemTitle = ref('');
+const newItemDescription = ref<'' | null>(null);
 const newItemDue = ref('');
 const newItemDuration = ref<number | null>(null);
 const newItemMotivation = ref<number>(5);
@@ -124,14 +126,16 @@ async function handleCreateItem() {
 
   isCreating.value = true;
   try {
-    await createItem(
-      newItemTitle.value.trim(),
-      newItemMotivation.value,
-      dueIso,
-      newItemDuration.value
-    );
+    await createItem({
+      title: newItemTitle.value.trim(),
+      description: newItemDescription.value,
+      motivation: newItemMotivation.value,
+      due: dueIso,
+      durationMinutes: newItemDuration.value
+    });
     // Clear form after successful creation
     newItemTitle.value = '';
+    newItemDescription.value = '';
     const now = new Date();
     now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
     newItemDue.value = now.toISOString().slice(0, 16);
@@ -145,7 +149,32 @@ async function handleCreateItem() {
     isCreating.value = false;
   }
 }
+
+// --- DEBUG: Test Functions ---
+const testCreate = async () => {
+  try {
+    const id = await createItem({
+      title: "Debug Task " + new Date().getSeconds(),
+      description: "This is a debug task created at " + new Date().toLocaleTimeString(),
+      motivation: Math.floor(Math.random() * 101),
+      due: new Date(Date.now() + 86400000).toISOString(),
+    });
+    
+    console.log("✅ Created and View Updated! ID:", id);
+  } catch (e) {
+    console.error("❌ Create Failed:", e);
+  }
+};
+const testFetch = async () => {
+  try {
+    await fetchActiveItems(getCurrentToken());
+    console.log("✅ Fetch Successful! Items:", items.value);
+  } catch (e) {
+    console.error("❌ Fetch Failed:", e);
+  }
+};
 </script>
+
 
 <template>
   <div class="container">
@@ -156,6 +185,15 @@ async function handleCreateItem() {
     </header>
 
     <main>
+      <section class="card">
+        <h2>Welcome, {{ userId || 'User' }}!</h2>
+        <p class="description">This is your task dashboard. You can create new tasks, see them visualized, and manage them in the list below.</p>
+         <!-- DEBUG -->
+        <div class="fixed bottom-4 right-4 flex gap-2 z-50">
+          <button @click="testCreate" class="bg-blue-500 text-white p-2 rounded">DEGUG: Seed Test</button>
+          <button @click="testFetch" class="bg-green-500 text-white p-2 rounded">DEBUG: Fetch Log</button>
+        </div>
+      </section>
       <section class="card">
         <h2>1. Desktop Bridge (Rust + SQLite)</h2>
         <p class="description">Current connection to your local tasks.db.</p>
@@ -179,6 +217,16 @@ async function handleCreateItem() {
                 v-model="newItemTitle"
                 type="text" 
                 placeholder="Enter task title"
+                :disabled="isCreating"
+              />
+            </div>
+            <div class="form-field">
+              <label for="item-description">Description</label>
+              <input 
+                id="item-description"
+                v-model="newItemDescription"
+                type="text" 
+                placeholder="Enter task description"
                 :disabled="isCreating"
               />
             </div>
@@ -224,7 +272,7 @@ async function handleCreateItem() {
           </button>
         </form>
       </section>
-
+      <ScatterPlot :items="items" />
       <TaskList :items="items" :sync-map="syncMap" :error-map="errorMap" :is-syncing="isSyncing" />
     </main>
   </div>
