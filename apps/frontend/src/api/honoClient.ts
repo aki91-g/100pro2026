@@ -27,6 +27,64 @@ export class HonoClient implements HonoItemsClient {
     this.baseUrl = baseUrl || import.meta.env.VITE_HONO_BASE_URL;
   }
 
+  private normalizeStatus(raw: unknown): Item['status'] {
+    if (raw === 'backlog' || raw === 'todo' || raw === 'inprogress' || raw === 'done') {
+      return raw;
+    }
+    return 'todo';
+  }
+
+  private normalizeNumber(raw: unknown): number | null {
+    if (typeof raw === 'number' && Number.isFinite(raw)) return raw;
+    if (typeof raw === 'string' && raw.trim().length > 0) {
+      const parsed = Number(raw);
+      if (Number.isFinite(parsed)) return parsed;
+    }
+    return null;
+  }
+
+  private normalizeDue(raw: unknown): string {
+    if (typeof raw !== 'string') return '';
+    const trimmed = raw.trim();
+    if (trimmed.length === 0) return '';
+    const ms = Date.parse(trimmed);
+    if (!Number.isFinite(ms)) return trimmed;
+    return new Date(ms).toISOString();
+  }
+
+  private normalizeItem(raw: unknown): Item {
+    const row = (raw ?? {}) as Record<string, unknown>;
+
+    return {
+      id: String(row.id ?? ''),
+      user_id: String(row.user_id ?? ''),
+      sync_status:
+        row.sync_status === 'synced' || row.sync_status === 'local_only' || row.sync_status === 'modified'
+          ? row.sync_status
+          : 'local_only',
+      title: typeof row.title === 'string' ? row.title : '',
+      description: typeof row.description === 'string' ? row.description : null,
+      status: this.normalizeStatus(row.status),
+      due: this.normalizeDue(row.due),
+      duration_minutes: this.normalizeNumber(row.duration_minutes),
+      motivation: this.normalizeNumber(row.motivation),
+      is_archived: Boolean(row.is_archived),
+      created_at: typeof row.created_at === 'string' ? row.created_at : '',
+      updated_at: typeof row.updated_at === 'string' ? row.updated_at : '',
+      deleted_at: typeof row.deleted_at === 'string' ? row.deleted_at : null,
+    };
+  }
+
+  private normalizeItems(raw: unknown): Item[] {
+    if (!Array.isArray(raw)) return [];
+    const normalized = raw.map((entry) => this.normalizeItem(entry));
+    const invalidDueCount = normalized.filter((item) => Number.isNaN(Date.parse(item.due))).length;
+    if (invalidDueCount > 0) {
+      console.warn(`[HonoClient] Received ${invalidDueCount} item(s) with invalid due timestamps.`);
+    }
+    return normalized;
+  }
+
   /**
    * Set the token getter function to avoid Pinia instance errors
    */
@@ -113,17 +171,20 @@ export class HonoClient implements HonoItemsClient {
 
   async getActiveItems(): Promise<Item[]> {
     const response = await this.get('/api/items/active');
-    return response.json();
+    const data = await response.json();
+    return this.normalizeItems(data);
   }
 
   async getArchivedItems(): Promise<Item[]> {
     const response = await this.get('/api/items/archived');
-    return response.json();
+    const data = await response.json();
+    return this.normalizeItems(data);
   }
 
   async getDeletedItems(): Promise<Item[]> {
     const response = await this.get('/api/items/deleted');
-    return response.json();
+    const data = await response.json();
+    return this.normalizeItems(data);
   }
 
   async createItem(payload: CreateItemPayload): Promise<string> {
