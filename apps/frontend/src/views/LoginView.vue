@@ -76,7 +76,7 @@ async function handleLogin() {
       </form>
 
       <div class="info-box">
-        <p>💡 <strong>Secure login:</strong> Credentials are sent to the Rust backend, which authenticates with Supabase and resolves your profile identity.</p>
+        <p><strong>On native-app:</strong> Credentials are sent to the Rust backend, which authenticates with Supabase and resolves your profile identity.</p>
       </div>
     </div>
   </div>

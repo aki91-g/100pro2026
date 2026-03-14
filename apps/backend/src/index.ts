@@ -155,19 +155,29 @@ const requireAuth: MiddlewareHandler<AppEnv> = async (c, next) => {
 };
 
 async function fetchProfileUsername(token: string, userId: string): Promise<string> {
-  const supabase = createSupabaseWithToken(token);
-  const { data, error } = await supabase
-    .from('profiles')
-    .select('username')
-    .eq('id', userId)
-    .maybeSingle();
+  const anon = createAnonSupabase();
+  const { data: authData } = await anon.auth.getUser(token);
+  const fallbackName = (authData.user?.email?.split('@')[0] || 'User').trim();
 
-  if (error) {
-    return 'Unknown User';
+  try {
+    const supabase = createSupabaseWithToken(token);
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('username')
+      .eq('id', userId)
+      .maybeSingle();
+
+    const trimmedUsername = typeof data?.username === 'string' ? data.username.trim() : '';
+    if (error || trimmedUsername.length === 0) {
+      console.log('Profile fetch failed, using fallback username');
+      return fallbackName;
+    }
+
+    return trimmedUsername;
+  } catch {
+    console.log('Profile fetch failed, using fallback username');
+    return fallbackName;
   }
-
-  const username = data?.username?.trim();
-  return username ? username : 'Unknown User';
 }
 
 async function handleGetActiveItems(c: Context<AppEnv>): Promise<Response> {
@@ -234,6 +244,11 @@ async function handleCreateItem(c: Context<AppEnv>): Promise<Response> {
       typeof body.motivation === 'number' && Number.isFinite(body.motivation)
         ? body.motivation
         : null;
+      const description =
+        body.description === null || typeof body.description === 'string'
+          ? body.description
+          : null;
+
     const due = typeof body.due === 'string' ? body.due.trim() : '';
     const rawDuration = body.duration_minutes ?? body.durationMinutes;
     const durationMinutes =
@@ -251,7 +266,7 @@ async function handleCreateItem(c: Context<AppEnv>): Promise<Response> {
         id: body.id || crypto.randomUUID(),
         user_id: userId,
         title,
-        description: body.description,
+        description: description,
         status: 'todo',
         sync_status: 'synced',
         due,
@@ -291,6 +306,58 @@ async function handleUpdateItemStatus(c: Context<AppEnv>): Promise<Response> {
       updated_at: new Date().toISOString()
     })
     .eq('id', body.id);
+
+  if (error) return c.json({ error: error.message }, 400);
+  return c.body(null, 204);
+}
+
+async function handleUpdateItem(c: Context<AppEnv>): Promise<Response> {
+  const { token } = c.get('auth');
+  const supabase = createSupabaseWithToken(token);
+  const id = c.req.param('id');
+  const body = await parseJson(c, {
+    title: '',
+    description: null as any,
+    due: '',
+    durationMinutes: null as number | null,
+    duration_minutes: null as number | null,
+    motivation: null as number | null,
+  });
+
+  const title = typeof body.title === 'string' ? body.title.trim() : '';
+  const due = typeof body.due === 'string' ? body.due.trim() : '';
+
+  const validatedDescription = 
+    typeof body.description === 'string' && body.description.trim().length > 0
+      ? body.description.trim()
+      : null;
+
+  if (!id || !title || !due) {
+    return c.json({ error: 'id, title and due are required' }, 400);
+  }
+
+  const rawDuration = body.duration_minutes ?? body.durationMinutes;
+  const durationMinutes =
+    typeof rawDuration === 'number' && Number.isFinite(rawDuration)
+      ? rawDuration
+      : null;
+  const motivation =
+    typeof body.motivation === 'number' && Number.isFinite(body.motivation)
+      ? body.motivation
+      : null;
+
+  const { error } = await supabase
+    .from('items')
+    .update({
+      title,
+      description: validatedDescription,
+      due,
+      duration_minutes: durationMinutes,
+      motivation,
+      updated_at: new Date().toISOString(),
+      sync_status: 'synced', 
+    })
+    .eq('id', id);
 
   if (error) return c.json({ error: error.message }, 400);
   return c.body(null, 204);
@@ -433,6 +500,8 @@ app.patch('/api/items/:id/status', async (c) => {
   return c.body(null, 204);
 });
 
+app.patch('/api/items/:id', async (c) => handleUpdateItem(c));
+
 app.post('/api/items/update-status', async (c) => handleUpdateItemStatus(c));
 
 app.post('/api/items/:id/archive', async (c) => {
@@ -480,6 +549,7 @@ app.get('/api/commands/get_deleted_items', async (c) => handleGetDeletedItems(c)
 app.post('/api/commands/create_item', async (c) => handleCreateItem(c));
 
 app.post('/api/commands/update_item_status', async (c) => handleUpdateItemStatus(c));
+app.patch('/api/commands/update_item/:id', async (c) => handleUpdateItem(c));
 
 app.post('/api/commands/archive_item', async (c) => handleArchiveItem(c));
 

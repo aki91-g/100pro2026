@@ -20,8 +20,9 @@ The architecture separates responsibilities into:
 - Pinia-safe token injection into `HonoClient` via deferred token getter from `main.ts`.
 - Strong alignment with backend contract fields (`snake_case` item properties like `duration_minutes`, `sync_status`).
 - **Automated 30-second sync**: Background interval timer synchronizes items automatically when authenticated, with in-flight guard to prevent concurrent syncs.
-- **Schema enforcement**: `due` field is mandatory across all layers (frontend type, backend model, database schema), `motivation` is nullable.
-- **No debug layer**: Debug tools, manual sync buttons, and seed/reset commands removed for production readiness.
+- **Schema enforcement**: `due` field is mandatory across all layers (frontend type, backend model, database schema), `motivation` is nullable, `description` is nullable.
+- **ScatterPlot visualization**: Interactive SVG scatter plot (`ScatterPlot.vue`) renders task items by due date with configurable Y-axis, color, and radius fields, powered by `useGraph.ts` and D3 force simulation.
+- **Debug test helpers**: `testCreate` and `testFetch` functions remain in `MainDashboard.vue` for in-development validation.
 
 ## Data And Control Flow
 ### Authentication flow
@@ -76,16 +77,19 @@ apps/frontend/
 │   ├── assets/
 │   │   └── vue.svg
 │   ├── components/
+│   │   ├── ScatterPlot.vue
 │   │   ├── SyncStatusBadge.vue
 │   │   └── TaskList.vue
 │   ├── composables/
 │   │   ├── useAuth.ts
+│   │   ├── useGraph.ts
 │   │   ├── useItems.ts
 │   │   └── useSyncStatus.ts
 │   ├── layouts/
 │   ├── stores/
 │   │   └── user.ts
 │   ├── types/
+│   │   ├── graph.ts
 │   │   └── item.ts
 │   ├── views/
 │   │   ├── LoginView.vue
@@ -146,11 +150,11 @@ Description:
 - Repository Pattern abstraction for item operations.
 - Provides identical interface for Tauri and Hono backends.
 - Contains composite methods (`refreshItems`, `syncAndRefresh`) used by composables.
-- **Schema enforcement**: `CreateItemPayload` requires `due: string` (mandatory), `motivation: number | null` (nullable).
+- **Schema enforcement**: `CreateItemPayload` requires `due: string` (mandatory), `motivation: number | null` (nullable), `description?: string | null` (optional nullable).
 
 Key Functions/Exported Members:
 - `ItemRepository` interface.
-- `CreateItemPayload` type with mandatory `due` field.
+- `CreateItemPayload` type with mandatory `due` field and optional `description` field.
 - `itemRepository` singleton.
 - Internal classes: `TauriItemRepository`, `HonoItemRepository`.
 
@@ -188,6 +192,24 @@ Description:
 Key Functions/Exported Members:
 - Static SVG file, no exports.
 
+### `src/components/ScatterPlot.vue`
+Description:
+- Interactive SVG scatter plot for visualizing task items by due date.
+- X-axis is always due date (relative to now, in a configurable time window).
+- Y-axis, color, and radius are individually selectable from item fields (`duration_minutes`, `motivation`, `status`).
+- Uses `useGraph` composable for all data processing and D3 force simulation for collision-free placement.
+- Supports grouping mode that aggregates nearby dots into a single marker.
+- Renders triangle markers for items outside the current time window (clamped left/right).
+- Refreshes layout automatically on container resize (ResizeObserver) and every 5 minutes (interval timer).
+- Shows a debug stats bar (input / visible / plotted / skipped counts) and warning banners for invalid data.
+
+Key Functions/Exported Members:
+- Default Vue component export.
+- Props: `items: Item[]`.
+- Internal handlers: `handleGroupEnter(group)`, `handleGroupLeave()`, `updateViewportSize()`, `trianglePath(group)`, `tooltipStyle(group)`.
+- Format helpers: `formatDue`, `formatMetric`, `shortId`, `formatRangeHint`, `markerTextAnchor`.
+- Controls: `selectedRange`, `selectedYField`, `selectedColorField`, `selectedRadiusField`, `groupingEnabled` (bound to `useGraph` refs via `v-model`).
+
 ### `src/components/SyncStatusBadge.vue`
 Description:
 - Pure status visualization component.
@@ -215,20 +237,36 @@ Description:
 Key Functions/Exported Members:
 - `useAuth()` returning refs/actions: `isAuthenticated`, `initialize`, `login`, `logout`, etc.
 
+### `src/composables/useGraph.ts`
+Description:
+- All graph data processing logic, isolated from rendering.
+- Accepts a `GraphConfig` at construction time for layout constants and palette.
+- Converts raw `Item[]` into positioned `GraphItem[]` using D3 `scaleLinear`, `scaleQuantize`, and a force simulation (`forceX`, `forceY`, `forceCollide`) run synchronously for 90 ticks.
+- Builds `GraphGroup[]` either as 1-to-1 wrappers (grouping off) or spatially bucketed aggregates (grouping on).
+- Provides reactive `selectedRange`, `selectedYField`, `selectedColorField`, `selectedRadiusField`, `groupingEnabled` controls.
+- Exposes `setDimensions` (called on resize), `updateData` (called when items change), `refreshNow` (called on control change), and `destroy` (cleanup).
+- Exports `GraphDebugStats` for the debug stats bar in `ScatterPlot.vue`.
+
+Key Functions/Exported Members:
+- `useGraph(config: GraphConfig)` factory function.
+- Returned refs: `graphGroups`, `warnings`, `debugStats`, `layout`, `xTicks`, `yTicks`, `selectedRange`, `selectedYField`, `selectedColorField`, `selectedRadiusField`, `groupingEnabled`.
+- Returned actions: `setDimensions`, `updateData`, `refreshNow`, `destroy`.
+- `GraphDebugStats` type export.
+
 ### `src/composables/useItems.ts`
 Description:
 - Core item workflow and shared state module.
 - Implements race-safe session token strategy.
 - Delegates persistence to `itemRepository`.
 - **Automated sync**: Manages 30-second interval timer with `startAutoSync()`/`stopAutoSync()` and in-flight guard.
-- **Schema enforcement**: `createItem()` requires `due` parameter (no default, no optional).
+- **Schema enforcement**: `createItem()` requires `due` parameter and accepts optional `description`.
 
 Key Functions/Exported Members:
 - `useItems()`
-- Shared refs: `items`, `isLoading`, `isSyncing`, `error`, `autoSyncTimer`, `isAutoSyncEnabled`.
+- Shared refs: `items`, `isLoading`, `isSyncing`, `error`.
 - Session controls: `getCurrentToken`, `startNewSession`, `invalidateSession`.
 - Sync controls: `startAutoSync`, `stopAutoSync`.
-- Actions: `fetchActiveItems`, `createItem(title, motivation, due, durationMinutes)`, `syncItems`, etc.
+- Actions: `fetchActiveItems`, `fetchArchivedItems`, `fetchDeletedItems`, `createItem({ title, description, motivation, due, durationMinutes })`, `syncItems`, `syncAndRefresh`, `updateItemStatus`, `archiveItem`, `softDeleteItem`.
 
 ### `src/composables/useSyncStatus.ts`
 Description:
@@ -251,15 +289,27 @@ Key Functions/Exported Members:
 - Actions: `initialize`, `login`, `logout`.
 - Getter: `isAuthenticated`.
 
+### `src/types/graph.ts`
+Description:
+- Type definitions for the scatter-plot graph layer.
+- Separates graph-specific concerns from the core `Item` type.
+
+Key Functions/Exported Members:
+- `GraphTimeRangeKey` type: `'1d' | '3d' | '1w' | '2w' | '1m'`.
+- `GraphAxisField` type: `'duration_minutes' | 'motivation' | 'status'`.
+- `GraphVisualField` type: `'none' | 'duration_minutes' | 'motivation' | 'status'`.
+- `GraphMarker` type: `'circle' | 'triangle-left' | 'triangle-right'`.
+- `Point`, `GraphTick`, `GraphItem`, `GraphGroup`, `GraphConfig`, `GraphLayout` interfaces.
+
 ### `src/types/item.ts`
 Description:
 - **Source of truth**: Canonical item contract used across UI, composables, and repositories.
 - Mirrors backend payload naming (`snake_case`).
-- **Schema enforcement**: `due: string` is mandatory (no optional/undefined), `motivation: number | null` is explicitly nullable.
+- **Schema enforcement**: `due: string` is mandatory (no optional/undefined), `motivation: number | null` is explicitly nullable, `description: string | null` is nullable.
 
 Key Functions/Exported Members:
 - `UUID` type.
-- `Item` type with mandatory `due: string` and nullable `motivation: number | null`.
+- `Item` type with mandatory `due: string`, nullable `motivation: number | null`, and nullable `description: string | null`.
 - `RefreshResult` type.
 
 ### `src/views/LoginView.vue`
@@ -277,13 +327,15 @@ Description:
 - Main authenticated workspace.
 - Composes auth, items, and sync-status workflows.
 - Handles remote catch-up events.
-- **"Add New Item" form**: Includes `title`, `due` (datetime-local input, required), `motivation` (nullable), `durationMinutes` fields with validation and loading states.
-- **No debug tools**: All seed/reset/migrate/ping commands removed for production readiness.
+- **"Add New Item" form**: Includes `title`, `description` (nullable), `due` (datetime-local input, required), `motivation` (defaults to 5, 1-10 select), `durationMinutes` fields with validation and loading states.
+- **ScatterPlot integration**: Renders `<ScatterPlot :items="items" />` between the form and `TaskList`.
+- **Debug helpers**: `testCreate` (creates a random debug task) and `testFetch` (logs items to console) are present for in-development use, exposed as fixed-position buttons in the UI.
 
 Key Functions/Exported Members:
 - Default Vue component export.
 - Internal actions: `loadItems`, `handleRefreshItems`, `handleCreateItem`.
-- Form state: `newItemTitle`, `newItemDue` (required), `newItemDuration`, `newItemMotivation` (nullable), `isCreating`.
+- Debug actions: `testCreate`, `testFetch`.
+- Form state: `newItemTitle`, `newItemDescription` (nullable), `newItemDue` (required), `newItemDuration`, `newItemMotivation` (defaults to 5), `isCreating`.
 
 ### `src/style.css`
 Description:
@@ -363,9 +415,10 @@ Key Functions/Exported Members:
 ```ts
 import { itemRepository } from '@/api/itemRepository';
 
-// `due` is now mandatory - no longer nullable
+// `due` is mandatory, `description` and `durationMinutes` are optional nullable
 const id = await itemRepository.createItem({
   title: 'Portfolio task',
+  description: 'Review chart feedback',  // optional - can be null or omitted
   motivation: 7,  // nullable - can be null
   due: '2024-03-15T10:00:00Z',  // required - must provide valid ISO string
   durationMinutes: 45,
@@ -417,13 +470,13 @@ honoClient.setTokenGetter(() => useUserStore(pinia).accessToken ?? null);
 import { useItems } from '@/composables/useItems';
 
 // In App.vue lifecycle
-const { startAutoSync, stopAutoSync, isAutoSyncEnabled } = useItems();
+const { startAutoSync, stopAutoSync } = useItems();
 
 // Start sync on authentication
 watch(isAuthenticated, (authenticated) => {
   if (authenticated) {
-    startAutoSync(); // Starts 30-second interval timer
-    console.log('Auto-sync enabled:', isAutoSyncEnabled.value);
+    const sessionToken = startNewSession();
+    startAutoSync(sessionToken); // Starts 30-second interval timer
   }
 });
 
@@ -431,6 +484,16 @@ watch(isAuthenticated, (authenticated) => {
 onUnmounted(() => {
   stopAutoSync(); // Clears interval timer
 });
+```
+
+### Example 6: ScatterPlot usage
+```vue
+<!-- Inside MainDashboard.vue template -->
+<ScatterPlot :items="items" />
+```
+```ts
+// ScatterPlot receives Item[] and uses useGraph internally
+// No additional wiring required — useGraph handles D3 layout
 ```
 
 ## Build Verification
@@ -441,7 +504,7 @@ cd apps/frontend
 pnpm run build
 ```
 
-Result: successful TypeScript and Vite production build (✓ 43 modules built in 874ms).
+Result: build count increases with added graph/visualization modules (run `pnpm run build` to get latest).
 
 ## Schema Alignment Summary
 
@@ -458,8 +521,8 @@ Result: successful TypeScript and Vite production build (✓ 43 modules built in
 - `normalizeIso()` handles nullable timestamps correctly
 
 ### Frontend (Vue 3 + TypeScript)
-- **Item type** (source of truth): `due: string` (required), `motivation: number | null` (nullable)
-- `CreateItemPayload` enforces mandatory `due` field
+- **Item type** (source of truth): `due: string` (required), `motivation: number | null` (nullable), `description: string | null` (nullable)
+- `CreateItemPayload` enforces mandatory `due` field and accepts optional `description`
 - Form validation requires `due` input before item creation
 - Automated 30-second sync with in-flight guard
 
@@ -468,17 +531,28 @@ Result: successful TypeScript and Vite production build (✓ 43 modules built in
 - Alters `due` column to NOT NULL constraint
 - Preserves nullable `motivation` column (no changes)
 
-## Production Readiness Changes
+## Feature History
 
-### Debug Layer Removal
-All debug-related code removed for production:
+### Debug Layer Cleanup (prior)
+Earlier debug infrastructure removed from the repository layer:
 - **Deleted files**: `DebugTools.vue`, `SyncButton.vue`, `useDebug.ts`, `debugRepository.ts`
 - **Removed commands**: `seed_database`, `reset_database`, `migrate_null_user_items` from Rust commands
 - **Removed services**: `DebugService` from Rust backend
-- **Cleaned UI**: Removed debug panel, Hono ping button, and manual seed/reset actions from `MainDashboard.vue`
+
+### Current Debug State
+`MainDashboard.vue` retains development-only helpers:
+- **`testCreate`**: Creates a randomly-titled task with a random motivation score, logs result to console.
+- **`testFetch`**: Fetches active items and logs the full array to console.
+- These are exposed as fixed-position buttons in the UI. Remove before shipping to production.
 
 ### Automated Sync Implementation
 - **Interval**: 30-second automatic synchronization when authenticated
-- **Guards**: In-flight protection prevents concurrent sync operations
+- **Guards**: In-flight protection (`autoSyncInFlight` flag) prevents concurrent sync operations
 - **Lifecycle**: Auto-starts on authentication, auto-stops on logout/unmount
-- **Manual sync**: Still available via UI action, respects same in-flight guard
+
+### ScatterPlot Visualization
+- **Component**: `ScatterPlot.vue` renders all active items as an interactive SVG scatter plot.
+- **Engine**: `useGraph.ts` handles scale computation, D3 force simulation, grouping, and tick generation.
+- **Types**: `graph.ts` defines all graph-layer interfaces (`GraphItem`, `GraphGroup`, `GraphConfig`, `GraphLayout`, etc.).
+- **Controls**: Time window (1d–1m), Y-axis field, color field, radius field, and grouping mode are all user-configurable.
+- **Responsiveness**: ResizeObserver drives `setDimensions` on container size changes; 5-minute refresh timer keeps relative time labels current.
