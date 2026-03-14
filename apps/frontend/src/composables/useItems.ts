@@ -189,6 +189,26 @@ export function useItems() {
     }
   }
 
+  // Update item details
+  async function updateItem(payload: {
+    id: string,
+    title: string,
+    description: string | null,
+    motivation: number | null,
+    due: string,
+    durationMinutes?: number | null
+  }): Promise<void> {
+    error.value = null;
+    try {
+      await itemRepository.updateItem(payload);
+      await fetchActiveItems();
+    } catch (err) {
+      error.value = String(err);
+      console.error('Failed to update item:', err);
+      throw err;
+    }
+  }
+
   // Update item status
   async function updateItemStatus(id: string, status: Item['status']): Promise<void> {
     error.value = null;
@@ -254,6 +274,7 @@ export function useItems() {
     startAutoSync,
     stopAutoSync,
     createItem,
+    updateItem,
     updateItemStatus,
     archiveItem,
     softDeleteItem,

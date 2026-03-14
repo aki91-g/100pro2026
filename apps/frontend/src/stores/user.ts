@@ -2,7 +2,7 @@ import { ref, computed } from 'vue';
 import { defineStore } from 'pinia';
 import { authRepository } from '@/api/authRepository';
 
-const USERNAME_STORAGE_KEY = 'taskgraph.username';
+const USERNAME_STORAGE_PREFIX = 'taskgraph.username';
 
 function normalizeUsername(value: string | null | undefined): string | null {
   if (!value) return null;
@@ -32,50 +32,54 @@ export const useUserStore = defineStore('user', () => {
   const isAuthenticated = computed(() => userId.value !== null);
   const displayUsername = computed(() => normalizeUsername(username.value) ?? 'User');
 
-  function persistUsername(value: string | null): void {
+  function getUsernameStorageKey(userId: string): string {
+    return `${USERNAME_STORAGE_PREFIX}:${userId}`;
+  }
+
+  function persistUsername(userId: string | null, value: string | null): void {
     if (typeof localStorage === 'undefined') return;
-    if (value) {
-      localStorage.setItem(USERNAME_STORAGE_KEY, value);
+    if (!userId) return;
+
+    const key = getUsernameStorageKey(userId);
+    if (value && value.length > 0) {
+      localStorage.setItem(key, value);
     } else {
-      localStorage.removeItem(USERNAME_STORAGE_KEY);
+      localStorage.removeItem(key);
     }
   }
 
-  function readStoredUsername(): string | null {
+  function readStoredUsername(userId: string | null): string | null {
     if (typeof localStorage === 'undefined') return null;
-    return normalizeUsername(localStorage.getItem(USERNAME_STORAGE_KEY));
+    if (!userId) return null;
+    return normalizeUsername(localStorage.getItem(getUsernameStorageKey(userId)));
   }
 
   // Actions
   async function initialize() {
     try {
-      const storedUsername = readStoredUsername();
-
       // Try to auto-login using local_user table
       const localUser = await authRepository.autoLogin();
       
       if (localUser) {
         userId.value = localUser.id;
-        username.value = normalizeUsername(localUser.username) ?? storedUsername;
+        const storedUsername = readStoredUsername(localUser.id);
+        username.value = normalizeUsername(localUser.username);
         accessToken.value = localUser.access_token ?? null;
         if (!normalizeUsername(username.value)) {
-          username.value = await resolveSessionUsername();
+          username.value = (await resolveSessionUsername()) ?? storedUsername;
         }
-        persistUsername(normalizeUsername(username.value));
+        persistUsername(userId.value, normalizeUsername(username.value));
         console.log('🔐 Auto-login successful');
       } else {
         // Fallback: Check active session
         const activeSession = await authRepository.getActiveSession();
         if (activeSession) {
           userId.value = activeSession.id;
+          const storedUsername = readStoredUsername(activeSession.id);
           username.value = normalizeUsername(activeSession.username) ?? storedUsername;
           accessToken.value = activeSession.access_token ?? null;
-          persistUsername(normalizeUsername(username.value));
+          persistUsername(userId.value, normalizeUsername(username.value));
         }
-      }
-
-      if (!normalizeUsername(username.value)) {
-        username.value = storedUsername;
       }
       
       isInitialized.value = true;
@@ -95,12 +99,13 @@ export const useUserStore = defineStore('user', () => {
       const response = await authRepository.login(email, password);
       
       userId.value = response.id;
-      username.value = normalizeUsername(response.username) ?? readStoredUsername();
+      const storedUsername = readStoredUsername(response.id);
+      username.value = normalizeUsername(response.username) ?? storedUsername;
       accessToken.value = response.access_token ?? null;
       if (!normalizeUsername(username.value)) {
         username.value = await resolveSessionUsername();
       }
-      persistUsername(normalizeUsername(username.value));
+      persistUsername(userId.value, normalizeUsername(username.value));
       console.log('✅ Login successful');
     } catch (error) {
       console.error('Login failed:', error);
@@ -111,10 +116,11 @@ export const useUserStore = defineStore('user', () => {
   async function logout() {
     try {
       await authRepository.logout();
+      const currentUserId = userId.value;
       userId.value = null;
       username.value = null;
       accessToken.value = null;
-      persistUsername(null);
+      persistUsername(currentUserId, null);
     } catch (error) {
       console.error('Logout failed:', error);
       throw error;
@@ -126,7 +132,7 @@ export const useUserStore = defineStore('user', () => {
       return username.value;
     }
 
-    const storedUsername = readStoredUsername();
+    const storedUsername = readStoredUsername(userId.value);
     if (storedUsername) {
       username.value = storedUsername;
       return storedUsername;
@@ -136,7 +142,7 @@ export const useUserStore = defineStore('user', () => {
       const sessionUsername = await resolveSessionUsername();
       if (sessionUsername) {
         username.value = sessionUsername;
-        persistUsername(sessionUsername);
+        persistUsername(userId.value, sessionUsername);
         return sessionUsername;
       }
     }

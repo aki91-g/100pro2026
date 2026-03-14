@@ -411,6 +411,7 @@ watch([selectedRange, selectedYField, selectedColorField, selectedRadiusField], 
 watch(
   [graphGroups, layout, warnings],
   async () => {
+    closeClusterMenu();
     await nextTick();
     renderSoon();
   },

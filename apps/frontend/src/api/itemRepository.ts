@@ -20,11 +20,21 @@ export interface CreateItemPayload {
   durationMinutes?: number | null;
 }
 
+export interface UpdateItemPayload {
+  id: string;
+  title: string;
+  description: string | null;
+  motivation: number | null;
+  due: string;
+  durationMinutes?: number | null;
+}
+
 export interface ItemRepository {
   getActiveItems(): Promise<Item[]>;
   getArchivedItems(): Promise<Item[]>;
   getDeletedItems(): Promise<Item[]>;
   createItem(payload: CreateItemPayload): Promise<string>;
+  updateItem(payload: UpdateItemPayload): Promise<void>;
   updateItemStatus(id: string, status: Item['status']): Promise<void>;
   archiveItem(id: string): Promise<void>;
   softDeleteItem(id: string): Promise<void>;
@@ -52,6 +62,17 @@ class TauriItemRepository implements ItemRepository {
 
   async createItem(payload: CreateItemPayload): Promise<string> {
     return invoke<string>('create_item', { ...payload });
+  }
+
+  async updateItem(payload: UpdateItemPayload): Promise<void> {
+    await invoke<void>('update_item_details', {
+      id: payload.id,
+      title: payload.title,
+      description: payload.description,
+      due: payload.due,
+      duration_minutes: payload.durationMinutes ?? null,
+      motivation: payload.motivation,
+    });
   }
 
   async updateItemStatus(id: string, status: Item['status']): Promise<void> {
@@ -128,6 +149,10 @@ class HonoItemRepository implements ItemRepository {
 
   async createItem(payload: CreateItemPayload): Promise<string> {
     return honoClient.createItem(payload);
+  }
+
+  async updateItem(payload: UpdateItemPayload): Promise<void> {
+    await honoClient.updateItem(payload);
   }
 
   async updateItemStatus(id: string, status: Item['status']): Promise<void> {

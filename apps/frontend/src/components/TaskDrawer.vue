@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue';
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import type { Item } from '@/types/item';
 import TaskList from '@/components/TaskList.vue';
+import { useItems } from '@/composables/useItems';
 
 type DrawerMode = 'create' | 'view' | 'edit';
 
@@ -42,6 +43,9 @@ const editDescription = ref<string | null>(null);
 const editDue = ref('');
 const editDuration = ref<number | null>(null);
 const editMotivation = ref(5);
+const isSavingEdit = ref(false);
+
+const { updateItem } = useItems();
 
 const hasSelectedItem = computed(() => props.selectedItem !== null);
 const strictSyncMap = computed<Record<string, 'pending' | 'success' | 'error'>>(() => {
@@ -107,6 +111,12 @@ function closeDrawer(): void {
   emit('update:open', false);
 }
 
+function handleKeydown(event: KeyboardEvent): void {
+  if (event.key === 'Escape' && props.open) {
+    closeDrawer();
+  }
+}
+
 function submitCreate(): void {
   if (!createTitle.value.trim() || !createDue.value.trim()) return;
 
@@ -117,6 +127,39 @@ function submitCreate(): void {
     due: new Date(createDue.value).toISOString(),
     durationMinutes: createDuration.value,
   });
+}
+
+async function handleEditSubmit(): Promise<void> {
+  if (!props.selectedItem || !editTitle.value.trim() || !editDue.value.trim()) {
+    return;
+  }
+
+  isSavingEdit.value = true;
+  try {
+    await updateItem({
+      id: props.selectedItem.id,
+      title: editTitle.value.trim(),
+      description: editDescription.value,
+      due: new Date(editDue.value).toISOString(),
+      durationMinutes: editDuration.value,
+      motivation: editMotivation.value,
+    });
+
+    emit('select-item', {
+      ...props.selectedItem,
+      title: editTitle.value.trim(),
+      description: editDescription.value,
+      due: new Date(editDue.value).toISOString(),
+      duration_minutes: editDuration.value,
+      motivation: editMotivation.value,
+      sync_status: 'modified',
+    });
+    emit('update:mode', 'view');
+  } catch (error) {
+    console.error('Failed to save item changes:', error);
+  } finally {
+    isSavingEdit.value = false;
+  }
 }
 
 watch(
@@ -136,6 +179,14 @@ watch(
   },
   { immediate: true },
 );
+
+onMounted(() => {
+  window.addEventListener('keydown', handleKeydown);
+});
+
+onUnmounted(() => {
+  window.removeEventListener('keydown', handleKeydown);
+});
 </script>
 
 <template>
@@ -150,7 +201,7 @@ watch(
     <div v-if="open" class="fixed inset-0 z-40">
       <div class="absolute inset-0 bg-slate-950/25" @click="closeDrawer" />
 
-      <aside class="absolute right-0 top-0 flex h-full w-full max-w-xl flex-col border-l border-slate-200 bg-white shadow-2xl">
+      <aside role="dialog" aria-modal="true" class="absolute right-0 top-0 flex h-full w-full max-w-xl flex-col border-l border-slate-200 bg-white shadow-2xl">
         <header class="flex items-center justify-between border-b border-slate-200 px-5 py-4">
           <div>
             <h2 class="text-lg font-semibold text-slate-900">
@@ -313,14 +364,14 @@ watch(
               <TaskList :items="items" :sync-map="strictSyncMap" :error-map="strictErrorMap" :is-syncing="isSyncing" />
             </div>
 
-            <form v-else key="edit" class="space-y-4">
+            <form v-else key="edit" class="space-y-4" @submit.prevent="handleEditSubmit">
               <div>
                 <label for="edit-title" class="mb-1 block text-sm font-medium text-slate-700">Title</label>
                 <input
                   id="edit-title"
                   v-model="editTitle"
                   type="text"
-                  :disabled="!selectedItem"
+                  :disabled="!selectedItem || isSavingEdit"
                   class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
                 />
               </div>
@@ -331,7 +382,7 @@ watch(
                   id="edit-description"
                   v-model="editDescription"
                   rows="3"
-                  :disabled="!selectedItem"
+                  :disabled="!selectedItem || isSavingEdit"
                   class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
                 />
               </div>
@@ -343,7 +394,7 @@ watch(
                     id="edit-due"
                     v-model="editDue"
                     type="datetime-local"
-                    :disabled="!selectedItem"
+                    :disabled="!selectedItem || isSavingEdit"
                     class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
                   />
                 </div>
@@ -354,7 +405,7 @@ watch(
                     v-model.number="editDuration"
                     type="number"
                     min="1"
-                    :disabled="!selectedItem"
+                    :disabled="!selectedItem || isSavingEdit"
                     class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
                   />
                 </div>
@@ -365,15 +416,33 @@ watch(
                 <select
                   id="edit-motivation"
                   v-model.number="editMotivation"
-                  :disabled="!selectedItem"
+                  :disabled="!selectedItem || isSavingEdit"
                   class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
                 >
                   <option v-for="n in 10" :key="n" :value="n">{{ n }}</option>
                 </select>
               </div>
 
+              <div class="flex justify-end gap-2">
+                <button
+                  type="button"
+                  class="rounded-lg border border-slate-300 px-4 py-2 text-sm text-slate-700 hover:bg-slate-100"
+                  :disabled="isSavingEdit"
+                  @click="setMode('view')"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  class="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+                  :disabled="!selectedItem || !editTitle.trim() || !editDue.trim() || isSavingEdit"
+                >
+                  {{ isSavingEdit ? 'Saving...' : 'Save Changes' }}
+                </button>
+              </div>
+
               <p class="rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-800">
-                Edit mode UI is active and synchronized with selected task. Persisting edits can be wired next to repository update endpoints.
+                Edit mode persists task details to backend and refreshes shared item state.
               </p>
             </form>
           </transition>

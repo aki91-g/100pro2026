@@ -131,7 +131,6 @@ async function handleCreateItem(payload: {
   isCreating.value = true;
   try {
     const id = await createItem(payload);
-    await handleRefreshItems();
 
     const created = items.value.find((item) => item.id === id) ?? null;
     if (created) {
