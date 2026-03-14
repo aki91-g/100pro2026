@@ -244,6 +244,11 @@ async function handleCreateItem(c: Context<AppEnv>): Promise<Response> {
       typeof body.motivation === 'number' && Number.isFinite(body.motivation)
         ? body.motivation
         : null;
+      const description =
+        body.description === null || typeof body.description === 'string'
+          ? body.description
+          : null;
+
     const due = typeof body.due === 'string' ? body.due.trim() : '';
     const rawDuration = body.duration_minutes ?? body.durationMinutes;
     const durationMinutes =
@@ -261,7 +266,7 @@ async function handleCreateItem(c: Context<AppEnv>): Promise<Response> {
         id: body.id || crypto.randomUUID(),
         user_id: userId,
         title,
-        description: body.description,
+        description: description,
         status: 'todo',
         sync_status: 'synced',
         due,
@@ -312,7 +317,7 @@ async function handleUpdateItem(c: Context<AppEnv>): Promise<Response> {
   const id = c.req.param('id');
   const body = await parseJson(c, {
     title: '',
-    description: null as string | null,
+    description: null as any,
     due: '',
     durationMinutes: null as number | null,
     duration_minutes: null as number | null,
@@ -321,6 +326,12 @@ async function handleUpdateItem(c: Context<AppEnv>): Promise<Response> {
 
   const title = typeof body.title === 'string' ? body.title.trim() : '';
   const due = typeof body.due === 'string' ? body.due.trim() : '';
+
+  const validatedDescription = 
+    typeof body.description === 'string' && body.description.trim().length > 0
+      ? body.description.trim()
+      : null;
+
   if (!id || !title || !due) {
     return c.json({ error: 'id, title and due are required' }, 400);
   }
@@ -339,12 +350,12 @@ async function handleUpdateItem(c: Context<AppEnv>): Promise<Response> {
     .from('items')
     .update({
       title,
-      description: body.description,
+      description: validatedDescription,
       due,
       duration_minutes: durationMinutes,
       motivation,
       updated_at: new Date().toISOString(),
-      sync_status: 'modified',
+      sync_status: 'synced', 
     })
     .eq('id', id);
 
