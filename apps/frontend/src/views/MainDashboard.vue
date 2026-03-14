@@ -1,20 +1,19 @@
 <script setup lang="ts">
-import { ref, watch, onMounted, onUnmounted } from 'vue';
+import { computed, ref, watch, onMounted, onUnmounted } from 'vue';
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
+import type { Item } from '@/types/item';
+import type { GraphAxisField, GraphTimeRangeKey, GraphVisualField } from '@/types/graph';
 
-// Composables
 import { useAuth } from '@/composables/useAuth';
 import { useItems } from '@/composables/useItems';
 import { useSyncStatus } from '@/composables/useSyncStatus';
 
-// Components
-import TaskList from '@/components/TaskList.vue';
 import ScatterPlot from '@/components/ScatterPlot.vue';
+import TaskDrawer from '@/components/TaskDrawer.vue';
 
-// Auth
-const { userId } = useAuth();
+const auth = useAuth();
 
-// Items with session management
+
 const {
   items,
   isSyncing,
@@ -24,20 +23,42 @@ const {
   getCurrentToken,
 } = useItems();
 
-// Sync status
 const { syncMap, errorMap } = useSyncStatus();
 
-// Local state
-const greetMsg = ref('');
-let unlistenRemoteCatchup: UnlistenFn | null = null;
+const selectedRange = ref<GraphTimeRangeKey>('1w');
+const selectedYField = ref<GraphAxisField>('duration_minutes');
+const selectedColorField = ref<GraphVisualField>('motivation');
+const selectedRadiusField = ref<GraphVisualField>('duration_minutes');
 
-// New Item Form state
-const newItemTitle = ref('');
-const newItemDescription = ref<'' | null>(null);
-const newItemDue = ref('');
-const newItemDuration = ref<number | null>(null);
-const newItemMotivation = ref<number>(5);
+const rangeOptions: Array<{ value: GraphTimeRangeKey; label: string }> = [
+  { value: '1d', label: '1 day' },
+  { value: '3d', label: '3 days' },
+  { value: '1w', label: '1 week' },
+  { value: '2w', label: '2 weeks' },
+  { value: '1m', label: '1 month' },
+];
+
+const axisOptions: Array<{ value: GraphAxisField; label: string }> = [
+  { value: 'duration_minutes', label: 'Duration' },
+  { value: 'motivation', label: 'Motivation' },
+  { value: 'status', label: 'Status' },
+];
+
+const visualOptions: Array<{ value: GraphVisualField; label: string }> = [
+  { value: 'none', label: 'None' },
+  { value: 'duration_minutes', label: 'Duration' },
+  { value: 'motivation', label: 'Motivation' },
+  { value: 'status', label: 'Status' },
+];
+
+const isDrawerOpen = ref(false);
+const drawerMode = ref<'create' | 'view' | 'edit'>('view');
+const selectedItem = ref<Item | null>(null);
 const isCreating = ref(false);
+
+const showWelcomeToast = ref(false);
+let hasShownWelcomeToast = false;
+let welcomeTimer: number | null = null;
 
 type UUID = string;
 
@@ -46,21 +67,90 @@ interface RemoteCatchupEvent {
   synced_count: number;
 }
 
-// --- Lifecycle ---
-onMounted(async () => {
-  // Initialize due with a valid datetime-local value for better UX.
-  const now = new Date();
-  now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
-  newItemDue.value = now.toISOString().slice(0, 16);
+let unlistenRemoteCatchup: UnlistenFn | null = null;
 
-  unlistenRemoteCatchup = await listen<RemoteCatchupEvent>('remote-catchup', (event) => {
-    const { user_id, synced_count } = event.payload;
-    if (userId.value && user_id === userId.value) {
-      greetMsg.value = `Remote connected. Synced ${synced_count} local tasks to cloud.`;
+const hasResolvedUsername = computed(() => {
+  const current = auth.username.value?.trim().toLowerCase();
+  return Boolean(current && current !== 'unknown');
+});
+
+function triggerWelcomeToastOnce(): void {
+  if (hasShownWelcomeToast || !hasResolvedUsername.value) return;
+
+  hasShownWelcomeToast = true;
+  showWelcomeToast.value = true;
+
+  if (welcomeTimer !== null) {
+    window.clearTimeout(welcomeTimer);
+  }
+
+  welcomeTimer = window.setTimeout(() => {
+    showWelcomeToast.value = false;
+    welcomeTimer = null;
+  }, 2400);
+}
+
+async function loadItems(sessionToken: number): Promise<void> {
+  await fetchActiveItems(sessionToken);
+  if (sessionToken === getCurrentToken()) {
+    triggerWelcomeToastOnce();
+  }
+}
+
+async function handleRefreshItems(): Promise<void> {
+  await loadItems(getCurrentToken());
+}
+
+async function handleLogout(): Promise<void> {
+  if (!confirm('Are you sure you want to logout?')) return;
+  try {
+    await auth.logout();
+  } catch (error) {
+    console.error('Logout failed:', error);
+  }
+}
+
+function openDrawer(mode: 'create' | 'view' | 'edit'): void {
+  drawerMode.value = mode;
+  isDrawerOpen.value = true;
+}
+
+function handleSelectItem(item: Item): void {
+  selectedItem.value = item;
+  drawerMode.value = 'view';
+  isDrawerOpen.value = true;
+}
+
+async function handleCreateItem(payload: {
+  title: string;
+  description: string | null;
+  motivation: number | null;
+  due: string;
+  durationMinutes?: number | null;
+}): Promise<void> {
+  isCreating.value = true;
+  try {
+    const id = await createItem(payload);
+    await handleRefreshItems();
+
+    const created = items.value.find((item) => item.id === id) ?? null;
+    if (created) {
+      selectedItem.value = created;
+      drawerMode.value = 'view';
     }
+  } catch (error) {
+    console.error('Create Item Error:', error);
+  } finally {
+    isCreating.value = false;
+  }
+}
+
+onMounted(async () => {
+  await auth.ensureUsername();
+  unlistenRemoteCatchup = await listen<RemoteCatchupEvent>('remote-catchup', () => {
+    void handleRefreshItems();
   });
 
-  // Load items on mount with a new session token
   const sessionToken = startNewSession();
   await loadItems(sessionToken);
 });
@@ -70,9 +160,27 @@ onUnmounted(() => {
     unlistenRemoteCatchup();
     unlistenRemoteCatchup = null;
   }
+
+  if (welcomeTimer !== null) {
+    window.clearTimeout(welcomeTimer);
+    welcomeTimer = null;
+  }
 });
 
-// Watch sync map for real-time updates
+watch(
+  auth.username,
+  async (nextUsername) => {
+    const normalized = nextUsername?.trim().toLowerCase();
+    if (!normalized || normalized === 'unknown') {
+      await auth.ensureUsername();
+      return;
+    }
+
+    triggerWelcomeToastOnce();
+  },
+  { immediate: true },
+);
+
 watch(
   syncMap,
   (nextMap) => {
@@ -92,337 +200,151 @@ watch(
       }
     }
   },
-  { deep: true }
+  { deep: true },
 );
-
-// --- Item Management ---
-async function loadItems(sessionToken: number) {
-  try {
-    await fetchActiveItems(sessionToken);
-    // Only update message if this session is still valid
-    if (sessionToken === getCurrentToken()) {
-      greetMsg.value = `Connected! Showing ${items.value.length} tasks.`;
-    }
-  } catch (e) {
-    // Only update error if this session is still valid
-    if (sessionToken === getCurrentToken()) {
-      console.error('Fetch Error:', e);
-      greetMsg.value = 'Failed to load tasks.';
-    }
-  }
-}
-
-async function handleRefreshItems() {
-  await loadItems(getCurrentToken());
-}
-
-// --- Create New Item ---
-async function handleCreateItem() {
-  if (!newItemTitle.value.trim() || !newItemDue.value.trim()) {
-    return;
-  }
-
-  const dueIso = new Date(newItemDue.value).toISOString();
-
-  isCreating.value = true;
-  try {
-    await createItem({
-      title: newItemTitle.value.trim(),
-      description: newItemDescription.value,
-      motivation: newItemMotivation.value,
-      due: dueIso,
-      durationMinutes: newItemDuration.value
-    });
-    // Clear form after successful creation
-    newItemTitle.value = '';
-    newItemDescription.value = '';
-    const now = new Date();
-    now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
-    newItemDue.value = now.toISOString().slice(0, 16);
-    newItemDuration.value = null;
-    newItemMotivation.value = 5;
-    greetMsg.value = `✓ Item created successfully! Showing ${items.value.length} tasks.`;
-  } catch (e) {
-    console.error('Create Item Error:', e);
-    greetMsg.value = 'Failed to create item.';
-  } finally {
-    isCreating.value = false;
-  }
-}
-
-// --- DEBUG: Test Functions ---
-const testCreate = async () => {
-  try {
-    const id = await createItem({
-      title: "Debug Task " + new Date().getSeconds(),
-      description: "This is a debug task created at " + new Date().toLocaleTimeString(),
-      motivation: Math.floor(Math.random() * 101),
-      due: new Date(Date.now() + 86400000).toISOString(),
-    });
-    
-    console.log("✅ Created and View Updated! ID:", id);
-  } catch (e) {
-    console.error("❌ Create Failed:", e);
-  }
-};
-const testFetch = async () => {
-  try {
-    await fetchActiveItems(getCurrentToken());
-    console.log("✅ Fetch Successful! Items:", items.value);
-  } catch (e) {
-    console.error("❌ Fetch Failed:", e);
-  }
-};
 </script>
 
-
 <template>
-  <div class="container">
-    <header>
-      <div class="sync-section">
-        <span v-if="isSyncing" class="syncing-indicator">Syncing in background...</span>
+  <div class="relative h-dvh overflow-x-hidden bg-gradient-to-br from-slate-100 via-slate-50 to-blue-50">
+    <transition
+      enter-active-class="transition duration-300 ease-out"
+      enter-from-class="translate-y-2 opacity-0"
+      enter-to-class="translate-y-0 opacity-100"
+      leave-active-class="transition duration-200 ease-in"
+      leave-from-class="translate-y-0 opacity-100"
+      leave-to-class="translate-y-2 opacity-0"
+    >
+      <div
+        v-if="showWelcomeToast"
+        class="fixed left-1/2 top-6 z-50 -translate-x-1/2 rounded-xl border border-emerald-300 bg-emerald-50 px-4 py-2 text-sm font-medium text-emerald-800 shadow-lg"
+      >
+        Welcome {{ auth.displayUsername }}
       </div>
-    </header>
+    </transition>
 
-    <main>
-      <section class="card">
-        <h2>Welcome, {{ userId || 'User' }}!</h2>
-        <p class="description">This is your task dashboard. You can create new tasks, see them visualized, and manage them in the list below.</p>
-         <!-- DEBUG -->
-        <div class="fixed bottom-4 right-4 flex gap-2 z-50">
-          <button @click="testCreate" class="bg-blue-500 text-white p-2 rounded">DEGUG: Seed Test</button>
-          <button @click="testFetch" class="bg-green-500 text-white p-2 rounded">DEBUG: Fetch Log</button>
-        </div>
-      </section>
-      <section class="card">
-        <h2>1. Desktop Bridge (Rust + SQLite)</h2>
-        <p class="description">Current connection to your local tasks.db.</p>
-        <div class="input-group">
-          <button @click="handleRefreshItems">Refresh List</button>
-        </div>
-        <div class="response-box" :class="{ hasValue: greetMsg }">
-          {{ greetMsg || 'Status unknown' }}
-        </div>
-      </section>
-
-      <section class="card">
-        <h2>Add New Item</h2>
-        <p class="description">Create a new task to add to your list.</p>
-        <form @submit.prevent="handleCreateItem" class="new-item-form">
-          <div class="form-row">
-            <div class="form-field">
-              <label for="item-title">Title *</label>
-              <input 
-                id="item-title"
-                v-model="newItemTitle"
-                type="text" 
-                placeholder="Enter task title"
-                :disabled="isCreating"
-              />
+    <div class="flex h-full min-h-0 flex-col p-4 transition-all duration-300 md:p-6" :class="isDrawerOpen ? 'lg:mr-[32rem]' : ''">
+      <header class="rounded-2xl border border-slate-200/80 bg-white/90 px-4 py-3 shadow-sm backdrop-blur">
+        <div class="flex flex-wrap items-center justify-between gap-3">
+          <div class="flex items-center gap-3">
+            <div>
+              <h1 class="text-xl font-semibold tracking-tight text-slate-950 md:text-2xl">TaskGraph</h1>
             </div>
-            <div class="form-field">
-              <label for="item-description">Description</label>
-              <input 
-                id="item-description"
-                v-model="newItemDescription"
-                type="text" 
-                placeholder="Enter task description"
-                :disabled="isCreating"
-              />
-            </div>
-            <div class="form-field">
-              <label for="item-due">Due *</label>
-              <input
-                id="item-due"
-                v-model="newItemDue"
-                type="datetime-local"
-                :disabled="isCreating"
-              />
-            </div>
+            <button type="button" class="rounded-full border border-slate-200 bg-white px-3 py-1 text-sm font-semibold shadow-sm">
+              <span class="bg-gradient-to-r from-red-500 via-purple-500 to-blue-500 bg-clip-text text-transparent">100program v9</span>
+            </button>
           </div>
-          <div class="form-row">
-            <div class="form-field">
-              <label for="item-duration">Duration (minutes)</label>
-              <input 
-                id="item-duration"
-                v-model.number="newItemDuration"
-                type="number" 
-                placeholder="Optional"
-                :disabled="isCreating"
-                min="1"
-              />
-            </div>
-            <div class="form-field">
-              <label for="item-motivation">Motivation (1-10)</label>
-              <select 
-                id="item-motivation"
-                v-model.number="newItemMotivation"
-                :disabled="isCreating"
+
+          <div class="flex flex-wrap items-center justify-end gap-3">
+            <span
+              class="inline-flex items-center gap-2 rounded-full border border-slate-300 bg-slate-100 px-3 py-1 text-xs font-medium text-slate-700"
+              :class="isSyncing ? 'border-blue-300 bg-blue-50 text-blue-700' : ''"
+            >
+              <span class="h-2 w-2 rounded-full" :class="isSyncing ? 'animate-pulse bg-blue-500' : 'bg-slate-400'" />
+              {{ isSyncing ? 'Database syncing...' : 'Database idle' }}
+            </span>
+
+            <div class="inline-flex items-center gap-3 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-sm text-slate-700 shadow-sm">
+              <span class="font-medium text-slate-900">{{ auth.displayUsername }}</span>
+              <button
+                type="button"
+                class="rounded-md border border-slate-300 bg-white px-2.5 py-1 text-xs font-medium text-slate-700 hover:bg-slate-100"
+                @click="handleLogout"
               >
-                <option v-for="n in 10" :key="n" :value="n">{{ n }}</option>
-              </select>
+                Logout
+              </button>
             </div>
           </div>
-          <button 
-            type="submit" 
-            :disabled="!newItemTitle.trim() || !newItemDue.trim() || isCreating"
-            class="create-button"
-          >
-            {{ isCreating ? 'Creating...' : 'Create Item' }}
-          </button>
-        </form>
+        </div>
+      </header>
+
+      <section class="mt-3 rounded-2xl border border-slate-200/80 bg-white/90 px-4 py-2.5 shadow-sm backdrop-blur">
+        <div class="flex flex-wrap items-center justify-between gap-3">
+          <div class="flex flex-1 flex-wrap items-center gap-3">
+            <div class="flex min-w-[140px] flex-col">
+              <label class="text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-400">Window</label>
+              <select v-model="selectedRange" class="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm text-slate-800 focus:border-blue-500 focus:outline-none">
+              <option v-for="option in rangeOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
+            </select>
+          </div>
+
+            <div class="flex min-w-[140px] flex-col">
+              <label class="text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-400">Y-Axis</label>
+              <select v-model="selectedYField" class="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm text-slate-800 focus:border-blue-500 focus:outline-none">
+              <option v-for="option in axisOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
+            </select>
+          </div>
+
+            <div class="flex min-w-[140px] flex-col">
+              <label class="text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-400">Color</label>
+              <select v-model="selectedColorField" class="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm text-slate-800 focus:border-blue-500 focus:outline-none">
+              <option v-for="option in visualOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
+            </select>
+          </div>
+
+            <div class="flex min-w-[140px] flex-col">
+              <label class="text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-400">Radius</label>
+              <select v-model="selectedRadiusField" class="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm text-slate-800 focus:border-blue-500 focus:outline-none">
+              <option v-for="option in visualOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
+            </select>
+            </div>
+          </div>
+
+          <div class="flex items-center gap-2">
+            <button
+              type="button"
+              class="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-100"
+              @click="handleRefreshItems"
+            >
+              Refresh
+            </button>
+
+            <button
+              type="button"
+              class="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-100"
+              @click="openDrawer('view')"
+            >
+              Tasks
+            </button>
+
+            <button
+              type="button"
+              class="rounded-lg bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-700"
+              @click="openDrawer('create')"
+            >
+              New Task
+            </button>
+          </div>
+        </div>
       </section>
-      <ScatterPlot :items="items" />
-      <TaskList :items="items" :sync-map="syncMap" :error-map="errorMap" :is-syncing="isSyncing" />
-    </main>
+
+      <main class="mt-3 flex min-h-0 flex-1">
+        <section class="flex min-h-0 flex-1 rounded-2xl border border-slate-200 bg-white p-2 shadow-sm md:p-3">
+          <ScatterPlot
+            :items="items"
+            v-model:range="selectedRange"
+            v-model:y-field="selectedYField"
+            v-model:color-field="selectedColorField"
+            v-model:radius-field="selectedRadiusField"
+            class="min-h-0 flex-1"
+            @select-item="handleSelectItem"
+          />
+        </section>
+      </main>
+    </div>
+
+    <TaskDrawer
+      :open="isDrawerOpen"
+      :mode="drawerMode"
+      :selected-item="selectedItem"
+      :items="items"
+      :sync-map="syncMap"
+      :error-map="errorMap"
+      :is-syncing="isSyncing"
+      :is-creating="isCreating"
+      @update:open="isDrawerOpen = $event"
+      @update:mode="drawerMode = $event"
+      @select-item="handleSelectItem"
+      @create-item="handleCreateItem"
+    />
   </div>
 </template>
-
-<style scoped>
-.container {
-  max-width: 700px;
-  margin: 0 auto;
-  padding: 2rem;
-  font-family: 'Inter', sans-serif;
-}
-
-header {
-  margin-bottom: 2rem;
-}
-.sync-section {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  gap: 1rem;
-}
-
-.syncing-indicator {
-  font-size: 0.85rem;
-  color: #3498db;
-}
-
-.card {
-  background: #f8f9fa;
-  border-radius: 12px;
-  padding: 1.5rem;
-  margin-bottom: 1.5rem;
-  border: 1px solid #eee;
-}
-.description {
-  color: #666;
-  font-size: 0.9rem;
-  margin-bottom: 1rem;
-}
-
-.input-group {
-  display: flex;
-  gap: 10px;
-  margin-bottom: 1rem;
-}
-button {
-  background: #34495e;
-  color: white;
-  border: none;
-  padding: 0.6rem 1.2rem;
-  border-radius: 6px;
-  cursor: pointer;
-}
-button:hover {
-  background: #41b883;
-}
-button:disabled {
-  background: #999;
-  cursor: not-allowed;
-}
-
-.response-box {
-  min-height: 2.5rem;
-  background: #fff;
-  border: 1px dashed #ccc;
-  border-radius: 6px;
-  padding: 0.8rem;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 0.9rem;
-  color: #666;
-}
-.response-box.hasValue {
-  border-style: solid;
-  border-color: #42b883;
-  color: #2c3e50;
-  background: #f0fff4;
-}
-
-/* New Item Form Styles */
-.new-item-form {
-  display: flex;
-  flex-direction: column;
-  gap: 1rem;
-}
-
-.form-row {
-  display: flex;
-  gap: 1rem;
-  flex-wrap: wrap;
-}
-
-.form-field {
-  flex: 1;
-  min-width: 200px;
-  display: flex;
-  flex-direction: column;
-  gap: 0.4rem;
-}
-
-.form-field label {
-  font-size: 0.85rem;
-  font-weight: 500;
-  color: #555;
-}
-
-.form-field input,
-.form-field select {
-  padding: 0.7rem;
-  border: 1px solid #ddd;
-  border-radius: 6px;
-  font-size: 0.95rem;
-  font-family: inherit;
-  background: #fff;
-}
-
-.form-field input:focus,
-.form-field select:focus {
-  outline: none;
-  border-color: #41b883;
-  box-shadow: 0 0 0 3px rgba(65, 184, 131, 0.1);
-}
-
-.form-field input:disabled,
-.form-field select:disabled {
-  background: #f5f5f5;
-  cursor: not-allowed;
-}
-
-.create-button {
-  align-self: flex-start;
-  background: #41b883;
-  color: white;
-  border: none;
-  padding: 0.8rem 1.8rem;
-  border-radius: 6px;
-  cursor: pointer;
-  font-weight: 500;
-  transition: background 0.2s;
-}
-
-.create-button:hover:not(:disabled) {
-  background: #35a379;
-}
-
-.create-button:disabled {
-  background: #999;
-  cursor: not-allowed;
-}
-
-</style>

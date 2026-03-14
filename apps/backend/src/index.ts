@@ -155,6 +155,9 @@ const requireAuth: MiddlewareHandler<AppEnv> = async (c, next) => {
 };
 
 async function fetchProfileUsername(token: string, userId: string): Promise<string> {
+  const anon = createAnonSupabase();
+  const { data: authData } = await anon.auth.getUser(token);
+  const fallbackName = authData.user?.email?.split('@')[0] || 'User';
   const supabase = createSupabaseWithToken(token);
   const { data, error } = await supabase
     .from('profiles')
@@ -162,12 +165,11 @@ async function fetchProfileUsername(token: string, userId: string): Promise<stri
     .eq('id', userId)
     .maybeSingle();
 
-  if (error) {
-    return 'Unknown User';
+  if (error || !data?.username) {
+    console.log(`[DEBUG] Profile fetch failed for ${userId}, using fallback: ${fallbackName}`);
+    return fallbackName; 
   }
-
-  const username = data?.username?.trim();
-  return username ? username : 'Unknown User';
+  return data.username.trim();
 }
 
 async function handleGetActiveItems(c: Context<AppEnv>): Promise<Response> {
