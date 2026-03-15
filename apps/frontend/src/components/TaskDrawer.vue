@@ -127,6 +127,8 @@ async function submitCreate(): Promise<void> {
     if (created) {
       emit('select-item', created);
       emit('update:mode', 'view');
+    } else {
+      console.warn('Created item not found in repository:', id);
     }
   } catch (error) {
     console.error('Failed to create item:', error);
