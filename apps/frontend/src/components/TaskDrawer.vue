@@ -6,14 +6,6 @@ import { useItems } from '@/composables/useItems';
 
 type DrawerMode = 'create' | 'view' | 'edit';
 
-type CreateItemPayload = {
-  title: string;
-  description: string | null;
-  motivation: number | null;
-  due: string;
-  durationMinutes?: number | null;
-};
-
 const props = defineProps<{
   open: boolean;
   mode: DrawerMode;
@@ -22,14 +14,12 @@ const props = defineProps<{
   syncMap: Record<string, 'pending' | 'success' | 'error' | undefined>;
   errorMap: Record<string, string | undefined>;
   isSyncing: boolean;
-  isCreating: boolean;
 }>();
 
 const emit = defineEmits<{
   (event: 'update:open', value: boolean): void;
   (event: 'update:mode', value: DrawerMode): void;
   (event: 'select-item', item: Item): void;
-  (event: 'create-item', payload: CreateItemPayload): void;
 }>();
 
 const createTitle = ref('');
@@ -44,8 +34,11 @@ const editDue = ref('');
 const editDuration = ref<number | null>(null);
 const editMotivation = ref(5);
 const isSavingEdit = ref(false);
+const isCreating = ref(false);
+const isArchiving = ref(false);
+const isDeleting = ref(false);
 
-const { updateItem } = useItems();
+const { createItem, updateItem, archiveItem, softDeleteItem, items: repositoryItems } = useItems();
 
 const hasSelectedItem = computed(() => props.selectedItem !== null);
 const strictSyncMap = computed<Record<string, 'pending' | 'success' | 'error'>>(() => {
@@ -117,16 +110,60 @@ function handleKeydown(event: KeyboardEvent): void {
   }
 }
 
-function submitCreate(): void {
+async function submitCreate(): Promise<void> {
   if (!createTitle.value.trim() || !createDue.value.trim()) return;
 
-  emit('create-item', {
-    title: createTitle.value.trim(),
-    description: createDescription.value,
-    motivation: createMotivation.value,
-    due: new Date(createDue.value).toISOString(),
-    durationMinutes: createDuration.value,
-  });
+  isCreating.value = true;
+  try {
+    const id = await createItem({
+      title: createTitle.value.trim(),
+      description: createDescription.value,
+      motivation: createMotivation.value,
+      due: new Date(createDue.value).toISOString(),
+      durationMinutes: createDuration.value,
+    });
+
+    const created = repositoryItems.value.find((item) => item.id === id) ?? null;
+    if (created) {
+      emit('select-item', created);
+      emit('update:mode', 'view');
+    }
+  } catch (error) {
+    console.error('Failed to create item:', error);
+  } finally {
+    isCreating.value = false;
+  }
+}
+
+async function handleArchive(): Promise<void> {
+  if (!props.selectedItem) return;
+
+  isArchiving.value = true;
+  try {
+    await archiveItem(props.selectedItem.id);
+    emit('update:open', false);
+    emit('update:mode', 'view');
+  } catch (error) {
+    console.error('Failed to archive item:', error);
+  } finally {
+    isArchiving.value = false;
+  }
+}
+
+async function handleDelete(): Promise<void> {
+  if (!props.selectedItem) return;
+  if (!confirm('Are you sure you want to delete this task?')) return;
+
+  isDeleting.value = true;
+  try {
+    await softDeleteItem(props.selectedItem.id);
+    emit('update:open', false);
+    emit('update:mode', 'view');
+  } catch (error) {
+    console.error('Failed to delete item:', error);
+  } finally {
+    isDeleting.value = false;
+  }
 }
 
 async function handleEditSubmit(): Promise<void> {
@@ -423,22 +460,42 @@ onUnmounted(() => {
                 </select>
               </div>
 
-              <div class="flex justify-end gap-2">
-                <button
-                  type="button"
-                  class="rounded-lg border border-slate-300 px-4 py-2 text-sm text-slate-700 hover:bg-slate-100"
-                  :disabled="isSavingEdit"
-                  @click="setMode('view')"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  class="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
-                  :disabled="!selectedItem || !editTitle.trim() || !editDue.trim() || isSavingEdit"
-                >
-                  {{ isSavingEdit ? 'Saving...' : 'Save Changes' }}
-                </button>
+              <div class="flex items-center justify-between gap-2">
+                <div class="flex gap-2">
+                  <button
+                    type="button"
+                    class="rounded-lg border border-amber-300 bg-amber-50 px-4 py-2 text-sm text-amber-700 hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-50"
+                    :disabled="!selectedItem || isSavingEdit || isArchiving || isDeleting"
+                    @click="handleArchive"
+                  >
+                    {{ isArchiving ? 'Archiving...' : 'Archive' }}
+                  </button>
+                  <button
+                    type="button"
+                    class="rounded-lg border border-red-300 bg-red-50 px-4 py-2 text-sm text-red-700 hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-50"
+                    :disabled="!selectedItem || isSavingEdit || isArchiving || isDeleting"
+                    @click="handleDelete"
+                  >
+                    {{ isDeleting ? 'Deleting...' : 'Delete' }}
+                  </button>
+                </div>
+                <div class="flex gap-2">
+                  <button
+                    type="button"
+                    class="rounded-lg border border-slate-300 px-4 py-2 text-sm text-slate-700 hover:bg-slate-100"
+                    :disabled="isSavingEdit || isArchiving || isDeleting"
+                    @click="setMode('view')"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    class="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+                    :disabled="!selectedItem || !editTitle.trim() || !editDue.trim() || isSavingEdit || isArchiving || isDeleting"
+                  >
+                    {{ isSavingEdit ? 'Saving...' : 'Save Changes' }}
+                  </button>
+                </div>
               </div>
 
               <p class="rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-800">
