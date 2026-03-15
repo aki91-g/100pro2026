@@ -23,6 +23,7 @@ The architecture separates responsibilities into:
 - **Schema enforcement**: `due` field is mandatory across all layers (frontend type, backend model, database schema), `motivation` is nullable, `description` is nullable.
 - **ScatterPlot visualization**: Interactive SVG scatter plot (`ScatterPlot.vue`) renders task items by due date with configurable Y-axis, color, and radius fields, powered by `useGraph.ts` and D3 force simulation.
 - **Debug test helpers**: `testCreate` and `testFetch` functions remain in `MainDashboard.vue` for in-development validation.
+- **TaskDrawer self-contained CRUD**: `TaskDrawer.vue` calls `useItems()` directly for create, archive, and soft-delete operations, eliminating the need to delegate item mutations through parent component event handlers.
 
 ## Data And Control Flow
 ### Authentication flow
@@ -79,6 +80,7 @@ apps/frontend/
 │   ├── components/
 │   │   ├── ScatterPlot.vue
 │   │   ├── SyncStatusBadge.vue
+│   │   ├── TaskDrawer.vue
 │   │   └── TaskList.vue
 │   ├── composables/
 │   │   ├── useAuth.ts
@@ -210,6 +212,23 @@ Key Functions/Exported Members:
 - Format helpers: `formatDue`, `formatMetric`, `shortId`, `formatRangeHint`, `markerTextAnchor`.
 - Controls: `selectedRange`, `selectedYField`, `selectedColorField`, `selectedRadiusField`, `groupingEnabled` (bound to `useGraph` refs via `v-model`).
 
+### `src/components/TaskDrawer.vue`
+Description:
+- Slide-in drawer component for all item lifecycle operations: create, view, edit, archive, and soft-delete.
+- Manages three modes: `create`, `view`, and `edit`, selectable via an inline nav bar.
+- **Self-contained CRUD**: Calls `useItems()` directly for all item mutations (`createItem`, `updateItem`, `archiveItem`, `softDeleteItem`) rather than delegating through parent event emissions.
+- Create mode: form with title, description, due datetime, duration, and motivation fields; submits via `itemRepository` through `useItems`, then emits `select-item` with the newly created item.
+- Edit mode: pre-filled form that saves via `updateItem`; includes **Archive** (amber) and **Delete** (red) action buttons that invoke `archiveItem` / `softDeleteItem` with confirmation, then close the drawer.
+- View mode: displays selected item details alongside `<TaskList>` for all active items.
+- Keyboard accessible: `Escape` closes the drawer.
+
+Key Functions/Exported Members:
+- Default Vue component export.
+- Props: `open`, `mode`, `selectedItem`, `items`, `syncMap`, `errorMap`, `isSyncing`.
+- Emits: `update:open`, `update:mode`, `select-item`.
+- Internal actions: `submitCreate()`, `handleEditSubmit()`, `handleArchive()`, `handleDelete()`.
+- Local loading states: `isCreating`, `isSavingEdit`, `isArchiving`, `isDeleting`.
+
 ### `src/components/SyncStatusBadge.vue`
 Description:
 - Pure status visualization component.
@@ -327,15 +346,14 @@ Description:
 - Main authenticated workspace.
 - Composes auth, items, and sync-status workflows.
 - Handles remote catch-up events.
-- **"Add New Item" form**: Includes `title`, `description` (nullable), `due` (datetime-local input, required), `motivation` (defaults to 5, 1-10 select), `durationMinutes` fields with validation and loading states.
-- **ScatterPlot integration**: Renders `<ScatterPlot :items="items" />` between the form and `TaskList`.
+- **ScatterPlot integration**: Renders `<ScatterPlot :items="items" />` with configurable Y-axis, color, and radius fields, and relays `select-item` clicks to the `TaskDrawer`.
+- **TaskDrawer orchestration**: Opens `TaskDrawer` in `create`, `view`, or `edit` mode; passes shared item state as props; all item mutations are handled internally by `TaskDrawer` via `useItems()`.
 - **Debug helpers**: `testCreate` (creates a random debug task) and `testFetch` (logs items to console) are present for in-development use, exposed as fixed-position buttons in the UI.
 
 Key Functions/Exported Members:
 - Default Vue component export.
-- Internal actions: `loadItems`, `handleRefreshItems`, `handleCreateItem`.
+- Internal actions: `loadItems`, `handleRefreshItems`, `handleSelectItem`, `handleLogout`.
 - Debug actions: `testCreate`, `testFetch`.
-- Form state: `newItemTitle`, `newItemDescription` (nullable), `newItemDue` (required), `newItemDuration`, `newItemMotivation` (defaults to 5), `isCreating`.
 
 ### `src/style.css`
 Description:

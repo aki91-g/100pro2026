@@ -12,7 +12,7 @@ defineProps<{
 
 <template>
   <section class="card" v-if="items.length > 0">
-    <h2>📋 Current Tasks</h2>
+    <h2>📋 Tasks</h2>
     <div class="task-container">
       <div v-for="item in items" :key="item.id" class="task-row">
         <SyncStatusBadge

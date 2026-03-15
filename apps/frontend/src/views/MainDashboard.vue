@@ -18,7 +18,6 @@ const {
   items,
   isSyncing,
   fetchActiveItems,
-  createItem,
   startNewSession,
   getCurrentToken,
 } = useItems();
@@ -54,7 +53,6 @@ const visualOptions: Array<{ value: GraphVisualField; label: string }> = [
 const isDrawerOpen = ref(false);
 const drawerMode = ref<'create' | 'view' | 'edit'>('view');
 const selectedItem = ref<Item | null>(null);
-const isCreating = ref(false);
 
 const showWelcomeToast = ref(false);
 let hasShownWelcomeToast = false;
@@ -119,29 +117,6 @@ function handleSelectItem(item: Item): void {
   selectedItem.value = item;
   drawerMode.value = 'view';
   isDrawerOpen.value = true;
-}
-
-async function handleCreateItem(payload: {
-  title: string;
-  description: string | null;
-  motivation: number | null;
-  due: string;
-  durationMinutes?: number | null;
-}): Promise<void> {
-  isCreating.value = true;
-  try {
-    const id = await createItem(payload);
-
-    const created = items.value.find((item) => item.id === id) ?? null;
-    if (created) {
-      selectedItem.value = created;
-      drawerMode.value = 'view';
-    }
-  } catch (error) {
-    console.error('Create Item Error:', error);
-  } finally {
-    isCreating.value = false;
-  }
 }
 
 onMounted(async () => {
@@ -339,11 +314,9 @@ watch(
       :sync-map="syncMap"
       :error-map="errorMap"
       :is-syncing="isSyncing"
-      :is-creating="isCreating"
       @update:open="isDrawerOpen = $event"
       @update:mode="drawerMode = $event"
       @select-item="handleSelectItem"
-      @create-item="handleCreateItem"
     />
   </div>
 </template>
