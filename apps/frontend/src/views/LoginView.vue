@@ -32,7 +32,7 @@ async function handleLogin() {
   <div class="login-container">
     <div class="login-card">
       <h2>🔐 Login</h2>
-      <p class="description">Enter your Supabase email and password</p>
+      <p class="description">Enter your email and password</p>
       
       <form @submit.prevent="handleLogin" class="login-form">
         <div class="input-group">
@@ -74,10 +74,6 @@ async function handleLogin() {
           <p v-if="error" class="error-msg" role="alert" aria-live="assertive">{{ error }}</p>
         </Transition>
       </form>
-
-      <div class="info-box">
-        <p><strong>On native-app:</strong> Credentials are sent to the Rust backend, which authenticates with Supabase and resolves your profile identity.</p>
-      </div>
     </div>
   </div>
 </template>
