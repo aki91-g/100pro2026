@@ -168,19 +168,29 @@ const requireAuth: MiddlewareHandler<AppEnv> = async (c, next) => {
 };
 
 async function fetchProfileUsername(token: string, userId: string): Promise<string> {
-  const supabase = createSupabaseWithToken(token);
-  const { data, error } = await supabase
-    .from('profiles')
-    .select('username')
-    .eq('id', userId)
-    .maybeSingle();
+  const anon = createAnonSupabase();
+  const { data: authData } = await anon.auth.getUser(token);
+  const fallbackName = (authData.user?.email?.split('@')[0] || 'User').trim();
 
-  if (error) {
-    return 'Unknown User';
+  try {
+    const supabase = createSupabaseWithToken(token);
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('username')
+      .eq('id', userId)
+      .maybeSingle();
+
+    const trimmedUsername = typeof data?.username === 'string' ? data.username.trim() : '';
+    if (error || trimmedUsername.length === 0) {
+      console.log('Profile fetch failed, using fallback username');
+      return fallbackName;
+    }
+
+    return trimmedUsername;
+  } catch {
+    console.log('Profile fetch failed, using fallback username');
+    return fallbackName;
   }
-
-  const username = data?.username?.trim();
-  return username ? username : 'Unknown User';
 }
 
 async function handleGetActiveItems(c: Context<AppEnv>): Promise<Response> {
@@ -247,6 +257,11 @@ async function handleCreateItem(c: Context<AppEnv>): Promise<Response> {
       typeof body.motivation === 'number' && Number.isFinite(body.motivation)
         ? body.motivation
         : null;
+      const description =
+        body.description === null || typeof body.description === 'string'
+          ? body.description
+          : null;
+
     const due = typeof body.due === 'string' ? body.due.trim() : '';
     const rawDuration = body.duration_minutes ?? body.durationMinutes;
     const durationMinutes =
@@ -264,7 +279,7 @@ async function handleCreateItem(c: Context<AppEnv>): Promise<Response> {
         id: body.id || crypto.randomUUID(),
         user_id: userId,
         title,
-        description: body.description,
+        description: description,
         status: 'todo',
         sync_status: 'synced',
         due,

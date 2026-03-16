@@ -29,6 +29,7 @@ export interface HonoItemsClient {
   getDeletedItems(): Promise<Item[]>;
   createItem(payload: CreateItemPayload): Promise<string>;
   updateItem(payload: UpdateItemPayload): Promise<void>;
+  updateItem(payload: UpdateItemPayload): Promise<void>;
   updateItemStatus(id: string, status: Item['status']): Promise<void>;
   archiveItem(id: string): Promise<void>;
   deleteItem(id: string): Promise<void>;
@@ -38,6 +39,16 @@ export interface HonoItemsClient {
 
 export interface CreateItemPayload {
   title: string;
+  description?: string | null;
+  motivation: number | null;
+  due: string;
+  durationMinutes?: number | null;
+}
+
+export interface UpdateItemPayload {
+  id: string;
+  title: string;
+  description: string | null;
   description?: string | null;
   motivation: number | null;
   due: string;
