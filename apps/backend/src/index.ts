@@ -41,10 +41,19 @@ type AppEnv = { Variables: { auth: AuthContext } };
 const app = new Hono<AppEnv>();
 
 const corsAllowAll = process.env.CORS_ALLOW_ALL === 'true';
-const corsAllowedOrigins = (process.env.CORS_ALLOWED_ORIGINS ?? '')
+const defaultLocalOrigins = [
+  'http://localhost:5173',
+  'http://127.0.0.1:5173',
+  'http://localhost:3000',
+  'http://127.0.0.1:3000',
+];
+
+const configuredCorsOrigins = (process.env.CORS_ALLOWED_ORIGINS ?? '')
   .split(',')
   .map((origin) => origin.trim())
   .filter((origin) => origin.length > 0);
+
+const corsAllowedOrigins = Array.from(new Set([...defaultLocalOrigins, ...configuredCorsOrigins]));
 
 function isOriginAllowed(origin: string | undefined): boolean {
   if (!origin) return true;
@@ -124,6 +133,10 @@ function parseStatus(raw: unknown): TaskStatus | null {
   if (value === 'inprogress') return 'inprogress';
   if (value === 'done') return 'done';
   return null;
+}
+
+function isUuid(value: string): boolean {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
 }
 
 async function parseJson<T>(c: Context, fallback: T): Promise<T> {
@@ -270,9 +283,12 @@ async function handleCreateItem(c: Context<AppEnv>): Promise<Response> {
 }
 
 async function handleUpdateItemStatus(c: Context<AppEnv>): Promise<Response> {
+  const idFromPath = c.req.param('id');
   const body = await parseJson(c, { id: '', status: '' });
 
-  if (!body.id || !body.status) {
+  const id = typeof idFromPath === 'string' && idFromPath.trim().length > 0 ? idFromPath : body.id;
+
+  if (!id || !body.status) {
     return c.json({ error: 'id and status are required' }, 400);
   }
 
@@ -290,23 +306,85 @@ async function handleUpdateItemStatus(c: Context<AppEnv>): Promise<Response> {
       status: validatedStatus,
       updated_at: new Date().toISOString()
     })
-    .eq('id', body.id);
+    .eq('id', id)
+    .is('deleted_at', null);
 
   if (error) return c.json({ error: error.message }, 400);
   return c.body(null, 204);
 }
 
-async function handleArchiveItem(c: Context<AppEnv>): Promise<Response> {
-  const body = await parseJson(c, { id: '' });
-  if (!body.id) return c.json({ error: 'id is required' }, 400);
+async function handleUpdateItem(c: Context<AppEnv>): Promise<Response> {
+  const idFromPath = c.req.param('id');
+  const body = await parseJson(c, {
+    id: '',
+    title: '',
+    description: null as string | null,
+    motivation: null as number | null,
+    due: '',
+    durationMinutes: null as number | null,
+    duration_minutes: null as number | null,
+  });
+
+  const id = typeof idFromPath === 'string' && idFromPath.trim().length > 0 ? idFromPath : body.id;
+  if (!id || !isUuid(id)) {
+    return c.json({ error: 'valid item id is required' }, 400);
+  }
+
+  const title = typeof body.title === 'string' ? body.title.trim() : '';
+  const due = typeof body.due === 'string' ? body.due.trim() : '';
+  if (!title || !due || Number.isNaN(Date.parse(due))) {
+    return c.json({ error: 'valid title and due are required' }, 400);
+  }
+
+  const description =
+    body.description === null || typeof body.description === 'string'
+      ? body.description
+      : null;
+  const motivation =
+    typeof body.motivation === 'number' && Number.isFinite(body.motivation)
+      ? body.motivation
+      : null;
+  const rawDuration = body.duration_minutes ?? body.durationMinutes;
+  const durationMinutes =
+    typeof rawDuration === 'number' && Number.isFinite(rawDuration)
+      ? rawDuration
+      : null;
 
   const { token } = c.get('auth');
   const supabase = createSupabaseWithToken(token);
 
   const { error } = await supabase
     .from('items')
-    .update({ is_archived: true })
-    .eq('id', body.id)
+    .update({
+      title,
+      description,
+      motivation,
+      due: new Date(due).toISOString(),
+      duration_minutes: durationMinutes,
+      sync_status: 'modified',
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', id)
+    .is('deleted_at', null);
+
+  if (error) return c.json({ error: error.message }, 400);
+  return c.body(null, 204);
+}
+
+async function handleArchiveItem(c: Context<AppEnv>): Promise<Response> {
+  const idFromPath = c.req.param('id');
+  const body = await parseJson(c, { id: '' });
+
+  const id = typeof idFromPath === 'string' && idFromPath.trim().length > 0 ? idFromPath : body.id;
+  if (!id || !isUuid(id)) return c.json({ error: 'valid id is required' }, 400);
+
+  const { token } = c.get('auth');
+  const supabase = createSupabaseWithToken(token);
+
+  const { error } = await supabase
+    .from('items')
+    .update({ is_archived: true, updated_at: new Date().toISOString() })
+    .eq('id', id)
     .is('deleted_at', null);
 
   if (error) return c.json({ error: error.message }, 400);
@@ -314,16 +392,20 @@ async function handleArchiveItem(c: Context<AppEnv>): Promise<Response> {
 }
 
 async function handleSoftDeleteItem(c: Context<AppEnv>): Promise<Response> {
+  const idFromPath = c.req.param('id');
   const body = await parseJson(c, { id: '' });
-  if (!body.id) return c.json({ error: 'id is required' }, 400);
+
+  const id = typeof idFromPath === 'string' && idFromPath.trim().length > 0 ? idFromPath : body.id;
+  if (!id || !isUuid(id)) return c.json({ error: 'valid id is required' }, 400);
 
   const { token } = c.get('auth');
   const supabase = createSupabaseWithToken(token);
 
   const { error } = await supabase
     .from('items')
-    .update({ deleted_at: new Date().toISOString() })
-    .eq('id', body.id);
+    .update({ deleted_at: new Date().toISOString(), updated_at: new Date().toISOString() })
+    .eq('id', id)
+    .is('deleted_at', null);
 
   if (error) return c.json({ error: error.message }, 400);
   return c.body(null, 204);
@@ -406,65 +488,19 @@ app.post('/api/items', async (c) => handleCreateItem(c));
 
 app.post('/api/items/create', async (c) => handleCreateItem(c));
 
-app.patch('/api/items/:id/status', async (c) => {
-  const { token } = c.get('auth');
-  const supabase = createSupabaseWithToken(token);
-  const id = c.req.param('id');
-  const body = await parseJson(c, { status: '' });
+app.patch('/api/items/:id', async (c) => handleUpdateItem(c));
 
-  if (!body.status) {
-    return c.json({ error: 'status is required' }, 400);
-  }
+app.post('/api/items/update', async (c) => handleUpdateItem(c));
 
-  const validatedStatus = parseStatus(body.status);
-  if (!validatedStatus) {
-    return c.json({ error: 'invalid status' }, 400);
-  }
-
-  const { error } = await supabase
-    .from('items')
-    .update({ 
-      status: validatedStatus,
-      updated_at: new Date().toISOString() 
-    })
-    .eq('id', id);
-
-  if (error) return c.json({ error: error.message }, 400);
-  return c.body(null, 204);
-});
+app.patch('/api/items/:id/status', async (c) => handleUpdateItemStatus(c));
 
 app.post('/api/items/update-status', async (c) => handleUpdateItemStatus(c));
 
-app.post('/api/items/:id/archive', async (c) => {
-  const { token } = c.get('auth');
-  const supabase = createSupabaseWithToken(token);
-  const id = c.req.param('id');
-
-  const { error } = await supabase
-    .from('items')
-    .update({ is_archived: true })
-    .eq('id', id)
-    .is('deleted_at', null);
-
-  if (error) return c.json({ error: error.message }, 400);
-  return c.body(null, 204);
-});
+app.post('/api/items/:id/archive', async (c) => handleArchiveItem(c));
 
 app.post('/api/items/archive', async (c) => handleArchiveItem(c));
 
-app.delete('/api/items/:id', async (c) => {
-  const { token } = c.get('auth');
-  const supabase = createSupabaseWithToken(token);
-  const id = c.req.param('id');
-
-  const { error } = await supabase
-    .from('items')
-    .update({ deleted_at: new Date().toISOString() })
-    .eq('id', id);
-
-  if (error) return c.json({ error: error.message }, 400);
-  return c.body(null, 204);
-});
+app.delete('/api/items/:id', async (c) => handleSoftDeleteItem(c));
 
 app.post('/api/items/soft-delete', async (c) => handleSoftDeleteItem(c));
 
@@ -480,6 +516,10 @@ app.get('/api/commands/get_deleted_items', async (c) => handleGetDeletedItems(c)
 app.post('/api/commands/create_item', async (c) => handleCreateItem(c));
 
 app.post('/api/commands/update_item_status', async (c) => handleUpdateItemStatus(c));
+
+app.patch('/api/commands/update_item/:id', async (c) => handleUpdateItem(c));
+
+app.post('/api/commands/update_item_details', async (c) => handleUpdateItem(c));
 
 app.post('/api/commands/archive_item', async (c) => handleArchiveItem(c));
 

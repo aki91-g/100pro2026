@@ -1,6 +1,6 @@
 import { ref } from 'vue';
 import type { Item } from '@/types/item';
-import { itemRepository } from '@/api/itemRepository';
+import { itemRepository, type UpdateItemPayload } from '@/api/itemRepository';
 
 /**
  * Shared state for items across the application
@@ -189,6 +189,19 @@ export function useItems() {
     }
   }
 
+  // Update item details
+  async function updateItem(payload: UpdateItemPayload): Promise<void> {
+    error.value = null;
+    try {
+      await itemRepository.updateItem(payload);
+      await fetchActiveItems();
+    } catch (err) {
+      error.value = String(err);
+      console.error('Failed to update item:', err);
+      throw err;
+    }
+  }
+
   // Update item status
   async function updateItemStatus(id: string, status: Item['status']): Promise<void> {
     error.value = null;
@@ -222,10 +235,10 @@ export function useItems() {
   }
 
   // Soft delete item
-  async function softDeleteItem(id: string): Promise<void> {
+  async function deleteItem(id: string): Promise<void> {
     error.value = null;
     try {
-      await itemRepository.softDeleteItem(id);
+      await itemRepository.deleteItem(id);
       // Remove from local list
       items.value = items.value.filter((i) => i.id !== id);
     } catch (err) {
@@ -233,6 +246,11 @@ export function useItems() {
       console.error('Failed to delete item:', err);
       throw err;
     }
+  }
+
+  // Backward-compatible alias
+  async function softDeleteItem(id: string): Promise<void> {
+    await deleteItem(id);
   }
 
   return {
@@ -254,8 +272,10 @@ export function useItems() {
     startAutoSync,
     stopAutoSync,
     createItem,
+    updateItem,
     updateItemStatus,
     archiveItem,
+    deleteItem,
     softDeleteItem,
   };
 }

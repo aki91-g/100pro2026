@@ -27,7 +27,16 @@ function handleEditItem(item: Item): void {
   <section class="card" v-if="items.length > 0">
     <h2>📋 Tasks</h2>
     <div class="task-container">
-      <div v-for="item in items" :key="item.id" class="task-row" @click="handleSelectItem(item)">
+      <div
+        v-for="item in items"
+        :key="item.id"
+        class="task-row"
+        role="button"
+        tabindex="0"
+        @click="handleSelectItem(item)"
+        @keydown.enter.prevent="handleSelectItem(item)"
+        @keydown.space.prevent="handleSelectItem(item)"
+      >
         <SyncStatusBadge
           :sync-status="item.sync_status"
           :event-status="syncMap[item.id]"

@@ -1,19 +1,53 @@
 import type { Item } from '@/types/item';
 
+const DEFAULT_RENDER_BASE_URL = 'https://taskgraph-100program9-server.onrender.com';
+
+function resolveHonoBaseUrl(explicitBaseUrl?: string): string {
+  if (explicitBaseUrl && explicitBaseUrl.trim().length > 0) {
+    return explicitBaseUrl.trim().replace(/\/+$/, '');
+  }
+
+  const envBaseUrl = (import.meta.env.VITE_HONO_BASE_URL as string | undefined)?.trim();
+  if (envBaseUrl && envBaseUrl.length > 0) {
+    return envBaseUrl.replace(/\/+$/, '');
+  }
+
+  if (typeof window !== 'undefined') {
+    const host = window.location.hostname.toLowerCase();
+    if (host === 'localhost' || host === '127.0.0.1') {
+      return 'http://localhost:10000';
+    }
+  }
+
+  return DEFAULT_RENDER_BASE_URL;
+}
+
 
 export interface HonoItemsClient {
   getActiveItems(): Promise<Item[]>;
   getArchivedItems(): Promise<Item[]>;
   getDeletedItems(): Promise<Item[]>;
   createItem(payload: CreateItemPayload): Promise<string>;
+  updateItem(payload: UpdateItemPayload): Promise<void>;
   updateItemStatus(id: string, status: Item['status']): Promise<void>;
   archiveItem(id: string): Promise<void>;
+  deleteItem(id: string): Promise<void>;
   softDeleteItem(id: string): Promise<void>;
   syncItems(): Promise<number>;
 }
 
 export interface CreateItemPayload {
   title: string;
+  description?: string | null;
+  motivation: number | null;
+  due: string;
+  durationMinutes?: number | null;
+}
+
+export interface UpdateItemPayload {
+  id: string;
+  title: string;
+  description: string | null;
   motivation: number | null;
   due: string;
   durationMinutes?: number | null;
@@ -24,7 +58,7 @@ export class HonoClient implements HonoItemsClient {
   private tokenGetter: (() => string | null) | null = null;
 
   constructor(baseUrl?: string) {
-    this.baseUrl = baseUrl || import.meta.env.VITE_HONO_BASE_URL;
+    this.baseUrl = resolveHonoBaseUrl(baseUrl);
   }
 
   private normalizeStatus(raw: unknown): Item['status'] {
@@ -193,6 +227,16 @@ export class HonoClient implements HonoItemsClient {
     return data.id;
   }
 
+  async updateItem(payload: UpdateItemPayload): Promise<void> {
+    await this.patch(`/api/items/${payload.id}`, {
+      title: payload.title,
+      description: payload.description,
+      motivation: payload.motivation,
+      due: payload.due,
+      durationMinutes: payload.durationMinutes ?? null,
+    });
+  }
+
   async updateItemStatus(id: string, status: Item['status']): Promise<void> {
     await this.patch(`/api/items/${id}/status`, { status });
   }
@@ -201,8 +245,12 @@ export class HonoClient implements HonoItemsClient {
     await this.post(`/api/items/${id}/archive`);
   }
 
-  async softDeleteItem(id: string): Promise<void> {
+  async deleteItem(id: string): Promise<void> {
     await this.delete(`/api/items/${id}`);
+  }
+
+  async softDeleteItem(id: string): Promise<void> {
+    await this.deleteItem(id);
   }
 
   async syncItems(): Promise<number> {

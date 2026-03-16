@@ -20,13 +20,24 @@ export interface CreateItemPayload {
   durationMinutes?: number | null;
 }
 
+export interface UpdateItemPayload {
+  id: string;
+  title: string;
+  description: string | null;
+  motivation: number | null;
+  due: string;
+  durationMinutes?: number | null;
+}
+
 export interface ItemRepository {
   getActiveItems(): Promise<Item[]>;
   getArchivedItems(): Promise<Item[]>;
   getDeletedItems(): Promise<Item[]>;
   createItem(payload: CreateItemPayload): Promise<string>;
+  updateItem(payload: UpdateItemPayload): Promise<void>;
   updateItemStatus(id: string, status: Item['status']): Promise<void>;
   archiveItem(id: string): Promise<void>;
+  deleteItem(id: string): Promise<void>;
   softDeleteItem(id: string): Promise<void>;
   syncItems(): Promise<number>;
   // Composite operations
@@ -54,6 +65,17 @@ class TauriItemRepository implements ItemRepository {
     return invoke<string>('create_item', { ...payload });
   }
 
+  async updateItem(payload: UpdateItemPayload): Promise<void> {
+    await invoke<void>('update_item_details', {
+      id: payload.id,
+      title: payload.title,
+      description: payload.description,
+      due: payload.due,
+      duration_minutes: payload.durationMinutes ?? null,
+      motivation: payload.motivation,
+    });
+  }
+
   async updateItemStatus(id: string, status: Item['status']): Promise<void> {
     await invoke<void>('update_item_status', { id, status });
   }
@@ -62,8 +84,12 @@ class TauriItemRepository implements ItemRepository {
     await invoke<void>('archive_item', { id });
   }
 
-  async softDeleteItem(id: string): Promise<void> {
+  async deleteItem(id: string): Promise<void> {
     await invoke<void>('soft_delete_item', { id });
+  }
+
+  async softDeleteItem(id: string): Promise<void> {
+    await this.deleteItem(id);
   }
 
   async syncItems(): Promise<number> {
@@ -130,6 +156,10 @@ class HonoItemRepository implements ItemRepository {
     return honoClient.createItem(payload);
   }
 
+  async updateItem(payload: UpdateItemPayload): Promise<void> {
+    await honoClient.updateItem(payload);
+  }
+
   async updateItemStatus(id: string, status: Item['status']): Promise<void> {
     await honoClient.updateItemStatus(id, status);
   }
@@ -138,8 +168,12 @@ class HonoItemRepository implements ItemRepository {
     await honoClient.archiveItem(id);
   }
 
+  async deleteItem(id: string): Promise<void> {
+    await honoClient.deleteItem(id);
+  }
+
   async softDeleteItem(id: string): Promise<void> {
-    await honoClient.softDeleteItem(id);
+    await this.deleteItem(id);
   }
 
   async syncItems(): Promise<number> {

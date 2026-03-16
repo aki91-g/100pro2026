@@ -32,13 +32,13 @@ const editTitle = ref('');
 const editDescription = ref<string | null>(null);
 const editDue = ref('');
 const editDuration = ref<number | null>(null);
-const editMotivation = ref(5);
+const editMotivation = ref<number | null>(null);
 const isSavingEdit = ref(false);
 const isCreating = ref(false);
 const isArchiving = ref(false);
 const isDeleting = ref(false);
 
-const { createItem, updateItem, archiveItem, softDeleteItem, items: repositoryItems } = useItems();
+const { createItem, updateItem, archiveItem, deleteItem, items: repositoryItems } = useItems();
 
 const strictSyncMap = computed<Record<string, 'pending' | 'success' | 'error'>>(() => {
   const normalized: Record<string, 'pending' | 'success' | 'error'> = {};
@@ -84,7 +84,7 @@ function hydrateEditForm(item: Item | null): void {
     editDescription.value = null;
     editDue.value = '';
     editDuration.value = null;
-    editMotivation.value = 5;
+    editMotivation.value = null;
     return;
   }
 
@@ -92,7 +92,7 @@ function hydrateEditForm(item: Item | null): void {
   editDescription.value = item.description;
   editDue.value = toDatetimeLocal(item.due);
   editDuration.value = item.duration_minutes;
-  editMotivation.value = typeof item.motivation === 'number' ? item.motivation : 5;
+  editMotivation.value = item.motivation ?? null;
 }
 
 function setMode(mode: DrawerMode): void {
@@ -128,7 +128,7 @@ async function submitCreate(): Promise<void> {
       description: createDescription.value,
       motivation: createMotivation.value,
       due: new Date(createDue.value).toISOString(),
-      durationMinutes: createDuration.value,
+      durationMinutes: typeof createDuration.value === 'number' ? createDuration.value : null,
     });
 
     const created = repositoryItems.value.find((item) => item.id === id) ?? null;
@@ -166,7 +166,7 @@ async function handleDelete(): Promise<void> {
 
   isDeleting.value = true;
   try {
-    await softDeleteItem(props.selectedItem.id);
+    await deleteItem(props.selectedItem.id);
     emit('update:open', false);
     emit('update:mode', 'view');
   } catch (error) {
@@ -183,12 +183,13 @@ async function handleEditSubmit(): Promise<void> {
 
   isSavingEdit.value = true;
   try {
+    const resolvedDuration = typeof editDuration.value === 'number' ? editDuration.value : null;
     await updateItem({
       id: props.selectedItem.id,
       title: editTitle.value.trim(),
       description: editDescription.value,
       due: new Date(editDue.value).toISOString(),
-      durationMinutes: editDuration.value,
+      durationMinutes: resolvedDuration,
       motivation: editMotivation.value,
     });
 
@@ -197,7 +198,7 @@ async function handleEditSubmit(): Promise<void> {
       title: editTitle.value.trim(),
       description: editDescription.value,
       due: new Date(editDue.value).toISOString(),
-      duration_minutes: editDuration.value,
+      duration_minutes: resolvedDuration,
       motivation: editMotivation.value,
       sync_status: 'modified',
     });

@@ -1,56 +1,51 @@
-# Vue 3 + TypeScript + Vite
+# Frontend (Vue + TypeScript)
 
-This template should help get you started developing with Vue 3 and TypeScript in Vite. The template uses Vue 3 `<script setup>` SFCs, check out the [script setup docs](https://v3.vuejs.org/api/sfc-script-setup.html#sfc-script-setup) to learn more.
+TaskGraph frontend for the 100pro2026 workspace.
 
-Learn more about the recommended Project Setup and IDE Support in the [Vue Docs TypeScript Guide](https://vuejs.org/guide/typescript/overview.html#project-setup).
+## Tech Stack
+- Vue 3 + TypeScript + Vite
+- Pinia for session/auth state
+- Repository pattern for backend abstraction
+- Dual backend modes: `tauri` and `hono`
 
-## Directory
-以下はGitHub Actionsによって、pushごとに最新のツリーに入れ替わります。
-タグを編集しないでください。
-
-[TREE-START]
-```text
-apps/frontend
-├── public
-│   └── vite.svg
-├── src
-│   ├── assets
-│   │   └── vue.svg
-│   ├── components
-│   │   ├── DebugTools.vue
-│   │   ├── HelloWorld.vue
-│   │   ├── Login.vue
-│   │   ├── SyncButton.vue
-│   │   ├── SyncStatusBadge.vue
-│   │   └── TaskList.vue
-│   ├── composables
-│   │   ├── useAuth.ts
-│   │   ├── useItems.ts
-│   │   └── useSyncStatus.ts
-│   ├── services
-│   │   ├── apiService.ts
-│   │   └── itemService.ts
-│   ├── stores
-│   │   └── user.ts
-│   ├── App.vue
-│   ├── main.ts
-│   └── style.css
-├── index.html
-├── package.json
-├── README.md
-├── tsconfig.app.json
-├── tsconfig.json
-├── tsconfig.node.json
-└── vite.config.ts
+## Run
+```bash
+npm install
+npm run dev
 ```
-[TREE-END]
 
+## Build
+```bash
+npm run build
+```
 
+## API Modes
+Backend mode is selected in `src/api/config.ts`:
+- `tauri`: auto-selected when running inside Tauri runtime
+- `hono`: default for browser environments
 
+Optional env vars:
+- `VITE_API_MODE=tauri|hono`
+- `VITE_HONO_BASE_URL=<url>`
 
+`honoClient` base URL resolution order:
+1. Constructor override
+2. `VITE_HONO_BASE_URL`
+3. `http://localhost:10000` when running on localhost/127.0.0.1
+4. Render fallback URL
 
+## Item Mutation Paths (Canonical)
+Drawer actions use canonical APIs through `useItems()` -> `itemRepository` -> `honoClient`:
+- Update details: `PATCH /api/items/:id`
+- Update status: `PATCH /api/items/:id/status`
+- Archive: `POST /api/items/:id/archive`
+- Delete (soft delete): `DELETE /api/items/:id`
 
+Legacy alias routes remain server-side for backward compatibility, but frontend calls canonical `:id` routes.
 
-
-
-
+## Key Files
+- `src/components/TaskDrawer.vue`: create/view/edit drawer and task actions
+- `src/components/TaskList.vue`: task list with typed `select-item` and `edit-item` events
+- `src/composables/useItems.ts`: shared item state and item action APIs
+- `src/api/itemRepository.ts`: backend-agnostic item repository
+- `src/api/honoClient.ts`: canonical HTTP transport client
