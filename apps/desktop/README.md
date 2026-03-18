@@ -75,8 +75,6 @@ apps/desktop
 │   │   ├── lib.rs
 │   │   ├── main.rs
 │   │   └── state.rs
-│   ├── tests
-│   │   └── db_test.rs
 │   ├── build.rs
 │   ├── Cargo.lock
 │   ├── Cargo.toml
@@ -89,6 +87,7 @@ apps/desktop
 └── vite.config.ts
 ```
 [TREE-END]
+
 
 
 

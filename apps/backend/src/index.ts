@@ -431,6 +431,40 @@ app.post('/api/auth/login', async (c) => {
   });
 });
 
+app.post('/api/auth/signup', async (c) => {
+  const body = await parseJson(c, { email: '', password: '', username: '' });
+  const email = typeof body.email === 'string' ? body.email.trim() : '';
+  const password = typeof body.password === 'string' ? body.password : '';
+  const username = typeof body.username === 'string' ? body.username.trim() : '';
+
+  if (!email || !password || !username) {
+    return c.json({ error: 'email, password, and username are required' }, 400);
+  }
+
+  const anon = createAnonSupabase();
+  const { data, error } = await anon.auth.signUp({
+    email,
+    password,
+    options: {
+      data: {
+        username,
+      },
+    },
+  });
+
+  if (error || !data.user) {
+    return c.json({ error: error?.message ?? 'Supabase signup failed' }, 400);
+  }
+
+  return c.json({
+    id: data.user.id,
+    username,
+    access_token: data.session?.access_token ?? null,
+    refresh_token: data.session?.refresh_token ?? null,
+    expires_at: data.session?.expires_at ?? null,
+  });
+});
+
 app.post('/api/auth/logout', (c) => c.body(null, 204));
 
 app.get('/api/auth/session', requireAuth, async (c) => {

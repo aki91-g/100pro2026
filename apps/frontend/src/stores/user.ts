@@ -113,6 +113,34 @@ export const useUserStore = defineStore('user', () => {
     }
   }
 
+  async function signUp(email: string, password: string, preferredUsername: string) {
+    try {
+      const response = await authRepository.signUp(email, password, preferredUsername);
+
+      if (!response.access_token) {
+        throw new Error('Registration succeeded but no active session was returned. Please log in.');
+      }
+
+      userId.value = response.id;
+      accessToken.value = response.access_token;
+
+      const storedUsername = readStoredUsername(response.id);
+      const normalizedResponseUsername = normalizeUsername(response.username);
+      const normalizedPreferredUsername = normalizeUsername(preferredUsername);
+      username.value = normalizedResponseUsername ?? normalizedPreferredUsername ?? storedUsername;
+
+      if (!normalizeUsername(username.value)) {
+        username.value = await resolveSessionUsername();
+      }
+
+      persistUsername(userId.value, normalizeUsername(username.value));
+      console.log('Registration successful');
+    } catch (error) {
+      console.error('Registration failed:', error);
+      throw error;
+    }
+  }
+
   async function logout() {
     try {
       await authRepository.logout();
@@ -163,6 +191,7 @@ export const useUserStore = defineStore('user', () => {
     // Actions
     initialize,
     ensureUsername,
+    signUp,
     login,
     logout,
   };
