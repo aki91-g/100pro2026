@@ -28,7 +28,9 @@ Desktop registration is remote-first and online-only. Supabase account creation 
 8. Updates in-memory `AppState` only when token/session exists.
 
 ## SQLite Schema Alignment
-- `local_user.is_active` is the active-user flag and is set to `1`.
+- `local_user.is_active` is a session-state flag:
+  - `1` when an authenticated session is established.
+  - `0` for pending/unauthenticated signups (no access token returned).
 - `local_session` stores active session context (`user_id`, `username`, optional `access_token`).
 
 ## Return

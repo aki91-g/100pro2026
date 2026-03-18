@@ -425,11 +425,10 @@ pub async fn register_local_user(
         .map_err(|e| format!("Failed to initialize local session: {}", e))?;
     } else {
         sqlx::query(
-            "INSERT INTO local_user (id, username, hashed_session, last_login, is_active)
-             VALUES (?, ?, NULL, CURRENT_TIMESTAMP, 0)
+            "INSERT INTO local_user (id, username, hashed_session, is_active)
+             VALUES (?, ?, NULL, 0)
              ON CONFLICT(id) DO UPDATE SET
-                 username = excluded.username,
-                 last_login = CURRENT_TIMESTAMP"
+                 username = excluded.username"
         )
         .bind(user_id.to_string())
         .bind(normalized_username)

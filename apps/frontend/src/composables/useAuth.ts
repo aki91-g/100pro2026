@@ -10,7 +10,10 @@ export function useAuth() {
   const refs = storeToRefs(userStore);
 
   function mapSignUpError(error: unknown): string {
-    const message = String(error ?? '');
+    const rawMessage = String(error ?? '');
+    const message = rawMessage
+      .replace(/^post\s*\/api\/auth\/signup\s*failed\s*:\s*/i, '')
+      .trim();
 
     if (message.includes('OFFLINE_REQUIRED_FOR_SIGNUP')) {
       return 'Creating an account requires an internet connection to sync your data.';

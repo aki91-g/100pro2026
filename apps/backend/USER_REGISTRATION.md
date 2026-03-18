@@ -1,6 +1,6 @@
 # User Registration
 
-This service is the source of truth for account creation. Desktop and browser clients both rely on Supabase-authenticated signup first so the same UUID is used everywhere.
+This endpoint is a browser-facing wrapper around Supabase signup. Supabase Auth remains the source of truth for account identity, and Desktop clients derive UUIDs directly from Supabase responses.
 
 ## Endpoint
 - Method: POST

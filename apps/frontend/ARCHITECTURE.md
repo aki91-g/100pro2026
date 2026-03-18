@@ -37,11 +37,11 @@ The architecture separates responsibilities into:
 1. `LoginView.vue` Sign Up mode calls `useAuth().signUp(email, password, username)`.
 2. `useUserStore().signUp()` delegates to `authRepository.signUp()`.
 3. Repository routes by API mode:
-4. Hono mode calls `/api/auth/signup`.
+4. Hono mode calls browser-facing wrapper `/api/auth/signup` (which delegates to Supabase Auth).
 5. Tauri mode invokes `register_local_user`, which performs Supabase signup first and parses both flat and nested Supabase signup payloads.
 6. Postgres trigger (`on_auth_user_created`) creates `public.profiles` from auth metadata (`raw_user_meta_data.username`), removing app-side duplication.
 7. Desktop signup persistence is transactional: when `access_token` is present, local active-user switch and session write are committed atomically.
-8. If no `access_token` is returned (pending email confirmation), desktop commits `local_user` only and skips `local_session` + `app_state` authentication.
+8. If no `access_token` is returned (pending email confirmation), desktop commits `local_user` with `is_active = 0`, skips `local_session` + `app_state` authentication, and leaves `last_login` unset.
 9. Sign-up is online-only; offline failures return `OFFLINE_REQUIRED_FOR_SIGNUP` while API failures surface descriptive server error bodies.
 10. `useAuth().signUp()` maps technical signup failures into user-facing messages (existing account, weak password, unavailable service, offline, pending confirmation).
 11. Store only marks user authenticated when `access_token` is present; without it, sign-up does not hydrate authenticated state.
