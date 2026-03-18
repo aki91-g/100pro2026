@@ -8,13 +8,23 @@ defineProps<{
   errorMap: Record<string, string>;
   isSyncing: boolean;
 }>();
+
+const emit = defineEmits<{
+  (event: 'select-item', item: Item): void;
+}>();
 </script>
 
 <template>
   <section class="card" v-if="items.length > 0">
     <h2>📋 Tasks</h2>
     <div class="task-container">
-      <div v-for="item in items" :key="item.id" class="task-row">
+      <button
+        v-for="item in items"
+        :key="item.id"
+        type="button"
+        class="task-row hover:bg-slate-100 transition-colors cursor-pointer"
+        @click="emit('select-item', item)"
+      >
         <SyncStatusBadge
           :sync-status="item.sync_status"
           :event-status="syncMap[item.id]"
@@ -34,7 +44,7 @@ defineProps<{
         <div class="task-meta">
           <span class="motivation">🔥 {{ item.motivation }}</span>
         </div>
-      </div>
+      </button>
     </div>
   </section>
 </template>

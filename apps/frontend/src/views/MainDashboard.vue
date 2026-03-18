@@ -51,7 +51,7 @@ const visualOptions: Array<{ value: GraphVisualField; label: string }> = [
 ];
 
 const isDrawerOpen = ref(false);
-const drawerMode = ref<'create' | 'view' | 'edit'>('view');
+const drawerMode = ref<'create' | 'view' | 'edit' | 'tasks'>('view');
 const selectedItem = ref<Item | null>(null);
 
 const showWelcomeToast = ref(false);
@@ -108,7 +108,7 @@ async function handleLogout(): Promise<void> {
   }
 }
 
-function openDrawer(mode: 'create' | 'view' | 'edit'): void {
+function openDrawer(mode: 'create' | 'view' | 'edit' | 'tasks'): void {
   drawerMode.value = mode;
   isDrawerOpen.value = true;
 }
@@ -275,7 +275,7 @@ watch(
             <button
               type="button"
               class="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-100"
-              @click="openDrawer('view')"
+              @click="openDrawer('tasks')"
             >
               Tasks
             </button>

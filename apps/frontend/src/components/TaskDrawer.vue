@@ -4,7 +4,7 @@ import type { Item } from '@/types/item';
 import TaskList from '@/components/TaskList.vue';
 import { useItems } from '@/composables/useItems';
 
-type DrawerMode = 'create' | 'view' | 'edit';
+type DrawerMode = 'create' | 'view' | 'edit' | 'tasks';
 
 const props = defineProps<{
   open: boolean;
@@ -37,6 +37,7 @@ const isSavingEdit = ref(false);
 const isCreating = ref(false);
 const isArchiving = ref(false);
 const isDeleting = ref(false);
+const previousMode = ref<'view' | 'tasks'>('view');
 
 const { createItem, updateItem, archiveItem, softDeleteItem, items: repositoryItems } = useItems();
 
@@ -98,6 +99,20 @@ function hydrateEditForm(item: Item | null): void {
 
 function setMode(mode: DrawerMode): void {
   emit('update:mode', mode);
+}
+
+function startEdit(): void {
+  previousMode.value = props.mode === 'view' ? 'view' : 'tasks';
+  emit('update:mode', 'edit');
+}
+
+function cancelEdit(): void {
+  emit('update:mode', previousMode.value);
+}
+
+function handleTaskListSelect(item: Item): void {
+  emit('select-item', item);
+  emit('update:mode', 'view');
 }
 
 function closeDrawer(): void {
@@ -193,7 +208,7 @@ async function handleEditSubmit(): Promise<void> {
       motivation: editMotivation.value,
       sync_status: 'modified',
     });
-    emit('update:mode', 'view');
+    emit('update:mode', previousMode.value);
   } catch (error) {
     console.error('Failed to save item changes:', error);
   } finally {
@@ -244,7 +259,7 @@ onUnmounted(() => {
         <header class="flex items-center justify-between border-b border-slate-200 px-5 py-4">
           <div>
             <h2 class="text-lg font-semibold text-slate-900">
-              {{ mode === 'create' ? 'Create Task' : mode === 'view' ? 'Task Details' : 'Edit Task' }}
+              {{ mode === 'create' ? 'Create Task' : mode === 'tasks' ? 'Tasks' : mode === 'edit' ? 'Edit Task' : 'Task Details' }}
             </h2>
             <p class="text-sm text-slate-500">Manage tasks without leaving the plot.</p>
           </div>
@@ -263,6 +278,7 @@ onUnmounted(() => {
             class="rounded-lg px-3 py-2 text-sm font-medium"
             :class="mode === 'view' ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'"
             @click="setMode('view')"
+            :disabled="!hasSelectedItem"
           >
             View
           </button>
@@ -277,11 +293,10 @@ onUnmounted(() => {
           <button
             type="button"
             class="rounded-lg px-3 py-2 text-sm font-medium"
-            :class="mode === 'edit' ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'"
-            @click="setMode('edit')"
-            :disabled="!hasSelectedItem"
+            :class="mode === 'tasks' ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'"
+            @click="setMode('tasks')"
           >
-            Edit
+            Tasks
           </button>
         </nav>
 
@@ -377,8 +392,16 @@ onUnmounted(() => {
             </form>
 
             <div v-else-if="mode === 'view'" key="view" class="space-y-4">
-              <div v-if="selectedItem" class="rounded-xl border border-slate-200 bg-slate-50 p-4">
-                <h3 class="text-base font-semibold text-slate-900">{{ selectedItem.title }}</h3>
+              <div v-if="selectedItem" class="relative rounded-xl border border-slate-200 bg-slate-50 p-4">
+                <button
+                  type="button"
+                  class="absolute right-4 top-4 rounded-lg border border-slate-300 bg-white px-3 py-1 text-sm font-medium text-slate-700 hover:bg-slate-100"
+                  @click="startEdit"
+                  title="Edit this task"
+                >
+                  Edit
+                </button>
+                <h3 class="pr-16 text-base font-semibold text-slate-900">{{ selectedItem.title }}</h3>
                 <p class="mt-1 text-sm text-slate-600">{{ selectedItem.description || 'No description' }}</p>
                 <div class="mt-3 grid grid-cols-2 gap-3 text-xs text-slate-600">
                   <div>
@@ -399,8 +422,10 @@ onUnmounted(() => {
                   </div>
                 </div>
               </div>
+            </div>
 
-              <TaskList :items="items" :sync-map="strictSyncMap" :error-map="strictErrorMap" :is-syncing="isSyncing" />
+            <div v-else-if="mode === 'tasks'" key="tasks" class="space-y-2">
+              <TaskList :items="items" :sync-map="strictSyncMap" :error-map="strictErrorMap" :is-syncing="isSyncing" @select-item="handleTaskListSelect" />
             </div>
 
             <form v-else key="edit" class="space-y-4" @submit.prevent="handleEditSubmit">
@@ -486,7 +511,7 @@ onUnmounted(() => {
                     type="button"
                     class="rounded-lg border border-slate-300 px-4 py-2 text-sm text-slate-700 hover:bg-slate-100"
                     :disabled="isSavingEdit || isArchiving || isDeleting"
-                    @click="setMode('view')"
+                    @click="cancelEdit"
                   >
                     Cancel
                   </button>
