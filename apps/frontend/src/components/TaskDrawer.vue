@@ -41,7 +41,6 @@ const previousMode = ref<'view' | 'tasks'>('view');
 
 const { createItem, updateItem, archiveItem, softDeleteItem, items: repositoryItems } = useItems();
 
-const hasSelectedItem = computed(() => props.selectedItem !== null);
 const strictSyncMap = computed<Record<string, 'pending' | 'success' | 'error'>>(() => {
   const normalized: Record<string, 'pending' | 'success' | 'error'> = {};
   Object.entries(props.syncMap).forEach(([key, value]) => {
@@ -97,17 +96,25 @@ function hydrateEditForm(item: Item | null): void {
   editMotivation.value = typeof item.motivation === 'number' ? item.motivation : 5;
 }
 
-function setMode(mode: DrawerMode): void {
-  emit('update:mode', mode);
+function goToTasks(): void {
+  emit('update:mode', 'tasks');
+}
+
+function goToCreate(): void {
+  emit('update:mode', 'create');
 }
 
 function startEdit(): void {
-  previousMode.value = props.mode === 'view' ? 'view' : 'tasks';
+  previousMode.value = 'view';
   emit('update:mode', 'edit');
 }
 
 function cancelEdit(): void {
   emit('update:mode', previousMode.value);
+}
+
+function cancelCreate(): void {
+  emit('update:mode', 'tasks');
 }
 
 function handleTaskListSelect(item: Item): void {
@@ -257,48 +264,48 @@ onUnmounted(() => {
 
       <aside role="dialog" aria-modal="true" class="absolute right-0 top-0 flex h-full w-full max-w-xl flex-col border-l border-slate-200 bg-white shadow-2xl">
         <header class="flex items-center justify-between border-b border-slate-200 px-5 py-4">
-          <div>
+          <div class="flex items-center gap-3">
+            <!-- Back to List button visible in 'view' mode -->
+            <button
+              v-if="mode === 'view'"
+              type="button"
+              class="flex items-center gap-1 rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-100"
+              @click="goToTasks"
+              title="Return to task list"
+            >
+              <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path>
+              </svg>
+              <span>Back to List</span>
+            </button>
             <h2 class="text-lg font-semibold text-slate-900">
-              {{ mode === 'create' ? 'Create Task' : mode === 'tasks' ? 'Tasks' : mode === 'edit' ? 'Edit Task' : 'Task Details' }}
+              {{ mode === 'create' ? 'Create Task' : mode === 'view' ? 'Task Details' : mode === 'edit' ? 'Edit Task' : 'Tasks' }}
             </h2>
-            <p class="text-sm text-slate-500">Manage tasks without leaving the plot.</p>
           </div>
-          <button
-            type="button"
-            class="rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-700 hover:bg-slate-100"
-            @click="closeDrawer"
-          >
-            Close
-          </button>
-        </header>
 
-        <nav class="flex gap-2 border-b border-slate-200 px-5 py-3">
-          <button
-            type="button"
-            class="rounded-lg px-3 py-2 text-sm font-medium"
-            :class="mode === 'view' ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'"
-            @click="setMode('view')"
-            :disabled="!hasSelectedItem"
-          >
-            View
-          </button>
-          <button
-            type="button"
-            class="rounded-lg px-3 py-2 text-sm font-medium"
-            :class="mode === 'create' ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'"
-            @click="setMode('create')"
-          >
-            Create
-          </button>
-          <button
-            type="button"
-            class="rounded-lg px-3 py-2 text-sm font-medium"
-            :class="mode === 'tasks' ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'"
-            @click="setMode('tasks')"
-          >
-            Tasks
-          </button>
-        </nav>
+          <div class="flex items-center gap-2">
+            <!-- New Task button visible in 'tasks' mode -->
+            <button
+              v-if="mode === 'tasks'"
+              type="button"
+              class="flex items-center gap-1 rounded-lg bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-700"
+              @click="goToCreate"
+              title="Create a new task"
+            >
+              <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
+              </svg>
+              <span>New Task</span>
+            </button>
+            <button
+              type="button"
+              class="rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-700 hover:bg-slate-100"
+              @click="closeDrawer"
+            >
+              Close
+            </button>
+          </div>
+        </header>
 
         <div class="flex-1 overflow-y-auto p-5">
           <transition
@@ -377,7 +384,7 @@ onUnmounted(() => {
                 <button
                   type="button"
                   class="rounded-lg border border-slate-300 px-4 py-2 text-sm text-slate-700 hover:bg-slate-100"
-                  @click="setMode('view')"
+                  @click="cancelCreate"
                 >
                   Cancel
                 </button>

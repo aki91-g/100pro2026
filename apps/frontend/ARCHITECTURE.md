@@ -215,23 +215,29 @@ Key Functions/Exported Members:
 ### `src/components/TaskDrawer.vue`
 Description:
 - Slide-in drawer component for all item lifecycle operations: create, view, edit, archive, and soft-delete.
-- Manages four modes accessible via inline nav bar: `create`, `view`, `tasks`, and `edit` (internal only).
+- Manages four modes: `create`, `view`, `tasks`, and `edit` (internal only).
 - **Self-contained CRUD**: Calls `useItems()` directly for all item mutations (`createItem`, `updateItem`, `archiveItem`, `softDeleteItem`) rather than delegating through parent event emissions.
-- **Create mode**: Form with title, description, due datetime, duration, and motivation fields; submits via `itemRepository` through `useItems`, then emits `select-item` with the newly created item and transitions to 'view' mode.
-- **View mode**: Displays selected item details with an "Edit" button in the top-right corner of the task card. Clicking "Edit" transitions to 'edit' mode while tracking the previous mode for proper return navigation.
-- **Tasks mode**: Shows `<TaskList>` component displaying all active items. Task rows are clickable and emit `select-item` event to switch to 'view' mode for that task.
-- **Edit mode** (internal, not in nav tabs): Hidden form pre-filled with selected item data; saves via `updateItem` and includes **Archive** (amber) and **Delete** (red) action buttons with confirmation. Clicking "Cancel" returns to the previous mode ('view' or 'tasks'). Clicking "Save Changes" returns to the previous mode with updated item state.
+- **Contextual Navigation**: Instead of a top navigation bar, uses context-aware buttons in the header:
+  - In 'tasks' mode: Shows "+ New Task" button (top-right) to create a new task.
+  - In 'view' mode: Shows "← Back to List" button (top-left) to return to the task list.
+  - Close button always visible (top-right, after context-specific button if present).
+- **Create mode**: Form with title, description, due datetime, duration, and motivation fields; submits via `itemRepository` through `useItems`, then emits `select-item` with the newly created item and transitions to 'view' mode. Cancel button returns to 'tasks' mode.
+- **View mode**: Displays selected item details (status, due date, motivation, duration) with an "Edit" button in the top-right corner of the task card. Clicking "Edit" transitions to edit mode. Header shows "← Back to List" button to return to tasks.
+- **Tasks mode**: Shows `<TaskList>` component displaying all active items. Task rows are clickable and emit `select-item` event to switch to 'view' mode for that task. Header shows "+ New Task" button in top-right to create new tasks.
+- **Edit mode** (internal, not user-accessible from nav): Hidden form pre-filled with selected item data; saves via `updateItem` and includes **Archive** (amber) and **Delete** (red) action buttons with confirmation. Clicking "Cancel" returns to 'view' mode. Clicking "Save Changes" returns to 'view' mode with updated item state.
+- Header title updates based on mode: "Tasks" (tasks mode), "Task Details" (view), "Create Task" (create), "Edit Task" (edit).
 - Keyboard accessible: `Escape` closes the drawer.
-- Mode transitions: View<->Edit (via Edit button), View->Tasks, Tasks->View (via task click), Create->View (after creation).
+- Mode transitions: Tasks<->Create (via "+ New Task" button), View->Tasks (via "← Back to List" button), View->Edit (via Edit button), Create->View (after creation), Tasks->View (via task click).
 
 Key Functions/Exported Members:
 - Default Vue component export.
 - Props: `open`, `mode` (DrawerMode), `selectedItem`, `items`, `syncMap`, `errorMap`, `isSyncing`.
 - DrawerMode type: `'create' | 'view' | 'edit' | 'tasks'`.
 - Emits: `update:open`, `update:mode`, `select-item`.
-- Internal actions: `submitCreate()`, `handleEditSubmit()`, `handleArchive()`, `handleDelete()`, `startEdit()`, `cancelEdit()`, `handleTaskListSelect()`.
+- Internal navigation functions: `goToTasks()`, `goToCreate()`, `startEdit()`, `cancelEdit()`, `cancelCreate()`, `handleTaskListSelect()`.
+- Internal actions: `submitCreate()`, `handleEditSubmit()`, `handleArchive()`, `handleDelete()`.
 - Local loading states: `isCreating`, `isSavingEdit`, `isArchiving`, `isDeleting`.
-- Navigation state: `previousMode` (tracks 'view' or 'tasks' for proper return from edit mode).
+- Navigation state: `previousMode` (preserved for potential future use).
 
 ### `src/components/SyncStatusBadge.vue`
 Description:
