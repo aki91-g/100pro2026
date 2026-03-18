@@ -215,19 +215,23 @@ Key Functions/Exported Members:
 ### `src/components/TaskDrawer.vue`
 Description:
 - Slide-in drawer component for all item lifecycle operations: create, view, edit, archive, and soft-delete.
-- Manages three modes: `create`, `view`, and `edit`, selectable via an inline nav bar.
+- Manages four modes accessible via inline nav bar: `create`, `view`, `tasks`, and `edit` (internal only).
 - **Self-contained CRUD**: Calls `useItems()` directly for all item mutations (`createItem`, `updateItem`, `archiveItem`, `softDeleteItem`) rather than delegating through parent event emissions.
-- Create mode: form with title, description, due datetime, duration, and motivation fields; submits via `itemRepository` through `useItems`, then emits `select-item` with the newly created item.
-- Edit mode: pre-filled form that saves via `updateItem`; includes **Archive** (amber) and **Delete** (red) action buttons that invoke `archiveItem` / `softDeleteItem` with confirmation, then close the drawer.
-- View mode: displays selected item details alongside `<TaskList>` for all active items.
+- **Create mode**: Form with title, description, due datetime, duration, and motivation fields; submits via `itemRepository` through `useItems`, then emits `select-item` with the newly created item and transitions to 'view' mode.
+- **View mode**: Displays selected item details with an "Edit" button in the top-right corner of the task card. Clicking "Edit" transitions to 'edit' mode while tracking the previous mode for proper return navigation.
+- **Tasks mode**: Shows `<TaskList>` component displaying all active items. Task rows are clickable and emit `select-item` event to switch to 'view' mode for that task.
+- **Edit mode** (internal, not in nav tabs): Hidden form pre-filled with selected item data; saves via `updateItem` and includes **Archive** (amber) and **Delete** (red) action buttons with confirmation. Clicking "Cancel" returns to the previous mode ('view' or 'tasks'). Clicking "Save Changes" returns to the previous mode with updated item state.
 - Keyboard accessible: `Escape` closes the drawer.
+- Mode transitions: View<->Edit (via Edit button), View->Tasks, Tasks->View (via task click), Create->View (after creation).
 
 Key Functions/Exported Members:
 - Default Vue component export.
-- Props: `open`, `mode`, `selectedItem`, `items`, `syncMap`, `errorMap`, `isSyncing`.
+- Props: `open`, `mode` (DrawerMode), `selectedItem`, `items`, `syncMap`, `errorMap`, `isSyncing`.
+- DrawerMode type: `'create' | 'view' | 'edit' | 'tasks'`.
 - Emits: `update:open`, `update:mode`, `select-item`.
-- Internal actions: `submitCreate()`, `handleEditSubmit()`, `handleArchive()`, `handleDelete()`.
+- Internal actions: `submitCreate()`, `handleEditSubmit()`, `handleArchive()`, `handleDelete()`, `startEdit()`, `cancelEdit()`, `handleTaskListSelect()`.
 - Local loading states: `isCreating`, `isSavingEdit`, `isArchiving`, `isDeleting`.
+- Navigation state: `previousMode` (tracks 'view' or 'tasks' for proper return from edit mode).
 
 ### `src/components/SyncStatusBadge.vue`
 Description:
@@ -241,12 +245,17 @@ Key Functions/Exported Members:
 
 ### `src/components/TaskList.vue`
 Description:
-- Renders active task cards.
+- Renders active task item cards with sync status and metadata.
+- Displayed within the "Tasks" tab of the drawer for quick-access viewing of all active items.
+- Each task row is clickable and emits a `select-item` event to allow switching to the 'view' mode for that task.
 - Delegates sync-state badge display to `SyncStatusBadge`.
+- Maintains status pills (TODO, IN_PROGRESS, DONE, BACKLOG) color-coded by status.
 
 Key Functions/Exported Members:
 - Default Vue component export.
 - Props: `items`, `syncMap`, `errorMap`, `isSyncing`.
+- Emits: `select-item` with selected `Item` as payload.
+- Styling: Card-based layout with flex alignment for status badge, status pill, task info, and motivation indicator.
 
 ### `src/composables/useAuth.ts`
 Description:
@@ -343,16 +352,19 @@ Key Functions/Exported Members:
 
 ### `src/views/MainDashboard.vue`
 Description:
-- Main authenticated workspace.
+- Main authenticated workspace for task visualization and management.
 - Composes auth, items, and sync-status workflows.
-- Handles remote catch-up events.
-- **ScatterPlot integration**: Renders `<ScatterPlot :items="items" />` with configurable Y-axis, color, and radius fields, and relays `select-item` clicks to the `TaskDrawer`.
-- **TaskDrawer orchestration**: Opens `TaskDrawer` in `create`, `view`, or `edit` mode; passes shared item state as props; all item mutations are handled internally by `TaskDrawer` via `useItems()`.
+- Handles remote catch-up events via Tauri event listener.
+- **ScatterPlot integration**: Renders `<ScatterPlot :items="items" />` with configurable Y-axis, color, and radius fields, and relays `select-item` clicks to the `TaskDrawer` in 'view' mode.
+- **TaskDrawer orchestration**: Opens `TaskDrawer` in `create`, `view`, `tasks`, or `edit` mode; passes shared item state as props; all item mutations are handled internally by `TaskDrawer` via `useItems()`.
+  - "New Task" button opens drawer in 'create' mode.
+  - "Tasks" button opens drawer in 'tasks' mode (shows all active tasks for quick access).
+  - Clicking a task in the scatter plot calls `handleSelectItem()` which opens drawer in 'view' mode for that task.
 - **Debug helpers**: `testCreate` (creates a random debug task) and `testFetch` (logs items to console) are present for in-development use, exposed as fixed-position buttons in the UI.
 
 Key Functions/Exported Members:
 - Default Vue component export.
-- Internal actions: `loadItems`, `handleRefreshItems`, `handleSelectItem`, `handleLogout`.
+- Internal actions: `loadItems`, `handleRefreshItems`, `handleSelectItem`, `handleLogout`, `openDrawer`.
 - Debug actions: `testCreate`, `testFetch`.
 
 ### `src/style.css`
