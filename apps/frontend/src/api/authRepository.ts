@@ -43,17 +43,11 @@ export interface AuthRepository {
  */
 export class TauriAuthRepository implements AuthRepository {
   async signUp(email: string, password: string, username: string): Promise<SignUpResponse> {
-    const normalizedEmail = email.trim();
-    const normalizedUsername = username.trim();
-    if (!normalizedEmail || !password || !normalizedUsername) {
-      throw new Error('email, password, and username are required');
-    }
-
     try {
       return await invoke<SignUpResponse>('register_local_user', {
-        email: normalizedEmail,
+        email,
         password,
-        username: normalizedUsername,
+        username,
       });
     } catch (error) {
       const message = String(error ?? '');
@@ -117,16 +111,50 @@ export class HonoAuthRepository implements AuthRepository {
   }
 }
 
+class NormalizedAuthRepository implements AuthRepository {
+  private readonly inner: AuthRepository;
+
+  constructor(inner: AuthRepository) {
+    this.inner = inner;
+  }
+
+  async signUp(email: string, password: string, username: string): Promise<SignUpResponse> {
+    const normalizedEmail = email.trim();
+    const normalizedUsername = username.trim();
+    if (!normalizedEmail || !password || !normalizedUsername) {
+      throw new Error('email, password, and username are required');
+    }
+
+    return this.inner.signUp(normalizedEmail, password, normalizedUsername);
+  }
+
+  async login(email: string, password: string): Promise<LoginResponse> {
+    return this.inner.login(email, password);
+  }
+
+  async logout(): Promise<void> {
+    return this.inner.logout();
+  }
+
+  async getActiveSession(): Promise<LocalSession | null> {
+    return this.inner.getActiveSession();
+  }
+
+  async autoLogin(): Promise<LocalSession | null> {
+    return this.inner.autoLogin();
+  }
+}
+
 /**
  * Factory function to create the appropriate repository based on the API mode
  */
 export function createAuthRepository(): AuthRepository {
   if (usesTauriBackend()) {
-    return new TauriAuthRepository();
+    return new NormalizedAuthRepository(new TauriAuthRepository());
   }
 
   if (usesHonoBackend()) {
-    return new HonoAuthRepository();
+    return new NormalizedAuthRepository(new HonoAuthRepository());
   }
 
   throw new Error('Unsupported API mode for auth repository');

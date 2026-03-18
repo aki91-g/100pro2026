@@ -2,7 +2,7 @@
 import { onMounted, onUnmounted, ref } from 'vue';
 import { useAuth } from '@/composables/useAuth';
 
-const { login, signUp, isAuthenticated } = useAuth();
+const { login, signUp } = useAuth();
 
 const isRegisterMode = ref(false);
 const emailInput = ref('');
@@ -90,14 +90,6 @@ async function handleRegister() {
 
   try {
     await signUp(emailInput.value.trim(), passwordInput.value, normalizeUsername(usernameInput.value));
-    try {
-      await login(emailInput.value.trim(), passwordInput.value);
-    } catch (loginError) {
-      // If signup already established local session/store state, allow redirect via auth gate.
-      if (!isAuthenticated.value) {
-        throw loginError;
-      }
-    }
   } catch (err) {
     error.value = String(err);
   } finally {

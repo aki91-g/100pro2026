@@ -117,12 +117,17 @@ export const useUserStore = defineStore('user', () => {
     try {
       const response = await authRepository.signUp(email, password, preferredUsername);
 
+      if (!response.access_token) {
+        throw new Error('Registration succeeded but no active session was returned. Please log in.');
+      }
+
       userId.value = response.id;
+      accessToken.value = response.access_token;
+
       const storedUsername = readStoredUsername(response.id);
       const normalizedResponseUsername = normalizeUsername(response.username);
       const normalizedPreferredUsername = normalizeUsername(preferredUsername);
       username.value = normalizedResponseUsername ?? normalizedPreferredUsername ?? storedUsername;
-      accessToken.value = response.access_token ?? null;
 
       if (!normalizeUsername(username.value)) {
         username.value = await resolveSessionUsername();

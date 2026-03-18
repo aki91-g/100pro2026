@@ -40,8 +40,10 @@ The architecture separates responsibilities into:
 4. Hono mode calls `/api/auth/signup`.
 5. Tauri mode invokes `register_local_user`, which performs Supabase signup first and then persists the returned UUID to `local_user` and `local_session`.
 6. Postgres trigger (`on_auth_user_created`) creates `public.profiles` from auth metadata (`raw_user_meta_data.username`), removing app-side duplication.
-7. Sign-up is online-only; offline or remote failures return `OFFLINE_REQUIRED_FOR_SIGNUP` and are surfaced as a user-friendly message in `useAuth`.
-8. Store persists post-registration identity (`userId`, `username`, `accessToken`) and local username cache.
+7. Desktop local user switch and session write execute inside one SQLite transaction (all-or-nothing).
+8. Sign-up is online-only; offline failures return `OFFLINE_REQUIRED_FOR_SIGNUP` while API failures surface descriptive server error bodies.
+9. `useAuth().signUp()` maps technical signup failures into user-facing messages (existing account, weak password, unavailable service, offline).
+10. Store only marks user authenticated when `access_token` is present; without it, sign-up does not hydrate authenticated state.
 
 ### Item loading flow with race safety
 1. Login state turns true.
@@ -179,8 +181,9 @@ Description:
 - Handles user registration via mode-based routing:
   - Hono mode: `POST /api/auth/signup`.
   - Tauri mode: `register_local_user` command with remote-first Supabase signup.
+- Applies shared sign-up input normalization/validation before delegating to backend-specific implementations.
 - Relies on database trigger for profile row creation instead of manual app-level `profiles` insert/upsert.
-- Normalizes desktop offline/remote sign-up failures by propagating `OFFLINE_REQUIRED_FOR_SIGNUP`.
+- Maps desktop offline sign-up failures via `OFFLINE_REQUIRED_FOR_SIGNUP` and preserves descriptive Supabase API errors.
 
 Key Functions/Exported Members:
 - `AuthRepository` interface.
@@ -283,11 +286,11 @@ Key Functions/Exported Members:
 Description:
 - Lightweight auth facade around `useUserStore`.
 - Exposes auth state/actions to views without leaking store internals.
-- Maps `OFFLINE_REQUIRED_FOR_SIGNUP` to user-friendly UI error text for registration UX.
+- Maps signup errors (`OFFLINE_REQUIRED_FOR_SIGNUP`, config issues, Supabase API errors, malformed responses) to user-friendly UI text for registration UX.
 
 Key Functions/Exported Members:
 - `useAuth()` returning refs/actions: `isAuthenticated`, `initialize`, `signUp`, `login`, `logout`, etc.
-- `signUp` wrapper translates technical offline-required errors into actionable copy for `LoginView`.
+- `signUp` wrapper translates technical signup errors into actionable copy for `LoginView`.
 
 ### `src/composables/useGraph.ts`
 Description:
@@ -335,6 +338,7 @@ Description:
 - Owns `accessToken` used by Hono requests.
 - Uses `authRepository` (not direct transport).
 - Handles post-registration state hydration (`userId`, `username`, `accessToken`) in addition to login/auto-login.
+- Guards authentication state on sign-up: requires a valid `access_token` before persisting authenticated identity.
 
 Key Functions/Exported Members:
 - `useUserStore`.

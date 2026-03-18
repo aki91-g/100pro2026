@@ -79,6 +79,9 @@ pub fn run() {
                 pool: sqlite_pool.clone() 
             });
 
+            // Expose sqlite pool for transactional auth operations.
+            app.manage(sqlite_pool.clone());
+
             let user_repo: Arc<dyn UserRepository> = Arc::new(
                 crate::repositories::sqlite_user_repo::SqliteUserRepo { 
                     pool: sqlite_pool.clone() 
