@@ -20,6 +20,10 @@ export function useAuth() {
       return 'Registration is temporarily unavailable. Please try again later.';
     }
 
+    if (message.includes('Registration succeeded but no active session was returned')) {
+      return 'Your account was created. Please confirm your email, then log in.';
+    }
+
     if (message.includes('Signup failed')) {
       const normalized = message.toLowerCase();
       if (normalized.includes('already') || normalized.includes('exists')) {

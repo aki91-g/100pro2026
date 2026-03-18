@@ -15,17 +15,17 @@ Desktop registration is remote-first and online-only. Supabase account creation 
 1. Validates required email/password/username values.
 2. Calls Supabase Auth signup endpoint over HTTP (`reqwest`).
 3. Supabase stores `username` in user metadata (`data.username`) and Postgres trigger writes `public.profiles`.
-4. Error handling from Supabase call:
+4. Parses Supabase signup responses that may return user fields either flat (`id`, optional `access_token`) or nested (`user.id`, optional `session.access_token`).
+5. Error handling from Supabase call:
   - Offline/connect/timeout errors return `OFFLINE_REQUIRED_FOR_SIGNUP`.
   - Non-success HTTP responses return `Signup failed (<status>): <response body>`.
   - Invalid payloads return `Invalid signup response`.
   - Missing env config returns explicit config errors.
-5. Reads Supabase-returned UUID and optional access token.
-6. Runs local user switch atomically inside a single SQLite transaction:
-  - deactivate other active users
-  - upsert current user with `is_active = 1`
-  - save singleton `local_session` row
-7. Updates in-memory `AppState` to current user.
+6. Reads Supabase-returned UUID and optional access token.
+7. Runs local persistence inside a single SQLite transaction:
+  - If token exists: deactivate other active users, upsert current user as active, save singleton `local_session` row.
+  - If token is missing (pending email confirmation): upsert `local_user` only and keep `is_active = 0`.
+8. Updates in-memory `AppState` only when token/session exists.
 
 ## SQLite Schema Alignment
 - `local_user.is_active` is the active-user flag and is set to `1`.
@@ -35,7 +35,8 @@ Desktop registration is remote-first and online-only. Supabase account creation 
 ```json
 {
   "id": "uuid",
-  "username": "my-name"
+  "username": "my-name",
+  "access_token": "... or null"
 }
 ```
 

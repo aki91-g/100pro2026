@@ -25,7 +25,9 @@ struct SupabaseUser {
 
 #[derive(Debug, Deserialize)]
 struct SupabaseSignupResponse {
-    user: SupabaseUser,
+    user: Option<SupabaseUser>,
+    id: Option<Uuid>,
+    access_token: Option<String>,
     session: Option<SupabaseSession>,
 }
 
@@ -130,10 +132,17 @@ async fn register_with_supabase(
         .await
         .map_err(|e| format!("Invalid signup response: {}", e))?;
 
-    Ok((
-        payload.user.id,
-        payload.session.map(|session| session.access_token),
-    ))
+    let user_id = payload
+        .user
+        .map(|user| user.id)
+        .or(payload.id)
+        .ok_or_else(|| "Invalid signup response: missing user id".to_string())?;
+
+    let access_token = payload
+        .access_token
+        .or_else(|| payload.session.map(|session| session.access_token));
+
+    Ok((user_id, access_token))
 }
 
 async fn fetch_username_from_profiles(
@@ -200,6 +209,13 @@ async fn fetch_username_from_profiles(
 pub struct LoginResponse {
     pub id: String,
     pub username: String,
+}
+
+#[derive(Debug, serde::Serialize, serde::Deserialize)]
+pub struct SignupResponse {
+    pub id: String,
+    pub username: String,
+    pub access_token: Option<String>,
 }
 
 /// Session DTO exposed to frontend (sanitized).
@@ -351,7 +367,7 @@ pub async fn register_local_user(
     username: String,
     sqlite_pool: State<'_, sqlx::SqlitePool>,
     app_state: State<'_, AppState>,
-) -> Result<LoginResponse, String> {
+) -> Result<SignupResponse, String> {
     let normalized_email = email.trim();
     if normalized_email.is_empty() || password.is_empty() {
         return Err("Email and password are required".to_string());
@@ -365,58 +381,76 @@ pub async fn register_local_user(
     // Remote-first registration ensures user ID consistency across all platforms.
     let (user_id, access_token) = register_with_supabase(normalized_email, &password, normalized_username).await?;
 
-    // Atomic switch: deactivate previous active users, upsert local user, and save session in one transaction.
+    // Atomic persistence transaction. If no token is returned, we persist local_user only (pending confirmation).
     let mut tx = sqlite_pool
         .begin()
         .await
         .map_err(|e| format!("Failed to start registration transaction: {}", e))?;
 
-    sqlx::query("UPDATE local_user SET is_active = 0 WHERE id != ?")
+    if access_token.is_some() {
+        sqlx::query("UPDATE local_user SET is_active = 0 WHERE id != ?")
+            .bind(user_id.to_string())
+            .execute(&mut *tx)
+            .await
+            .map_err(|e| format!("Failed to deactivate previous active users: {}", e))?;
+
+        sqlx::query(
+            "INSERT INTO local_user (id, username, hashed_session, last_login, is_active)
+             VALUES (?, ?, NULL, CURRENT_TIMESTAMP, 1)
+             ON CONFLICT(id) DO UPDATE SET
+                 username = excluded.username,
+                 last_login = CURRENT_TIMESTAMP,
+                 is_active = 1"
+        )
         .bind(user_id.to_string())
+        .bind(normalized_username)
         .execute(&mut *tx)
         .await
-        .map_err(|e| format!("Failed to deactivate previous active users: {}", e))?;
+        .map_err(|e| format!("Failed to upsert local user: {}", e))?;
 
-    sqlx::query(
-        "INSERT INTO local_user (id, username, hashed_session, last_login, is_active)
-         VALUES (?, ?, NULL, CURRENT_TIMESTAMP, 1)
-         ON CONFLICT(id) DO UPDATE SET
-             username = excluded.username,
-             last_login = CURRENT_TIMESTAMP,
-             is_active = 1"
-    )
-    .bind(user_id.to_string())
-    .bind(normalized_username)
-    .execute(&mut *tx)
-    .await
-    .map_err(|e| format!("Failed to upsert local user: {}", e))?;
-
-    sqlx::query(
-        "INSERT INTO local_session (id, user_id, username, access_token, last_login)
-         VALUES (1, ?, ?, ?, CURRENT_TIMESTAMP)
-         ON CONFLICT(id) DO UPDATE SET
-             user_id = excluded.user_id,
-             username = excluded.username,
-             access_token = excluded.access_token,
-             last_login = CURRENT_TIMESTAMP"
-    )
-    .bind(user_id.to_string())
-    .bind(normalized_username)
-    .bind(access_token.as_deref())
-    .execute(&mut *tx)
-    .await
-    .map_err(|e| format!("Failed to initialize local session: {}", e))?;
+        sqlx::query(
+            "INSERT INTO local_session (id, user_id, username, access_token, last_login)
+             VALUES (1, ?, ?, ?, CURRENT_TIMESTAMP)
+             ON CONFLICT(id) DO UPDATE SET
+                 user_id = excluded.user_id,
+                 username = excluded.username,
+                 access_token = excluded.access_token,
+                 last_login = CURRENT_TIMESTAMP"
+        )
+        .bind(user_id.to_string())
+        .bind(normalized_username)
+        .bind(access_token.as_deref())
+        .execute(&mut *tx)
+        .await
+        .map_err(|e| format!("Failed to initialize local session: {}", e))?;
+    } else {
+        sqlx::query(
+            "INSERT INTO local_user (id, username, hashed_session, last_login, is_active)
+             VALUES (?, ?, NULL, CURRENT_TIMESTAMP, 0)
+             ON CONFLICT(id) DO UPDATE SET
+                 username = excluded.username,
+                 last_login = CURRENT_TIMESTAMP"
+        )
+        .bind(user_id.to_string())
+        .bind(normalized_username)
+        .execute(&mut *tx)
+        .await
+        .map_err(|e| format!("Failed to upsert pending local user: {}", e))?;
+    }
 
     tx.commit()
         .await
         .map_err(|e| format!("Failed to commit registration transaction: {}", e))?;
 
-    app_state
-        .set_user(user_id, normalized_username.to_string())
-        .await;
+    if access_token.is_some() {
+        app_state
+            .set_user(user_id, normalized_username.to_string())
+            .await;
+    }
 
-    Ok(LoginResponse {
+    Ok(SignupResponse {
         id: user_id.to_string(),
         username: normalized_username.to_string(),
+        access_token,
     })
 }

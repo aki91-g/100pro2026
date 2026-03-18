@@ -38,3 +38,4 @@ This service is the source of truth for account creation. Desktop and browser cl
 - Remote-first requirement: account creation must occur in Supabase first (never local-only), then local/client state is initialized using the Supabase UUID.
 - Profile creation is database-owned (trigger-driven) to avoid duplicate code paths and race conditions.
 - Supabase API errors (for example duplicate email or weak password) are returned by the endpoint and consumed by frontend error mapping.
+- `access_token` may be `null` when email confirmation is required by project auth settings.
