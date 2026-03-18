@@ -184,6 +184,7 @@ pub fn run() {
             clear_user,
             // auth_commands
             login,
+            register_local_user,
             logout,
             get_active_session,
             auto_login,

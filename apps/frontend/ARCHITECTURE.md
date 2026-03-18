@@ -15,6 +15,7 @@ The architecture separates responsibilities into:
 
 ## Core Design Decisions
 - Repository Pattern for `items` and `auth` operations.
+- Remote-first registration across all modes to preserve user ID consistency: Hono (`POST /api/auth/signup`) and Tauri (`register_local_user` command that signs up against Supabase first).
 - Runtime API mode switching via `src/api/config.ts` with memoized mode detection.
 - Session token race protection in `useItems.ts` using `currentLoadToken`.
 - Pinia-safe token injection into `HonoClient` via deferred token getter from `main.ts`.
@@ -31,6 +32,16 @@ The architecture separates responsibilities into:
 2. `useAuth()` delegates to `useUserStore()`.
 3. `user` store calls `authRepository.autoLogin()` and fallback `getActiveSession()`.
 4. On success, store holds `userId`, `username`, and `accessToken`.
+
+### Registration flow
+1. UI (or future signup form) calls `useAuth().signUp(email, password, username)`.
+2. `useUserStore().signUp()` delegates to `authRepository.signUp()`.
+3. Repository routes by API mode:
+4. Hono mode calls `/api/auth/signup`.
+5. Tauri mode invokes `register_local_user`, which performs Supabase signup first and then persists the returned UUID to `local_user` and `local_session`.
+6. Postgres trigger (`on_auth_user_created`) creates `public.profiles` from auth metadata (`raw_user_meta_data.username`), removing app-side duplication.
+7. Sign-up is online-only; offline or remote failures return `OFFLINE_REQUIRED_FOR_SIGNUP` and are surfaced as a user-friendly message in `useAuth`.
+8. Store persists post-registration identity (`userId`, `username`, `accessToken`) and local username cache.
 
 ### Item loading flow with race safety
 1. Login state turns true.
@@ -165,10 +176,15 @@ Description:
 - Repository abstraction for authentication/session retrieval.
 - Decouples store logic from transport details.
 - Supports both command invoke and HTTP endpoints with same API contract.
+- Handles user registration via mode-based routing:
+  - Hono mode: `POST /api/auth/signup`.
+  - Tauri mode: `register_local_user` command with remote-first Supabase signup.
+- Relies on database trigger for profile row creation instead of manual app-level `profiles` insert/upsert.
+- Normalizes desktop offline/remote sign-up failures by propagating `OFFLINE_REQUIRED_FOR_SIGNUP`.
 
 Key Functions/Exported Members:
 - `AuthRepository` interface.
-- `LoginResponse`, `LocalSession` types.
+- `LoginResponse`, `SignUpResponse`, `LocalSession` types.
 - `authRepository` singleton.
 - `TauriAuthRepository`, `HonoAuthRepository` classes.
 
@@ -267,9 +283,11 @@ Key Functions/Exported Members:
 Description:
 - Lightweight auth facade around `useUserStore`.
 - Exposes auth state/actions to views without leaking store internals.
+- Maps `OFFLINE_REQUIRED_FOR_SIGNUP` to user-friendly UI error text for registration UX.
 
 Key Functions/Exported Members:
-- `useAuth()` returning refs/actions: `isAuthenticated`, `initialize`, `login`, `logout`, etc.
+- `useAuth()` returning refs/actions: `isAuthenticated`, `initialize`, `signUp`, `login`, `logout`, etc.
+- `signUp` wrapper translates technical offline-required errors into actionable copy for `LoginView`.
 
 ### `src/composables/useGraph.ts`
 Description:
@@ -316,11 +334,12 @@ Description:
 - Pinia store for authenticated user/session identity.
 - Owns `accessToken` used by Hono requests.
 - Uses `authRepository` (not direct transport).
+- Handles post-registration state hydration (`userId`, `username`, `accessToken`) in addition to login/auto-login.
 
 Key Functions/Exported Members:
 - `useUserStore`.
 - State refs: `userId`, `username`, `isInitialized`, `accessToken`.
-- Actions: `initialize`, `login`, `logout`.
+- Actions: `initialize`, `signUp`, `login`, `logout`.
 - Getter: `isAuthenticated`.
 
 ### `src/types/graph.ts`
@@ -350,11 +369,16 @@ Key Functions/Exported Members:
 Description:
 - Active login screen for routing.
 - Uses `useAuth` for authentication command.
+- Supports dual-mode auth UI: Login and Sign Up (`isRegisterMode`).
+- Sign Up mode includes username input with basic validation.
+- Enforces online-only account creation using `navigator.onLine` state.
+- Shows disclaimer: "An active internet connection is required to create a new account."
+- After successful signup, attempts login and relies on auth gate to transition to `MainDashboard`.
 - Includes accessibility improvements (labels, ARIA alert).
 
 Key Functions/Exported Members:
 - Default Vue component export.
-- Internal handler: `handleLogin()`.
+- Internal handlers: `handleLogin()`, `handleRegister()`, `setMode()`, online status listeners.
 
 ### `src/views/MainDashboard.vue`
 Description:

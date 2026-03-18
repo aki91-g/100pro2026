@@ -226,6 +226,7 @@ git checkout -b front/TASKNAME
 │   └── frontend
 │       ├── public
 │       ├── src
+│       ├── ARCHITECTURE.md
 │       ├── index.html
 │       ├── package.json
 │       ├── README.md
@@ -247,6 +248,7 @@ git checkout -b front/TASKNAME
 └── turbo.json
 ```
 [TREE-END]
+
 
 
 

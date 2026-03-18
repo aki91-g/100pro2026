@@ -14,27 +14,37 @@ apps/frontend
 ├── public
 │   └── vite.svg
 ├── src
+│   ├── api
+│   │   ├── authRepository.ts
+│   │   ├── config.ts
+│   │   ├── honoClient.ts
+│   │   └── itemRepository.ts
 │   ├── assets
 │   │   └── vue.svg
 │   ├── components
-│   │   ├── DebugTools.vue
-│   │   ├── HelloWorld.vue
-│   │   ├── Login.vue
-│   │   ├── SyncButton.vue
+│   │   ├── ScatterPlot.vue
 │   │   ├── SyncStatusBadge.vue
+│   │   ├── TaskDrawer.vue
 │   │   └── TaskList.vue
 │   ├── composables
 │   │   ├── useAuth.ts
+│   │   ├── useGraph.ts
 │   │   ├── useItems.ts
 │   │   └── useSyncStatus.ts
-│   ├── services
-│   │   ├── apiService.ts
-│   │   └── itemService.ts
+│   ├── layouts
 │   ├── stores
 │   │   └── user.ts
+│   ├── types
+│   │   ├── graph.ts
+│   │   └── item.ts
+│   ├── views
+│   │   ├── LoginView.vue
+│   │   └── MainDashboard.vue
 │   ├── App.vue
 │   ├── main.ts
-│   └── style.css
+│   ├── style.css
+│   └── vite-env.d.ts
+├── ARCHITECTURE.md
 ├── index.html
 ├── package.json
 ├── README.md
@@ -44,6 +54,7 @@ apps/frontend
 └── vite.config.ts
 ```
 [TREE-END]
+
 
 
 

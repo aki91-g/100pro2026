@@ -11,6 +11,7 @@ use crate::repositories::profile_repo::ProfileRepository;
 use crate::state::AppState;
 
 const DEFAULT_USERNAME: &str = "Unknown User";
+const OFFLINE_REQUIRED_FOR_SIGNUP: &str = "OFFLINE_REQUIRED_FOR_SIGNUP";
 
 #[derive(Debug, Deserialize)]
 struct SupabaseLoginResponse {
@@ -20,6 +21,17 @@ struct SupabaseLoginResponse {
 #[derive(Debug, Deserialize)]
 struct SupabaseUser {
     id: Uuid,
+}
+
+#[derive(Debug, Deserialize)]
+struct SupabaseSignupResponse {
+    user: SupabaseUser,
+    session: Option<SupabaseSession>,
+}
+
+#[derive(Debug, Deserialize)]
+struct SupabaseSession {
+    access_token: String,
 }
 
 async fn authenticate_with_supabase(email: &str, password: &str) -> Result<Uuid, String> {
@@ -63,6 +75,60 @@ async fn authenticate_with_supabase(email: &str, password: &str) -> Result<Uuid,
         .map_err(|e| format!("Failed to parse Supabase auth response: {}", e))?;
 
     Ok(payload.user.id)
+}
+
+async fn register_with_supabase(
+    email: &str,
+    password: &str,
+    username: &str,
+) -> Result<(Uuid, Option<String>), String> {
+    let supabase_url = std::env::var("SUPABASE_URL")
+        .map_err(|_| OFFLINE_REQUIRED_FOR_SIGNUP.to_string())?;
+    let supabase_anon_key = std::env::var("SUPABASE_ANON_KEY")
+        .map_err(|_| OFFLINE_REQUIRED_FOR_SIGNUP.to_string())?;
+
+    let endpoint = format!(
+        "{}/auth/v1/signup",
+        supabase_url.trim_end_matches('/')
+    );
+
+    let client = reqwest::Client::builder()
+        .connect_timeout(std::time::Duration::from_secs(5))
+        .timeout(std::time::Duration::from_secs(15))
+        .build()
+        .map_err(|_| OFFLINE_REQUIRED_FOR_SIGNUP.to_string())?;
+
+    let response = client
+        .post(endpoint)
+        .header("apikey", &supabase_anon_key)
+        .header("Authorization", format!("Bearer {}", supabase_anon_key))
+        .json(&serde_json::json!({
+            "email": email,
+            "password": password,
+            "data": {
+                "username": username
+            }
+        }))
+        .send()
+        .await
+        .map_err(|_| OFFLINE_REQUIRED_FOR_SIGNUP.to_string())?;
+
+    if !response.status().is_success() {
+        let status = response.status();
+        let body = response.text().await.unwrap_or_default();
+        eprintln!("Supabase signup failed ({}): {}", status, body);
+        return Err(OFFLINE_REQUIRED_FOR_SIGNUP.to_string());
+    }
+
+    let payload: SupabaseSignupResponse = response
+        .json()
+        .await
+        .map_err(|_| OFFLINE_REQUIRED_FOR_SIGNUP.to_string())?;
+
+    Ok((
+        payload.user.id,
+        payload.session.map(|session| session.access_token),
+    ))
 }
 
 async fn fetch_username_from_profiles(
@@ -270,4 +336,65 @@ pub async fn auto_login(
         },
         Err(e) => Err(format!("Failed to check for active session: {}", e))
     }
+}
+
+/// Register a local user/session in SQLite for Tauri mode.
+#[tauri::command]
+pub async fn register_local_user(
+    email: String,
+    password: String,
+    username: String,
+    user_repo: State<'_, Arc<dyn UserRepository>>,
+    session_repo: State<'_, Arc<dyn SessionRepository>>,
+    app_state: State<'_, AppState>,
+) -> Result<LoginResponse, String> {
+    let normalized_email = email.trim();
+    if normalized_email.is_empty() || password.is_empty() {
+        return Err("Email and password are required".to_string());
+    }
+
+    let normalized_username = username.trim();
+    if normalized_username.is_empty() {
+        return Err("Username is required".to_string());
+    }
+
+    // Remote-first registration ensures user ID consistency across all platforms.
+    let (user_id, access_token) = register_with_supabase(normalized_email, &password, normalized_username).await?;
+
+    if let Some(active) = user_repo
+        .get_active_user()
+        .await
+        .map_err(|e| format!("Failed to check active user: {}", e))?
+    {
+        if active.id != user_id {
+            user_repo
+                .deactivate_user(&active.id)
+                .await
+                .map_err(|e| format!("Failed to deactivate previous active user: {}", e))?;
+        }
+    }
+
+    let user_update = LocalUserUpdate {
+        id: user_id,
+        username: normalized_username.to_string(),
+    };
+
+    user_repo
+        .upsert_user(&user_update)
+        .await
+        .map_err(|e| format!("Failed to save local user: {}", e))?;
+
+    session_repo
+        .save_session(&user_id, normalized_username, access_token.as_deref())
+        .await
+        .map_err(|e| format!("Failed to initialize local session: {}", e))?;
+
+    app_state
+        .set_user(user_id, normalized_username.to_string())
+        .await;
+
+    Ok(LoginResponse {
+        id: user_id.to_string(),
+        username: normalized_username.to_string(),
+    })
 }

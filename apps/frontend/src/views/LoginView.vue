@@ -1,13 +1,54 @@
 <script setup lang="ts">
-import { ref } from 'vue';
+import { onMounted, onUnmounted, ref } from 'vue';
 import { useAuth } from '@/composables/useAuth';
 
-const { login } = useAuth();
+const { login, signUp, isAuthenticated } = useAuth();
 
+const isRegisterMode = ref(false);
 const emailInput = ref('');
+const usernameInput = ref('');
 const passwordInput = ref('');
 const isLogging = ref(false);
 const error = ref<string | null>(null);
+const isOnline = ref(typeof navigator === 'undefined' ? true : navigator.onLine);
+
+const MIN_USERNAME_LEN = 3;
+
+function normalizeUsername(value: string): string {
+  return value.trim();
+}
+
+function usernameErrorMessage(value: string): string | null {
+  const normalized = normalizeUsername(value);
+  if (!normalized) return 'Username is required';
+  if (normalized.length < MIN_USERNAME_LEN) {
+    return `Username must be at least ${MIN_USERNAME_LEN} characters`;
+  }
+  return null;
+}
+
+function clearError(): void {
+  error.value = null;
+}
+
+function setMode(registerMode: boolean): void {
+  isRegisterMode.value = registerMode;
+  clearError();
+}
+
+function updateOnlineStatus(): void {
+  isOnline.value = navigator.onLine;
+}
+
+onMounted(() => {
+  window.addEventListener('online', updateOnlineStatus);
+  window.addEventListener('offline', updateOnlineStatus);
+});
+
+onUnmounted(() => {
+  window.removeEventListener('online', updateOnlineStatus);
+  window.removeEventListener('offline', updateOnlineStatus);
+});
 
 async function handleLogin() {
   if (!emailInput.value.trim() || !passwordInput.value) {
@@ -26,15 +67,73 @@ async function handleLogin() {
     isLogging.value = false;
   }
 }
+
+async function handleRegister() {
+  if (!emailInput.value.trim() || !passwordInput.value) {
+    error.value = 'Please enter both email and password';
+    return;
+  }
+
+  const usernameError = usernameErrorMessage(usernameInput.value);
+  if (usernameError) {
+    error.value = usernameError;
+    return;
+  }
+
+  if (!isOnline.value) {
+    error.value = 'Creating an account requires an internet connection to sync your data.';
+    return;
+  }
+
+  isLogging.value = true;
+  error.value = null;
+
+  try {
+    await signUp(emailInput.value.trim(), passwordInput.value, normalizeUsername(usernameInput.value));
+    try {
+      await login(emailInput.value.trim(), passwordInput.value);
+    } catch (loginError) {
+      // If signup already established local session/store state, allow redirect via auth gate.
+      if (!isAuthenticated.value) {
+        throw loginError;
+      }
+    }
+  } catch (err) {
+    error.value = String(err);
+  } finally {
+    isLogging.value = false;
+  }
+}
 </script>
 
 <template>
   <div class="login-container">
     <div class="login-card">
-      <h2>🔐 Login</h2>
-      <p class="description">Enter your email and password</p>
+      <h2>{{ isRegisterMode ? '📝 Create Account' : '🔐 Login' }}</h2>
+      <p class="description">
+        {{ isRegisterMode ? 'Create your account to start syncing tasks.' : 'Enter your email and password' }}
+      </p>
+
+      <div class="mode-toggle" role="tablist" aria-label="Authentication mode">
+        <button
+          type="button"
+          :class="['mode-toggle-btn', !isRegisterMode ? 'active' : '']"
+          @click="setMode(false)"
+          :disabled="isLogging"
+        >
+          Login
+        </button>
+        <button
+          type="button"
+          :class="['mode-toggle-btn', isRegisterMode ? 'active' : '']"
+          @click="setMode(true)"
+          :disabled="isLogging"
+        >
+          Sign Up
+        </button>
+      </div>
       
-      <form @submit.prevent="handleLogin" class="login-form">
+      <form @submit.prevent="isRegisterMode ? handleRegister() : handleLogin()" class="login-form">
         <div class="input-group">
           <label for="email-input">Email</label>
           <input
@@ -44,8 +143,22 @@ async function handleLogin() {
             placeholder="Email"
             :disabled="isLogging"
             class="user-input"
-            @input="error = null"
+            @input="clearError"
           />
+        </div>
+
+        <div class="input-group" v-if="isRegisterMode">
+          <label for="username-input">Username</label>
+          <input
+            id="username-input"
+            v-model="usernameInput"
+            type="text"
+            placeholder="Username"
+            :disabled="isLogging"
+            class="user-input"
+            @input="clearError"
+          />
+          <p class="hint">At least {{ MIN_USERNAME_LEN }} characters.</p>
         </div>
 
         <div class="input-group">
@@ -57,17 +170,26 @@ async function handleLogin() {
             placeholder="Password"
             :disabled="isLogging"
             class="user-input"
-            @input="error = null"
+            @input="clearError"
           />
         </div>
 
+        <p v-if="isRegisterMode" class="online-disclaimer" role="status" aria-live="polite">
+          An active internet connection is required to create a new account.
+        </p>
+
         <button
           type="submit"
-          :disabled="isLogging || !emailInput.trim() || !passwordInput"
+          :disabled="
+            isLogging ||
+            !emailInput.trim() ||
+            !passwordInput ||
+            (isRegisterMode && (!usernameInput.trim() || !!usernameErrorMessage(usernameInput) || !isOnline))
+          "
           class="login-button"
         >
-          <span v-if="isLogging">Logging in...</span>
-          <span v-else>Login</span>
+          <span v-if="isLogging">{{ isRegisterMode ? 'Creating account...' : 'Logging in...' }}</span>
+          <span v-else>{{ isRegisterMode ? 'Sign Up' : 'Login' }}</span>
         </button>
 
         <Transition name="fade">
@@ -108,6 +230,35 @@ h2 {
   color: #666;
   font-size: 0.9rem;
   margin-bottom: 1.5rem;
+}
+
+.mode-toggle {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.mode-toggle-btn {
+  flex: 1;
+  padding: 0.55rem 0.75rem;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #374151;
+  cursor: pointer;
+  font-weight: 600;
+  transition: all 0.2s;
+}
+
+.mode-toggle-btn.active {
+  background: #42b883;
+  color: white;
+  border-color: #42b883;
+}
+
+.mode-toggle-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 
 .login-form {
@@ -175,6 +326,22 @@ label {
   background: #ffebee;
   border-radius: 4px;
   text-align: center;
+}
+
+.hint {
+  margin: 0.4rem 0 0;
+  font-size: 0.75rem;
+  color: #64748b;
+}
+
+.online-disclaimer {
+  margin: 0;
+  padding: 0.65rem 0.75rem;
+  background: #fef3c7;
+  border: 1px solid #fcd34d;
+  border-radius: 6px;
+  font-size: 0.8rem;
+  color: #92400e;
 }
 
 .info-box {

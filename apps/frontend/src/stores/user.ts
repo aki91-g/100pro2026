@@ -113,6 +113,29 @@ export const useUserStore = defineStore('user', () => {
     }
   }
 
+  async function signUp(email: string, password: string, preferredUsername: string) {
+    try {
+      const response = await authRepository.signUp(email, password, preferredUsername);
+
+      userId.value = response.id;
+      const storedUsername = readStoredUsername(response.id);
+      const normalizedResponseUsername = normalizeUsername(response.username);
+      const normalizedPreferredUsername = normalizeUsername(preferredUsername);
+      username.value = normalizedResponseUsername ?? normalizedPreferredUsername ?? storedUsername;
+      accessToken.value = response.access_token ?? null;
+
+      if (!normalizeUsername(username.value)) {
+        username.value = await resolveSessionUsername();
+      }
+
+      persistUsername(userId.value, normalizeUsername(username.value));
+      console.log('Registration successful');
+    } catch (error) {
+      console.error('Registration failed:', error);
+      throw error;
+    }
+  }
+
   async function logout() {
     try {
       await authRepository.logout();
@@ -163,6 +186,7 @@ export const useUserStore = defineStore('user', () => {
     // Actions
     initialize,
     ensureUsername,
+    signUp,
     login,
     logout,
   };

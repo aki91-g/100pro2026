@@ -1,5 +1,5 @@
 import { invoke } from '@tauri-apps/api/core';
-import { getApiMode } from './config';
+import { usesHonoBackend, usesTauriBackend } from './config';
 import { honoClient } from './honoClient';
 
 // Types
@@ -9,6 +9,14 @@ export interface LoginResponse {
   access_token: string;
   refresh_token?: string;
   expires_at?: number;
+}
+
+export interface SignUpResponse {
+  id: string;
+  username: string;
+  access_token?: string | null;
+  refresh_token?: string | null;
+  expires_at?: number | null;
 }
 
 export interface LocalSession {
@@ -23,6 +31,7 @@ export interface LocalSession {
  * Abstract authentication repository interface
  */
 export interface AuthRepository {
+  signUp(email: string, password: string, username: string): Promise<SignUpResponse>;
   login(email: string, password: string): Promise<LoginResponse>;
   logout(): Promise<void>;
   getActiveSession(): Promise<LocalSession | null>;
@@ -33,6 +42,28 @@ export interface AuthRepository {
  * Tauri implementation using Rust backend commands
  */
 export class TauriAuthRepository implements AuthRepository {
+  async signUp(email: string, password: string, username: string): Promise<SignUpResponse> {
+    const normalizedEmail = email.trim();
+    const normalizedUsername = username.trim();
+    if (!normalizedEmail || !password || !normalizedUsername) {
+      throw new Error('email, password, and username are required');
+    }
+
+    try {
+      return await invoke<SignUpResponse>('register_local_user', {
+        email: normalizedEmail,
+        password,
+        username: normalizedUsername,
+      });
+    } catch (error) {
+      const message = String(error ?? '');
+      if (message.includes('OFFLINE_REQUIRED_FOR_SIGNUP')) {
+        throw new Error('OFFLINE_REQUIRED_FOR_SIGNUP');
+      }
+      throw error;
+    }
+  }
+
   async login(email: string, password: string): Promise<LoginResponse> {
     return invoke<LoginResponse>('login', { email, password });
   }
@@ -54,6 +85,15 @@ export class TauriAuthRepository implements AuthRepository {
  * Hono implementation using REST API
  */
 export class HonoAuthRepository implements AuthRepository {
+  async signUp(email: string, password: string, username: string): Promise<SignUpResponse> {
+    const response = await honoClient.post('/api/auth/signup', {
+      email,
+      password,
+      username,
+    });
+    return response.json();
+  }
+
   async login(email: string, password: string): Promise<LoginResponse> {
     const response = await honoClient.post('/api/auth/login', {
       email,
@@ -81,13 +121,15 @@ export class HonoAuthRepository implements AuthRepository {
  * Factory function to create the appropriate repository based on the API mode
  */
 export function createAuthRepository(): AuthRepository {
-  const mode = getApiMode();
-
-  if (mode === 'tauri') {
+  if (usesTauriBackend()) {
     return new TauriAuthRepository();
   }
 
-  return new HonoAuthRepository();
+  if (usesHonoBackend()) {
+    return new HonoAuthRepository();
+  }
+
+  throw new Error('Unsupported API mode for auth repository');
 }
 
 // Export a singleton instance
