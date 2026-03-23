@@ -31,11 +31,6 @@ function clearError(): void {
   error.value = null;
 }
 
-function setMode(registerMode: boolean): void {
-  isRegisterMode.value = registerMode;
-  clearError();
-}
-
 function updateOnlineStatus(): void {
   isOnline.value = navigator.onLine;
 }
