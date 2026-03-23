@@ -454,35 +454,38 @@ onUnmounted(() => {
   destroy();
 });
 </script>
-
 <template>
-  <section class="relative flex h-full min-h-0 flex-col gap-2">
-    <div v-if="showDebug" class="rounded-lg border border-slate-200 bg-white/70 px-3 py-2 text-xs text-slate-700">
-      Input <strong>{{ debugStats.input }}</strong>
-      · Visible <strong>{{ debugStats.visible }}</strong>
-      · Plotted <strong>{{ debugStats.plotted }}</strong>
-      · Skipped <strong :class="debugStats.skipped > 0 ? 'text-red-600' : ''">{{ debugStats.skipped }}</strong>
+  <section class="canvas-wrapper">
+    <div v-if="showDebug" class="debug-panel">
+      <span class="label">Input</span> <strong>{{ debugStats.input }}</strong>
+      <span class="dot">·</span>
+      <span class="label">Visible</span> <strong>{{ debugStats.visible }}</strong>
+      <span class="dot">·</span>
+      <span class="label">Plotted</span> <strong>{{ debugStats.plotted }}</strong>
+      <span class="dot">·</span>
+      <span class="label">Skipped</span> 
+      <strong :class="{ 'text-danger': debugStats.skipped > 0 }">{{ debugStats.skipped }}</strong>
     </div>
 
-    <div ref="containerRef" class="relative min-h-0 flex-1 overflow-hidden rounded-2xl border border-slate-200 bg-white">
+    <div ref="containerRef" class="canvas-viewport">
       <canvas
         ref="canvasRef"
-        class="absolute inset-0 h-full w-full cursor-pointer"
+        class="main-canvas"
         :style="stageStyle"
         @click="handleCanvasClick"
       />
 
       <div
         v-if="clusterMenu.visible"
-        class="absolute z-30 w-[280px] rounded-xl border border-slate-200 bg-white/95 p-3 shadow-xl backdrop-blur"
+        class="cluster-popup"
         :style="{ left: `${clusterMenu.left}px`, top: `${clusterMenu.top}px` }"
       >
-        <p class="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Grouped tasks</p>
-        <ul class="max-h-48 space-y-1 overflow-auto">
+        <p class="popup-header">Grouped Tasks</p>
+        <ul class="popup-list">
           <li v-for="item in clusterMenu.items" :key="item.id">
             <button
               type="button"
-              class="w-full rounded-lg px-2 py-1.5 text-left text-sm text-slate-700 hover:bg-slate-100"
+              class="popup-item"
               @click="handleClusterItemSelect(item)"
             >
               {{ item.title }}
@@ -493,10 +496,175 @@ onUnmounted(() => {
 
       <div
         v-if="warnings.length > 0"
-        class="pointer-events-none absolute bottom-3 left-1/2 z-20 w-[min(92%,720px)] -translate-x-1/2 rounded-xl border border-amber-300 bg-amber-50/90 px-3 py-2 text-xs text-amber-900 shadow-sm backdrop-blur"
+        class="canvas-warning"
       >
-        <p v-for="warning in warnings" :key="warning">{{ warning }}</p>
+        <p v-for="warning in warnings" :key="warning" class="warning-text">
+          <span class="warning-icon">⚠️</span> {{ warning }}
+        </p>
       </div>
     </div>
   </section>
 </template>
+
+<style scoped>
+/* --- Container --- */
+.canvas-wrapper {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  gap: 0.75rem;
+}
+
+/* --- Debug Panel --- */
+.debug-panel {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 1rem;
+  background: rgba(255, 255, 255, 0.7);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(226, 232, 240, 0.8);
+  border-radius: 10px;
+  font-size: 0.7rem;
+  color: #64748b;
+  width: fit-content;
+}
+
+.debug-panel strong {
+  color: #1e293b;
+  font-weight: 800;
+}
+
+.debug-panel .text-danger {
+  color: #ef4444;
+}
+
+.debug-panel .label {
+  color: #94a3b8;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.debug-panel .dot {
+  color: #e2e8f0;
+}
+
+/* --- Main Canvas Viewport --- */
+.canvas-viewport {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  background: white;
+  border-radius: 20px;
+  border: 1px solid rgba(226, 232, 240, 0.8);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.03);
+}
+
+.main-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  cursor: crosshair; /* ツール感を出すために十字カーソルに */
+}
+
+/* --- Cluster Popup (Glassmorphism) --- */
+.cluster-popup {
+  position: absolute;
+  z-index: 30;
+  width: 260px;
+  background: rgba(255, 255, 255, 0.9);
+  backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.8);
+  border-radius: 16px;
+  padding: 0.75rem;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+  animation: popup-in 0.2s ease-out;
+}
+
+.popup-header {
+  font-size: 0.65rem;
+  font-weight: 800;
+  color: #94a3b8;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  margin-bottom: 0.75rem;
+  padding-left: 0.5rem;
+}
+
+.popup-list {
+  max-height: 200px;
+  overflow-y: auto;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* スクロールバーのカスタマイズ */
+.popup-list::-webkit-scrollbar {
+  width: 4px;
+}
+.popup-list::-webkit-scrollbar-thumb {
+  background: #e2e8f0;
+  border-radius: 10px;
+}
+
+.popup-item {
+  width: 100%;
+  padding: 0.6rem 0.75rem;
+  text-align: left;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #475569;
+  background: transparent;
+  border: none;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.popup-item:hover {
+  background: rgba(168, 85, 247, 0.08);
+  color: #a855f7;
+}
+
+/* --- Warnings --- */
+.canvas-warning {
+  pointer-events: none;
+  position: absolute;
+  bottom: 1.25rem;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 20;
+  width: min(90%, 600px);
+  background: rgba(255, 251, 235, 0.9);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(251, 191, 36, 0.3);
+  border-radius: 12px;
+  padding: 0.6rem 1rem;
+  box-shadow: 0 10px 20px rgba(180, 83, 9, 0.05);
+}
+
+.warning-text {
+  font-size: 0.75rem;
+  color: #b45309;
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.warning-icon {
+  font-size: 0.85rem;
+}
+
+/* --- Animations --- */
+@keyframes popup-in {
+  from { opacity: 0; transform: scale(0.95) translateY(10px); }
+  to { opacity: 1; transform: scale(1) translateY(0); }
+}
+</style>

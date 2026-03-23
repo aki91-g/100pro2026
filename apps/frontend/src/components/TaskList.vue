@@ -15,34 +15,50 @@ const emit = defineEmits<{
 </script>
 
 <template>
-  <section class="card" v-if="items.length > 0">
-    <h2>📋 Tasks</h2>
+  <section v-if="items.length > 0" class="task-section">
+    <header class="section-header">
+      <span class="icon">📋</span>
+      <h2>Tasks</h2>
+      <span class="count">{{ items.length }}</span>
+    </header>
+
     <div class="task-container">
       <button
         v-for="item in items"
         :key="item.id"
         type="button"
-        class="task-row hover:bg-slate-100 transition-colors cursor-pointer"
+        class="task-row"
         @click="emit('select-item', item)"
       >
-        <SyncStatusBadge
-          :sync-status="item.sync_status"
-          :event-status="syncMap[item.id]"
-          :error-message="errorMap[item.id]"
-          :is-syncing="isSyncing"
-        />
-
-        <span :class="['status-pill', item.status.toLowerCase()]">
-          {{ item.status }}
-        </span>
-
-        <div class="task-info">
-          <strong>{{ item.title }}</strong>
-          <p v-if="item.description">{{ item.description }}</p>
+        <div class="status-indicator">
+          <SyncStatusBadge
+            :sync-status="item.sync_status"
+            :event-status="syncMap[item.id]"
+            :error-message="errorMap[item.id]"
+            :is-syncing="isSyncing"
+          />
         </div>
 
-        <div class="task-meta">
-          <span class="motivation">🔥 {{ item.motivation }}</span>
+        <div class="task-main">
+          <div class="task-top">
+            <span :class="['status-pill', item.status.toLowerCase()]">
+              {{ item.status }}
+            </span>
+            <span class="motivation">
+              <span class="fire">🔥</span> {{ item.motivation }}
+            </span>
+          </div>
+
+          <div class="task-content">
+            <strong class="task-title">{{ item.title }}</strong>
+            <p v-if="item.description" class="task-desc">{{ item.description }}</p>
+          </div>
+        </div>
+
+        <div class="task-chevron">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+          </svg>
         </div>
       </button>
     </div>
@@ -50,18 +66,155 @@ const emit = defineEmits<{
 </template>
 
 <style scoped>
-.card { background: #f8f9fa; border-radius: 12px; padding: 1.5rem; margin-bottom: 1.5rem; border: 1px solid #eee; }
-.task-container { display: flex; flex-direction: column; gap: 8px; margin-top: 1rem; }
-.task-row { position: relative; display: flex; align-items: center; background: white; padding: 16px 12px 12px; border-radius: 8px; border: 1px solid #e0e0e0; }
-.task-info { flex: 1; margin-left: 12px; text-align: left; }
-.task-info p { margin: 2px 0 0 0; font-size: 0.8rem; color: #777; }
-.task-meta { display: flex; align-items: center; gap: 8px; }
-.status-pill { font-size: 0.65rem; font-weight: bold; padding: 3px 6px; border-radius: 4px; min-width: 70px; text-align: center; }
+/* --- Section Container --- */
+.task-section {
+  padding: 0.5rem 0;
+}
 
-.todo { background: #e3f2fd; color: #1976d2; }
-.inprogress { background: #fff3e0; color: #f57c00; }
-.done { background: #e8f5e9; color: #388e3c; }
-.backlog { background: #f5f5f5; color: #616161; }
-.motivation { color: #e53935; font-weight: bold; font-size: 0.85rem; }
+.section-header {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin-bottom: 1.25rem;
+  padding-left: 0.5rem;
+}
 
+.section-header .icon {
+  font-size: 1.2rem;
+}
+
+.section-header h2 {
+  font-size: 1rem;
+  font-weight: 800;
+  color: #1e293b;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  margin: 0;
+}
+
+.section-header .count {
+  background: rgba(168, 85, 247, 0.1);
+  color: #a855f7;
+  font-size: 0.75rem;
+  font-weight: 700;
+  padding: 0.1rem 0.6rem;
+  border-radius: 20px;
+}
+
+/* --- List Layout --- */
+.task-container {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+/* --- Task Row (Individual Card) --- */
+.task-row {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  text-align: left;
+  padding: 1rem 1.25rem;
+  background: rgba(255, 255, 255, 0.6);
+  border: 1px solid rgba(226, 232, 240, 0.8);
+  border-radius: 16px;
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
+  overflow: hidden;
+}
+
+.task-row:hover {
+  background: white;
+  border-color: #a855f7;
+  transform: translateY(-2px);
+  box-shadow: 0 10px 20px rgba(0, 0, 0, 0.04);
+}
+
+.task-row:active {
+  transform: translateY(0);
+}
+
+/* --- Status & Badge --- */
+.status-indicator {
+  margin-right: 1rem;
+  display: flex;
+  align-items: center;
+}
+
+.task-main {
+  flex: 1;
+  min-width: 0; /* テキスト溢れ防止 */
+}
+
+.task-top {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 0.4rem;
+}
+
+.status-pill {
+  font-size: 0.65rem;
+  font-weight: 800;
+  padding: 0.2rem 0.6rem;
+  border-radius: 8px;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+
+/* 各ステータスの色味をグラスデザインに合わせ調整 */
+.todo { background: #f1f5f9; color: #64748b; }
+.inprogress { background: rgba(251, 191, 36, 0.1); color: #b45309; }
+.done { background: rgba(34, 197, 94, 0.1); color: #15803d; }
+.backlog { background: #f8fafc; color: #94a3b8; border: 1px dashed #e2e8f0; }
+
+.motivation {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: #ef4444;
+  display: flex;
+  align-items: center;
+  gap: 0.2rem;
+}
+
+.fire {
+  font-size: 0.85rem;
+}
+
+/* --- Text Content --- */
+.task-content {
+  display: flex;
+  flex-direction: column;
+}
+
+.task-title {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #1e293b;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.task-desc {
+  font-size: 0.8rem;
+  color: #94a3b8;
+  margin-top: 0.1rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* --- Decorative Chevron --- */
+.task-chevron {
+  margin-left: 1rem;
+  color: #cbd5e1;
+  transition: transform 0.3s ease, color 0.3s ease;
+}
+
+.task-row:hover .task-chevron {
+  color: #a855f7;
+  transform: translateX(3px);
+}
 </style>
