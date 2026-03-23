@@ -506,58 +506,6 @@ onUnmounted(() => {
   </section>
 </template>
 
-<template>
-  <section class="canvas-wrapper">
-    <div v-if="showDebug" class="debug-panel">
-      <span class="label">Input</span> <strong>{{ debugStats.input }}</strong>
-      <span class="dot">·</span>
-      <span class="label">Visible</span> <strong>{{ debugStats.visible }}</strong>
-      <span class="dot">·</span>
-      <span class="label">Plotted</span> <strong>{{ debugStats.plotted }}</strong>
-      <span class="dot">·</span>
-      <span class="label">Skipped</span> 
-      <strong :class="{ 'text-danger': debugStats.skipped > 0 }">{{ debugStats.skipped }}</strong>
-    </div>
-
-    <div ref="containerRef" class="canvas-viewport">
-      <canvas
-        ref="canvasRef"
-        class="main-canvas"
-        :style="stageStyle"
-        @click="handleCanvasClick"
-      />
-
-      <div
-        v-if="clusterMenu.visible"
-        class="cluster-popup"
-        :style="{ left: `${clusterMenu.left}px`, top: `${clusterMenu.top}px` }"
-      >
-        <p class="popup-header">Grouped Tasks</p>
-        <ul class="popup-list">
-          <li v-for="item in clusterMenu.items" :key="item.id">
-            <button
-              type="button"
-              class="popup-item"
-              @click="handleClusterItemSelect(item)"
-            >
-              {{ item.title }}
-            </button>
-          </li>
-        </ul>
-      </div>
-
-      <div
-        v-if="warnings.length > 0"
-        class="canvas-warning"
-      >
-        <p v-for="warning in warnings" :key="warning" class="warning-text">
-          <span class="warning-icon">⚠️</span> {{ warning }}
-        </p>
-      </div>
-    </div>
-  </section>
-</template>
-
 <style scoped>
 /* --- Container --- */
 .canvas-wrapper {

@@ -61,6 +61,17 @@ const strictErrorMap = computed<Record<string, string>>(() => {
   return normalized;
 });
 
+const isMutating = computed(() => isSavingEdit.value || isArchiving.value || isDeleting.value);
+const drawerTitle = computed(() => (
+  props.mode === 'create'
+    ? 'Create Task'
+    : props.mode === 'view'
+      ? 'Details'
+      : props.mode === 'edit'
+        ? 'Edit Task'
+        : 'Tasks'
+));
+
 function toDatetimeLocal(isoValue: string): string {
   const date = new Date(isoValue);
   if (Number.isNaN(date.getTime())) return '';
@@ -160,6 +171,7 @@ async function submitCreate(): Promise<void> {
 }
 
 async function handleArchive(): Promise<void> {
+  if (isMutating.value) return;
   if (!props.selectedItem) return;
 
   isArchiving.value = true;
@@ -175,6 +187,7 @@ async function handleArchive(): Promise<void> {
 }
 
 async function handleDelete(): Promise<void> {
+  if (isMutating.value) return;
   if (!props.selectedItem) return;
   if (!confirm('Are you sure you want to delete this task?')) return;
 
@@ -191,6 +204,7 @@ async function handleDelete(): Promise<void> {
 }
 
 async function handleEditSubmit(): Promise<void> {
+  if (isMutating.value) return;
   if (!props.selectedItem || !editTitle.value.trim() || !editDue.value.trim()) {
     return;
   }
@@ -255,7 +269,7 @@ onUnmounted(() => {
     <div v-if="open" class="drawer-overlay">
       <div class="drawer-backdrop" @click="closeDrawer" />
 
-      <aside role="dialog" aria-modal="true" class="drawer-content">
+      <aside role="dialog" aria-modal="true" aria-labelledby="task-drawer-title" class="drawer-content">
         <div class="bg-glow">
           <div class="glow-orb orb-red"></div>
           <div class="glow-orb orb-blue"></div>
@@ -270,9 +284,7 @@ onUnmounted(() => {
               </svg>
               <span>Back</span>
             </button>
-            <h2 class="drawer-title">
-              {{ mode === 'create' ? 'Create Task' : mode === 'view' ? 'Details' : mode === 'edit' ? 'Edit Task' : 'Tasks' }}
-            </h2>
+            <h2 id="task-drawer-title" class="drawer-title">{{ drawerTitle }}</h2>
           </div>
 
           <div class="header-right">
@@ -348,10 +360,14 @@ onUnmounted(() => {
                 <label>Description</label>
                 <textarea v-model="editDescription" rows="3" :disabled="isSavingEdit" class="user-input" />
               </div>
-              <div class="input-row">
+              <div class="input-row input-row-3">
                 <div class="input-group">
                   <label>Due</label>
                   <input v-model="editDue" type="datetime-local" :disabled="isSavingEdit" class="user-input" />
+                </div>
+                <div class="input-group">
+                  <label>Duration (min)</label>
+                  <input v-model.number="editDuration" type="number" min="1" :disabled="isSavingEdit" class="user-input" />
                 </div>
                 <div class="input-group">
                   <label>Motivation</label>
@@ -362,13 +378,13 @@ onUnmounted(() => {
               </div>
 
               <div class="danger-zone">
-                <button type="button" class="danger-button-outline" @click="handleArchive" :disabled="isSavingEdit || isArchiving">Archive</button>
-                <button type="button" class="danger-button-outline" @click="handleDelete" :disabled="isSavingEdit || isDeleting">Delete</button>
+                <button type="button" class="danger-button-outline" @click="handleArchive" :disabled="isMutating">Archive</button>
+                <button type="button" class="danger-button-outline" @click="handleDelete" :disabled="isMutating">Delete</button>
               </div>
 
               <div class="form-actions mt-auto">
                 <button type="button" class="link-text" @click="cancelEdit">Cancel</button>
-                <button type="submit" :disabled="!editTitle.trim() || !editDue.trim() || isSavingEdit" class="primary-button">
+                <button type="submit" :disabled="!editTitle.trim() || !editDue.trim() || isMutating" class="primary-button">
                   Save Changes
                 </button>
               </div>
@@ -477,6 +493,10 @@ onUnmounted(() => {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 1rem;
+}
+
+.input-row-3 {
+  grid-template-columns: repeat(3, 1fr);
 }
 
 .input-group label {
