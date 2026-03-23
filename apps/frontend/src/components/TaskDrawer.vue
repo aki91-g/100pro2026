@@ -251,290 +251,127 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <transition
-    enter-active-class="transition duration-300 ease-out"
-    enter-from-class="translate-x-full opacity-0"
-    enter-to-class="translate-x-0 opacity-100"
-    leave-active-class="transition duration-200 ease-in"
-    leave-from-class="translate-x-0 opacity-100"
-    leave-to-class="translate-x-full opacity-0"
-  >
-    <div v-if="open" class="fixed inset-0 z-40">
-      <div class="absolute inset-0 bg-slate-950/25" @click="closeDrawer" />
+  <transition name="drawer-slide">
+    <div v-if="open" class="drawer-overlay">
+      <div class="drawer-backdrop" @click="closeDrawer" />
 
-      <aside role="dialog" aria-modal="true" class="absolute right-0 top-0 flex h-full w-full max-w-xl flex-col border-l border-slate-200 bg-white shadow-2xl">
-        <header class="flex items-center justify-between border-b border-slate-200 px-5 py-4">
-          <div class="flex items-center gap-3">
-            <!-- Back to List button visible in 'view' mode -->
-            <button
-              v-if="mode === 'view'"
-              type="button"
-              class="flex items-center gap-1 rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-100"
-              @click="goToTasks"
-              title="Return to task list"
-            >
+      <aside role="dialog" aria-modal="true" class="drawer-content">
+        <div class="bg-glow">
+          <div class="glow-orb orb-red"></div>
+          <div class="glow-orb orb-blue"></div>
+          <div class="glow-center"></div>
+        </div>
+
+        <header class="drawer-header">
+          <div class="header-left">
+            <button v-if="mode === 'view'" type="button" class="icon-button-outline" @click="goToTasks">
               <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path>
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
               </svg>
-              <span>Back to List</span>
+              <span>Back</span>
             </button>
-            <h2 class="text-lg font-semibold text-slate-900">
-              {{ mode === 'create' ? 'Create Task' : mode === 'view' ? 'Task Details' : mode === 'edit' ? 'Edit Task' : 'Tasks' }}
+            <h2 class="drawer-title">
+              {{ mode === 'create' ? 'Create Task' : mode === 'view' ? 'Details' : mode === 'edit' ? 'Edit Task' : 'Tasks' }}
             </h2>
           </div>
 
-          <div class="flex items-center gap-2">
-            <!-- New Task button visible in 'tasks' mode -->
-            <button
-              v-if="mode === 'tasks'"
-              type="button"
-              class="flex items-center gap-1 rounded-lg bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-700"
-              @click="goToCreate"
-              title="Create a new task"
-            >
+          <div class="header-right">
+            <button v-if="mode === 'tasks'" type="button" class="primary-button-sm" @click="goToCreate">
               <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
               </svg>
-              <span>New Task</span>
+              <span>New</span>
             </button>
-            <button
-              type="button"
-              class="rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-700 hover:bg-slate-100"
-              @click="closeDrawer"
-            >
-              Close
-            </button>
+            <button type="button" class="secondary-button-sm" @click="closeDrawer">Close</button>
           </div>
         </header>
 
-        <div class="flex-1 overflow-y-auto p-5">
-          <transition
-            mode="out-in"
-            enter-active-class="transition duration-200 ease-out"
-            enter-from-class="translate-y-2 opacity-0"
-            enter-to-class="translate-y-0 opacity-100"
-            leave-active-class="transition duration-150 ease-in"
-            leave-from-class="translate-y-0 opacity-100"
-            leave-to-class="translate-y-2 opacity-0"
-          >
-            <form v-if="mode === 'create'" key="create" @submit.prevent="submitCreate" class="space-y-4">
-              <div>
-                <label for="create-title" class="mb-1 block text-sm font-medium text-slate-700">Title *</label>
-                <input
-                  id="create-title"
-                  v-model="createTitle"
-                  type="text"
-                  placeholder="Enter task title"
-                  :disabled="isCreating"
-                  class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
-                />
+        <div class="drawer-body">
+          <transition name="fade-slide" mode="out-in">
+            <form v-if="mode === 'create'" key="create" @submit.prevent="submitCreate" class="task-form">
+              <div class="input-group">
+                <label>Title *</label>
+                <input v-model="createTitle" type="text" placeholder="Task name..." :disabled="isCreating" class="user-input" />
               </div>
 
-              <div>
-                <label for="create-description" class="mb-1 block text-sm font-medium text-slate-700">Description</label>
-                <textarea
-                  id="create-description"
-                  v-model="createDescription"
-                  rows="3"
-                  placeholder="Optional"
-                  :disabled="isCreating"
-                  class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
-                />
+              <div class="input-group">
+                <label>Description</label>
+                <textarea v-model="createDescription" rows="3" placeholder="Optional notes" :disabled="isCreating" class="user-input" />
               </div>
 
-              <div>
-                <label for="create-due" class="mb-1 block text-sm font-medium text-slate-700">Due *</label>
-                <input
-                  id="create-due"
-                  v-model="createDue"
-                  type="datetime-local"
-                  :disabled="isCreating"
-                  class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
-                />
-              </div>
-
-              <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                <div>
-                  <label for="create-duration" class="mb-1 block text-sm font-medium text-slate-700">Duration (min)</label>
-                  <input
-                    id="create-duration"
-                    v-model.number="createDuration"
-                    type="number"
-                    min="1"
-                    placeholder="Optional"
-                    :disabled="isCreating"
-                    class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
-                  />
+              <div class="input-row">
+                <div class="input-group">
+                  <label>Due *</label>
+                  <input v-model="createDue" type="datetime-local" :disabled="isCreating" class="user-input" />
                 </div>
-
-                <div>
-                  <label for="create-motivation" class="mb-1 block text-sm font-medium text-slate-700">Motivation</label>
-                  <select
-                    id="create-motivation"
-                    v-model.number="createMotivation"
-                    :disabled="isCreating"
-                    class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
-                  >
-                    <option v-for="n in 10" :key="n" :value="n">{{ n }}</option>
-                  </select>
+                <div class="input-group">
+                  <label>Duration (min)</label>
+                  <input v-model.number="createDuration" type="number" min="1" :disabled="isCreating" class="user-input" />
                 </div>
               </div>
 
-              <div class="flex justify-end gap-2 pt-2">
-                <button
-                  type="button"
-                  class="rounded-lg border border-slate-300 px-4 py-2 text-sm text-slate-700 hover:bg-slate-100"
-                  @click="cancelCreate"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  :disabled="!createTitle.trim() || !createDue.trim() || isCreating"
-                  class="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
-                >
+              <div class="form-actions">
+                <button type="button" class="link-text" @click="cancelCreate">Cancel</button>
+                <button type="submit" :disabled="!createTitle.trim() || !createDue.trim() || isCreating" class="primary-button">
                   {{ isCreating ? 'Creating...' : 'Create Task' }}
                 </button>
               </div>
             </form>
 
-            <div v-else-if="mode === 'view'" key="view" class="space-y-4">
-              <div v-if="selectedItem" class="relative rounded-xl border border-slate-200 bg-slate-50 p-4">
-                <button
-                  type="button"
-                  class="absolute right-4 top-4 rounded-lg border border-slate-300 bg-white px-3 py-1 text-sm font-medium text-slate-700 hover:bg-slate-100"
-                  @click="startEdit"
-                  title="Edit this task"
-                >
-                  Edit
-                </button>
-                <h3 class="pr-16 text-base font-semibold text-slate-900">{{ selectedItem.title }}</h3>
-                <p class="mt-1 text-sm text-slate-600">{{ selectedItem.description || 'No description' }}</p>
-                <div class="mt-3 grid grid-cols-2 gap-3 text-xs text-slate-600">
-                  <div>
-                    <span class="font-medium text-slate-800">Status</span>
-                    <p class="mt-1">{{ selectedItem.status }}</p>
-                  </div>
-                  <div>
-                    <span class="font-medium text-slate-800">Due</span>
-                    <p class="mt-1">{{ new Date(selectedItem.due).toLocaleString() }}</p>
-                  </div>
-                  <div>
-                    <span class="font-medium text-slate-800">Motivation</span>
-                    <p class="mt-1">{{ selectedItem.motivation ?? 'None' }}</p>
-                  </div>
-                  <div>
-                    <span class="font-medium text-slate-800">Duration</span>
-                    <p class="mt-1">{{ selectedItem.duration_minutes ?? 'None' }}</p>
-                  </div>
+            <div v-else-if="mode === 'view'" key="view" class="view-content">
+              <div v-if="selectedItem" class="detail-card">
+                <div class="detail-header">
+                  <h3>{{ selectedItem.title }}</h3>
+                  <button type="button" class="edit-link" @click="startEdit">Edit</button>
+                </div>
+                <p class="detail-desc">{{ selectedItem.description || 'No description' }}</p>
+                
+                <div class="detail-grid">
+                  <div class="grid-item"><span class="label">Status</span><p>{{ selectedItem.status }}</p></div>
+                  <div class="grid-item"><span class="label">Due</span><p>{{ new Date(selectedItem.due).toLocaleString() }}</p></div>
+                  <div class="grid-item"><span class="label">Motivation</span><p>{{ selectedItem.motivation ?? '5' }}</p></div>
+                  <div class="grid-item"><span class="label">Duration</span><p>{{ selectedItem.duration_minutes ?? '---' }} min</p></div>
                 </div>
               </div>
             </div>
 
-            <div v-else-if="mode === 'tasks'" key="tasks" class="space-y-2">
+            <div v-else-if="mode === 'tasks'" key="tasks" class="task-list-wrapper">
               <TaskList :items="items" :sync-map="strictSyncMap" :error-map="strictErrorMap" :is-syncing="isSyncing" @select-item="handleTaskListSelect" />
             </div>
 
-            <form v-else key="edit" class="space-y-4" @submit.prevent="handleEditSubmit">
-              <div>
-                <label for="edit-title" class="mb-1 block text-sm font-medium text-slate-700">Title</label>
-                <input
-                  id="edit-title"
-                  v-model="editTitle"
-                  type="text"
-                  :disabled="!selectedItem || isSavingEdit"
-                  class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
-                />
+            <form v-else key="edit" class="task-form" @submit.prevent="handleEditSubmit">
+              <div class="input-group">
+                <label>Title</label>
+                <input v-model="editTitle" type="text" :disabled="isSavingEdit" class="user-input" />
               </div>
-
-              <div>
-                <label for="edit-description" class="mb-1 block text-sm font-medium text-slate-700">Description</label>
-                <textarea
-                  id="edit-description"
-                  v-model="editDescription"
-                  rows="3"
-                  :disabled="!selectedItem || isSavingEdit"
-                  class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
-                />
+              <div class="input-group">
+                <label>Description</label>
+                <textarea v-model="editDescription" rows="3" :disabled="isSavingEdit" class="user-input" />
               </div>
-
-              <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                <div>
-                  <label for="edit-due" class="mb-1 block text-sm font-medium text-slate-700">Due</label>
-                  <input
-                    id="edit-due"
-                    v-model="editDue"
-                    type="datetime-local"
-                    :disabled="!selectedItem || isSavingEdit"
-                    class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
-                  />
+              <div class="input-row">
+                <div class="input-group">
+                  <label>Due</label>
+                  <input v-model="editDue" type="datetime-local" :disabled="isSavingEdit" class="user-input" />
                 </div>
-                <div>
-                  <label for="edit-duration" class="mb-1 block text-sm font-medium text-slate-700">Duration</label>
-                  <input
-                    id="edit-duration"
-                    v-model.number="editDuration"
-                    type="number"
-                    min="1"
-                    :disabled="!selectedItem || isSavingEdit"
-                    class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
-                  />
+                <div class="input-group">
+                  <label>Motivation</label>
+                  <select v-model.number="editMotivation" :disabled="isSavingEdit" class="user-input">
+                    <option v-for="n in 10" :key="n" :value="n">{{ n }}</option>
+                  </select>
                 </div>
               </div>
 
-              <div>
-                <label for="edit-motivation" class="mb-1 block text-sm font-medium text-slate-700">Motivation</label>
-                <select
-                  id="edit-motivation"
-                  v-model.number="editMotivation"
-                  :disabled="!selectedItem || isSavingEdit"
-                  class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
-                >
-                  <option v-for="n in 10" :key="n" :value="n">{{ n }}</option>
-                </select>
+              <div class="danger-zone">
+                <button type="button" class="danger-button-outline" @click="handleArchive" :disabled="isSavingEdit || isArchiving">Archive</button>
+                <button type="button" class="danger-button-outline" @click="handleDelete" :disabled="isSavingEdit || isDeleting">Delete</button>
               </div>
 
-              <div class="flex items-center justify-between gap-2">
-                <div class="flex gap-2">
-                  <button
-                    type="button"
-                    class="rounded-lg border border-amber-300 bg-amber-50 px-4 py-2 text-sm text-amber-700 hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-50"
-                    :disabled="!selectedItem || isSavingEdit || isArchiving || isDeleting"
-                    @click="handleArchive"
-                  >
-                    {{ isArchiving ? 'Archiving...' : 'Archive' }}
-                  </button>
-                  <button
-                    type="button"
-                    class="rounded-lg border border-red-300 bg-red-50 px-4 py-2 text-sm text-red-700 hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-50"
-                    :disabled="!selectedItem || isSavingEdit || isArchiving || isDeleting"
-                    @click="handleDelete"
-                  >
-                    {{ isDeleting ? 'Deleting...' : 'Delete' }}
-                  </button>
-                </div>
-                <div class="flex gap-2">
-                  <button
-                    type="button"
-                    class="rounded-lg border border-slate-300 px-4 py-2 text-sm text-slate-700 hover:bg-slate-100"
-                    :disabled="isSavingEdit || isArchiving || isDeleting"
-                    @click="cancelEdit"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    class="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
-                    :disabled="!selectedItem || !editTitle.trim() || !editDue.trim() || isSavingEdit || isArchiving || isDeleting"
-                  >
-                    {{ isSavingEdit ? 'Saving...' : 'Save Changes' }}
-                  </button>
-                </div>
+              <div class="form-actions mt-auto">
+                <button type="button" class="link-text" @click="cancelEdit">Cancel</button>
+                <button type="submit" :disabled="!editTitle.trim() || !editDue.trim() || isSavingEdit" class="primary-button">
+                  Save Changes
+                </button>
               </div>
-
-              <p class="rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-800">
-                Edit mode persists task details to backend and refreshes shared item state.
-              </p>
             </form>
           </transition>
         </div>
@@ -542,3 +379,279 @@ onUnmounted(() => {
     </div>
   </transition>
 </template>
+
+<style scoped>
+/* --- Layout & Overlay --- */
+.drawer-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.drawer-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.1);
+  backdrop-filter: blur(4px);
+}
+
+.drawer-content {
+  position: relative;
+  width: 100%;
+  max-width: 500px;
+  height: 100%;
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(30px);
+  border-left: 1px solid rgba(255, 255, 255, 0.5);
+  box-shadow: -10px 0 50px rgba(0, 0, 0, 0.05);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* --- Background Orbs (Login Screen Theme) --- */
+.bg-glow {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+}
+
+.glow-orb {
+  position: absolute;
+  width: 400px;
+  height: 400px;
+  border-radius: 50%;
+  filter: blur(80px);
+  opacity: 0.12;
+}
+
+.orb-red { top: -10%; right: -10%; background: radial-gradient(circle, #ef4444, transparent); }
+.orb-blue { bottom: -10%; left: -10%; background: radial-gradient(circle, #3b82f6, transparent); }
+.glow-center {
+  position: absolute;
+  top: 40%; left: 30%;
+  width: 300px; height: 300px;
+  background: radial-gradient(circle, rgba(168, 85, 247, 0.2), transparent);
+  filter: blur(60px);
+}
+
+/* --- Header --- */
+.drawer-header {
+  padding: 1.5rem 2rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+}
+
+.header-left, .header-right {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.drawer-title {
+  font-size: 1.25rem;
+  font-weight: 800;
+  color: #1e293b;
+  letter-spacing: -0.02em;
+}
+
+/* --- Body & Forms --- */
+.drawer-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 2rem;
+}
+
+.task-form {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.input-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+}
+
+.input-group label {
+  display: block;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: #94a3b8;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 0.4rem;
+}
+
+.user-input {
+  width: 100%;
+  background: rgba(255, 255, 255, 0.5);
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 0.75rem 1rem;
+  color: #1e293b;
+  font-size: 0.95rem;
+  transition: all 0.2s;
+}
+
+.user-input:focus {
+  outline: none;
+  border-color: #a855f7;
+  background: white;
+  box-shadow: 0 0 0 3px rgba(168, 85, 247, 0.1);
+}
+
+/* --- Buttons --- */
+.primary-button {
+  background: linear-gradient(135deg, #ef4444 0%, #a855f7 50%, #3b82f6 100%);
+  color: white;
+  padding: 0.8rem 1.5rem;
+  border-radius: 12px;
+  font-weight: 700;
+  border: none;
+  cursor: pointer;
+  transition: all 0.3s;
+  box-shadow: 0 4px 15px rgba(168, 85, 247, 0.25);
+}
+
+.primary-button:disabled {
+  background: #e2e8f0;
+  color: #94a3b8;
+  box-shadow: none;
+  cursor: not-allowed;
+}
+
+.primary-button-sm {
+  background: linear-gradient(135deg, #ef4444 0%, #a855f7 100%);
+  color: white;
+  padding: 0.5rem 1rem;
+  border-radius: 8px;
+  font-size: 0.875rem;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.secondary-button-sm {
+  background: white;
+  border: 1px solid #e2e8f0;
+  color: #64748b;
+  padding: 0.5rem 1rem;
+  border-radius: 8px;
+  font-size: 0.875rem;
+  cursor: pointer;
+}
+
+.icon-button-outline {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  color: #64748b;
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+.link-text {
+  color: #94a3b8;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.form-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 1.5rem;
+  margin-top: 1rem;
+}
+
+/* --- Details View --- */
+.detail-card {
+  background: rgba(255, 255, 255, 0.5);
+  border: 1px solid rgba(255, 255, 255, 0.8);
+  border-radius: 20px;
+  padding: 1.5rem;
+}
+
+.detail-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 1rem;
+}
+
+.detail-header h3 {
+  font-size: 1.25rem;
+  font-weight: 800;
+  color: #1e293b;
+}
+
+.edit-link {
+  color: #a855f7;
+  font-weight: 700;
+  font-size: 0.875rem;
+}
+
+.detail-desc {
+  color: #64748b;
+  font-size: 0.95rem;
+  margin-bottom: 1.5rem;
+  line-height: 1.6;
+}
+
+.detail-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.25rem;
+}
+
+.grid-item .label {
+  display: block;
+  font-size: 0.65rem;
+  font-weight: 800;
+  color: #cbd5e1;
+  text-transform: uppercase;
+  margin-bottom: 0.25rem;
+}
+
+.grid-item p {
+  color: #475569;
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+
+/* --- Danger Zone --- */
+.danger-zone {
+  display: flex;
+  gap: 0.75rem;
+  padding: 1rem;
+  border-radius: 12px;
+  background: rgba(254, 242, 242, 0.5);
+}
+
+.danger-button-outline {
+  flex: 1;
+  padding: 0.6rem;
+  border: 1px solid #fecaca;
+  background: white;
+  color: #ef4444;
+  border-radius: 8px;
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+/* --- Transitions --- */
+.drawer-slide-enter-active, .drawer-slide-leave-active { transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1); }
+.drawer-slide-enter-from, .drawer-slide-leave-to { transform: translateX(100%); }
+
+.fade-slide-enter-active, .fade-slide-leave-active { transition: all 0.3s ease; }
+.fade-slide-enter-from { opacity: 0; transform: translateY(10px); }
+.fade-slide-leave-to { opacity: 0; transform: translateY(-10px); }
+</style>
