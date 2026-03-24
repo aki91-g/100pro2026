@@ -2,8 +2,8 @@
 defineProps<{ show: boolean }>();
 const emit = defineEmits<{ 'close': [] }>();
 
-const mentors = ['坊田', '山田', '矢田'];
-const feedbacks = ['RK(友人)', 'RN(友人・9期生)', '○○ (9期生)'];
+const mentors = ['メンターの面々'];
+const feedbacks = ['RK(友人)', 'RN(友人・9期生)'];
 </script>
 
 <template>
