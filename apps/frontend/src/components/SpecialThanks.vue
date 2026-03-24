@@ -2,7 +2,8 @@
 defineProps<{ show: boolean }>();
 const emit = defineEmits<{ 'close': [] }>();
 
-const mentors = ['メンターの面々'];
+const hosts = ['TS', 'TY']
+const mentors = ['YB', 'AS', 'KY', 'MA'];
 const feedbacks = ['RK(友人)', 'RN(友人・9期生)'];
 </script>
 
@@ -36,24 +37,27 @@ const feedbacks = ['RK(友人)', 'RN(友人・9期生)'];
 
           <div class="thanks-container">
             <h3 class="thanks-title">Special Thanks to</h3>
-            
-              <div class="thanks-item">
-                <span class="role-label">Program Host</span>
-                <p class="person-name">下川さん</p>
-              </div>
-
-              <div class="thanks-item">
-                <span class="role-label">Special Support</span>
-                <ul class="feedback-list">
-                  <li v-for="name in mentors" :key="name">{{ name }}</li>
+            <div class="thanks-grid">
+              <section class="thanks-item">
+                <span class="role-label">Program Hosts</span>
+                <ul class="name-grid">
+                  <li v-for="name in hosts" :key="name" class="name-chip">{{ name }}</li>
                 </ul>
-              </div>
+              </section>
 
-            <div class="feedback-section">
-              <span class="role-label">Feedbacks from</span>
-              <ul class="feedback-list">
-                <li v-for="name in feedbacks" :key="name">{{ name }}</li>
-              </ul>
+              <section class="thanks-item">
+                <span class="role-label">Special Support</span>
+                <ul class="name-grid">
+                  <li v-for="name in mentors" :key="name" class="name-chip">{{ name }}</li>
+                </ul>
+              </section>
+
+              <section class="thanks-item thanks-item-wide">
+                <span class="role-label">Feedback from</span>
+                <ul class="name-grid feedback-grid">
+                  <li v-for="name in feedbacks" :key="name" class="name-chip">{{ name }}</li>
+                </ul>
+              </section>
             </div>
           </div>
         </div>
@@ -84,6 +88,7 @@ const feedbacks = ['RK(友人)', 'RN(友人・9期生)'];
   background: #ffffff;
   width: 100%;
   max-width: 720px;
+  max-height: min(88vh, 820px);
   border-radius: 2rem;
   box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
   overflow: hidden;
@@ -94,10 +99,11 @@ const feedbacks = ['RK(友人)', 'RN(友人・9期生)'];
 
 /* ヘッダー */
 .modal-header {
-  padding: 2.5rem 2rem 1rem;
+  padding: 2rem 2rem 1rem;
   text-align: center;
   position: relative;
   background: linear-gradient(to bottom, #f8fafc, #ffffff);
+  flex-shrink: 0;
 }
 
 .modal-title {
@@ -137,8 +143,10 @@ const feedbacks = ['RK(友人)', 'RN(友人・9期生)'];
 
 /* ボディ */
 .modal-body {
-  padding: 1rem 3rem 3rem;
+  padding: 1rem 2.25rem 2rem;
   text-align: center;
+  min-height: 0;
+  overflow-y: auto;
 }
 
 .author-section {
@@ -187,9 +195,21 @@ const feedbacks = ['RK(友人)', 'RN(友人・9期生)'];
 
 .thanks-grid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 2rem;
-  margin-bottom: 1.5rem;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+  align-items: stretch;
+}
+
+.thanks-item {
+  border: 1px solid #e2e8f0;
+  border-radius: 1rem;
+  padding: 1rem;
+  background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+  text-align: center;
+}
+
+.thanks-item-wide {
+  grid-column: 1 / -1;
 }
 
 .role-label {
@@ -205,16 +225,28 @@ const feedbacks = ['RK(友人)', 'RN(友人・9期生)'];
   font-size: 1.15rem;
   font-weight: 800;
   color: #1e293b;
-  padding: 0.5rem 1rem;
+  padding: 0.4rem 1rem;
+  margin: 0;
 }
 
-.feedback-list {
+.name-grid {
   list-style: none;
-  padding: 0.5rem;
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: 1rem 2rem;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.6rem;
+}
+
+.feedback-grid {
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+}
+
+.name-chip {
+  border: 1px solid #dbe3ee;
+  background: #ffffff;
+  border-radius: 0.75rem;
+  padding: 0.5rem 0.65rem;
   font-size: 1rem;
   font-weight: 700;
   color: #334155;
@@ -234,6 +266,7 @@ const feedbacks = ['RK(友人)', 'RN(友人・9期生)'];
   padding: 1.25rem;
   background: #f8fafc;
   border-top: 1px solid #f1f5f9;
+  flex-shrink: 0;
 }
 
 .copyright {
@@ -248,5 +281,38 @@ const feedbacks = ['RK(友人)', 'RN(友人・9期生)'];
 .modal-fade-enter-from, .modal-fade-leave-to {
   opacity: 0;
   transform: scale(0.9) translateY(20px);
+}
+
+@media (max-width: 760px) {
+  .modal-overlay {
+    padding: 0.75rem;
+    align-items: flex-end;
+  }
+
+  .modal-card {
+    max-height: 92vh;
+    border-radius: 1.25rem;
+  }
+
+  .modal-header {
+    padding: 1.25rem 1rem 0.75rem;
+  }
+
+  .modal-body {
+    padding: 0.75rem 1rem 1.25rem;
+  }
+
+  .thanks-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .thanks-item-wide {
+    grid-column: auto;
+  }
+
+  .name-grid,
+  .feedback-grid {
+    grid-template-columns: 1fr;
+  }
 }
 </style>

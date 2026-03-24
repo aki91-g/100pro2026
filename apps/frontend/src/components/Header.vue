@@ -2,6 +2,7 @@
 defineProps<{
   displayUsername: string;
   isSyncing: boolean;
+  isGuest: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -35,13 +36,14 @@ const emit = defineEmits<{
           ?
         </button>
 
-        <span class="status-indicator" :class="{ 'is-syncing': isSyncing }">
+        <span class="status-indicator" :class="{ 'is-syncing': isSyncing && !isGuest }">
           <span class="dot" />
-          {{ isSyncing ? 'Database syncing...' : 'Database idle' }}
+          {{ isGuest ? 'Guest local mode' : isSyncing ? 'Database syncing...' : 'Database idle' }}
         </span>
 
         <div class="profile-chip">
           <span class="username">{{ displayUsername }}</span>
+          <span v-if="isGuest" class="guest-badge">Guest Mode</span>
           <button type="button" class="logout-btn" @click="emit('logout')">
             Logout
           </button>
@@ -177,6 +179,16 @@ const emit = defineEmits<{
 }
 
 .username { font-weight: 500; color: #0f172a; }
+
+.guest-badge {
+  border-radius: 9999px;
+  border: 1px solid #fbbf24;
+  background: #fef3c7;
+  color: #92400e;
+  padding: 0.15rem 0.5rem;
+  font-size: 0.7rem;
+  font-weight: 700;
+}
 
 .logout-btn {
   border-radius: 0.375rem;

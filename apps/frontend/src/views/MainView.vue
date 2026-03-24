@@ -17,7 +17,7 @@ import SpecialThanksModal from '@/components/SpecialThanks.vue';
 const auth = useAuth();
 const { items, isSyncing, fetchActiveItems, startNewSession, getCurrentToken, bindSyncStatusMap } = useItems();
 const { syncMap, errorMap } = useSyncStatus();
-const { displayUsername } = auth;
+const { displayUsername, isGuest } = auth;
 
 // --- Graph State ---
 const selectedRange = ref<GraphTimeRangeKey>('1w');
@@ -109,8 +109,10 @@ const handleGlobalKeydown = (e: KeyboardEvent) => {
 
 // --- Lifecycles & Watchers ---
 onMounted(async () => {
-  await auth.ensureUsername();
-  unlistenRemoteCatchup = await listen('remote-catchup', () => handleRefreshItems());
+  if (!isGuest.value) {
+    await auth.ensureUsername();
+    unlistenRemoteCatchup = await listen('remote-catchup', () => handleRefreshItems());
+  }
   await loadItems(startNewSession());
   hasCompletedInitialLoad = true;
   window.addEventListener('keydown', handleGlobalKeydown);
@@ -126,6 +128,7 @@ watch(
   auth.username,
   async (nextUsername) => {
     if (!hasCompletedInitialLoad) return;
+    if (isGuest.value) return;
 
     const normalized = nextUsername?.trim().toLowerCase();
     if (!normalized || normalized === 'unknown') {
@@ -160,6 +163,7 @@ watch(
         <AppHeader 
           :display-username="displayUsername" 
           :is-syncing="isSyncing" 
+          :is-guest="isGuest"
           @logout="handleLogout"
           @show-thanks="isThanksOpen = true" 
           @show-help="isDrawerOpen = true" 

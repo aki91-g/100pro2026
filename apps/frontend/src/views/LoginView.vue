@@ -2,7 +2,7 @@
 import { onMounted, onUnmounted, ref } from 'vue';
 import { useAuth } from '@/composables/useAuth';
 
-const { login, signUp } = useAuth();
+const { login, signUp, continueAsGuest } = useAuth();
 
 const isRegisterMode = ref(false);
 const emailInput = ref('');
@@ -91,6 +91,11 @@ async function handleRegister() {
     isLogging.value = false;
   }
 }
+
+function handleGuestLogin(): void {
+  clearError();
+  continueAsGuest();
+}
 </script>
 
 <template>
@@ -161,6 +166,15 @@ async function handleRegister() {
         >
           <span v-if="isLogging">{{ isRegisterMode ? 'Creating account...' : 'Logging in...' }}</span>
           <span v-else>{{ isRegisterMode ? 'Sign Up' : 'Login' }}</span>
+        </button>
+
+        <button
+          type="button"
+          class="guest-button"
+          :disabled="isLogging"
+          @click="handleGuestLogin"
+        >
+          Continue as Guest
         </button>
 
         <Transition name="fade">
@@ -341,6 +355,28 @@ h2 {
 .primary-button:hover:not(:disabled) {
   transform: translateY(-1px);
   filter: brightness(1.05);
+}
+
+.guest-button {
+  width: 100%;
+  background: rgba(255, 255, 255, 0.75);
+  border: 1px solid #cbd5e1;
+  color: #334155;
+  padding: 0.82rem;
+  border-radius: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.guest-button:hover:not(:disabled) {
+  background: #ffffff;
+  border-color: #94a3b8;
+}
+
+.guest-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 
 .switch-mode {

@@ -1,6 +1,7 @@
 import { ref, watch, type Ref } from 'vue';
 import type { Item } from '@/types/item';
 import { itemRepository } from '@/api/itemRepository';
+import { useAuth } from '@/composables/useAuth';
 
 /**
  * Shared state for items across the application
@@ -30,6 +31,16 @@ let previousSyncMap: Record<string, SyncStatus> = {};
  * Handles fetching, creation, updates, and syncing with race condition protection
  */
 export function useItems() {
+  const auth = useAuth();
+
+  function createGuestItemId(): string {
+    const randomPart = Math.random().toString(36).slice(2, 10);
+    return `guest_item_${Date.now()}_${randomPart}`;
+  }
+
+  function createGuestNowIso(): string {
+    return new Date().toISOString();
+  }
 
   function reconcileSyncStatus(syncMap: Record<string, SyncStatus>): void {
     items.value.forEach((item) => {
@@ -93,6 +104,10 @@ export function useItems() {
 
   // Fetch active items with session token protection
   async function fetchActiveItems(sessionToken?: number): Promise<Item[]> {
+    if (auth.isGuest.value) {
+      return items.value;
+    }
+
     startLoading();
     error.value = null;
     try {
@@ -121,6 +136,10 @@ export function useItems() {
 
   // Fetch archived items
   async function fetchArchivedItems(): Promise<Item[]> {
+    if (auth.isGuest.value) {
+      return [];
+    }
+
     startLoading();
     error.value = null;
     try {
@@ -137,6 +156,10 @@ export function useItems() {
 
   // Fetch deleted items
   async function fetchDeletedItems(): Promise<Item[]> {
+    if (auth.isGuest.value) {
+      return [];
+    }
+
     startLoading();
     error.value = null;
     try {
@@ -153,6 +176,10 @@ export function useItems() {
 
   // Sync with remote
   async function syncItems(): Promise<number> {
+    if (auth.isGuest.value) {
+      return 0;
+    }
+
     isSyncing.value = true;
     error.value = null;
     try {
@@ -170,6 +197,10 @@ export function useItems() {
   }
 
   async function syncAndRefresh(_sessionToken?: number): Promise<number> {
+    if (auth.isGuest.value) {
+      return 0;
+    }
+
     if (autoSyncInFlight) {
       return 0;
     }
@@ -184,6 +215,10 @@ export function useItems() {
   }
 
   function startAutoSync(sessionToken?: number, intervalMs: number = 30000): void {
+    if (auth.isGuest.value) {
+      return;
+    }
+
     if (autoSyncTimer) {
       return;
     }
@@ -211,6 +246,28 @@ export function useItems() {
     durationMinutes?: number | null
   }): Promise<string> {
     error.value = null;
+    if (auth.isGuest.value) {
+      const nowIso = createGuestNowIso();
+      const id = createGuestItemId();
+      const guestItem: Item = {
+        id,
+        user_id: auth.userId.value ?? 'guest_user',
+        sync_status: 'local_only',
+        title: payload.title,
+        description: payload.description ?? null,
+        status: 'todo',
+        due: payload.due,
+        duration_minutes: payload.durationMinutes ?? null,
+        motivation: payload.motivation,
+        is_archived: false,
+        created_at: nowIso,
+        updated_at: nowIso,
+        deleted_at: null,
+      };
+      items.value = [guestItem, ...items.value];
+      return id;
+    }
+
   try {
     const id = await itemRepository.createItem(payload);
     await fetchActiveItems();
@@ -232,6 +289,22 @@ export function useItems() {
     durationMinutes?: number | null
   }): Promise<void> {
     error.value = null;
+    if (auth.isGuest.value) {
+      const target = items.value.find((item) => item.id === payload.id);
+      if (!target) {
+        throw new Error('Item not found');
+      }
+
+      target.title = payload.title;
+      target.description = payload.description ?? null;
+      target.motivation = payload.motivation;
+      target.due = payload.due;
+      target.duration_minutes = payload.durationMinutes ?? null;
+      target.sync_status = 'local_only';
+      target.updated_at = createGuestNowIso();
+      return;
+    }
+
     try {
       await itemRepository.updateItem(payload);
       await fetchActiveItems();
@@ -245,6 +318,17 @@ export function useItems() {
   // Update item status
   async function updateItemStatus(id: string, status: Item['status']): Promise<void> {
     error.value = null;
+    if (auth.isGuest.value) {
+      const item = items.value.find((entry) => entry.id === id);
+      if (!item) {
+        throw new Error('Item not found');
+      }
+      item.status = status;
+      item.sync_status = 'local_only';
+      item.updated_at = createGuestNowIso();
+      return;
+    }
+
     try {
       await itemRepository.updateItemStatus(id, status);
       // Update local state
@@ -263,6 +347,11 @@ export function useItems() {
   // Archive item
   async function archiveItem(id: string): Promise<void> {
     error.value = null;
+    if (auth.isGuest.value) {
+      items.value = items.value.filter((item) => item.id !== id);
+      return;
+    }
+
     try {
       await itemRepository.archiveItem(id);
       // Remove from local list
@@ -277,6 +366,11 @@ export function useItems() {
   // Soft delete item
   async function softDeleteItem(id: string): Promise<void> {
     error.value = null;
+    if (auth.isGuest.value) {
+      items.value = items.value.filter((item) => item.id !== id);
+      return;
+    }
+
     try {
       await itemRepository.softDeleteItem(id);
       // Remove from local list

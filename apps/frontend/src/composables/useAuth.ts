@@ -1,5 +1,30 @@
 import { storeToRefs } from 'pinia';
+import { computed, ref } from 'vue';
 import { useUserStore } from '@/stores/user';
+
+const GUEST_SESSION_TOKEN = 'guest-session-token';
+
+const isGuest = ref(false);
+const guestUserId = ref<string | null>(null);
+const guestUsername = ref<string | null>(null);
+const guestAccessToken = ref<string | null>(null);
+
+function createGuestUsername(): string {
+  const suffix = Math.floor(1000 + Math.random() * 9000);
+  return `Guest_${suffix}`;
+}
+
+function createGuestUserId(): string {
+  const randomPart = Math.random().toString(36).slice(2, 10);
+  return `guest_${Date.now()}_${randomPart}`;
+}
+
+function clearGuestState(): void {
+  isGuest.value = false;
+  guestUserId.value = null;
+  guestUsername.value = null;
+  guestAccessToken.value = null;
+}
 
 /**
  * Composable for authentication logic
@@ -8,6 +33,16 @@ import { useUserStore } from '@/stores/user';
 export function useAuth() {
   const userStore = useUserStore();
   const refs = storeToRefs(userStore);
+
+  const userId = computed(() => (isGuest.value ? guestUserId.value : refs.userId.value));
+  const username = computed(() => (isGuest.value ? guestUsername.value : refs.username.value));
+  const displayUsername = computed(() => {
+    if (isGuest.value) {
+      return guestUsername.value ?? 'Guest';
+    }
+    return refs.displayUsername.value;
+  });
+  const isAuthenticated = computed(() => isGuest.value || refs.isAuthenticated.value);
 
   function mapSignUpError(error: unknown): string {
     const rawMessage = String(error ?? '');
@@ -51,24 +86,64 @@ export function useAuth() {
 
   async function signUp(email: string, password: string, username: string): Promise<void> {
     try {
+      clearGuestState();
       await userStore.signUp(email, password, username);
     } catch (error) {
       throw new Error(mapSignUpError(error));
     }
   }
 
+  async function login(email: string, password: string): Promise<void> {
+    clearGuestState();
+    await userStore.login(email, password);
+  }
+
+  async function logout(): Promise<void> {
+    if (isGuest.value) {
+      clearGuestState();
+      return;
+    }
+
+    await userStore.logout();
+  }
+
+  async function initialize(): Promise<void> {
+    if (isGuest.value) {
+      return;
+    }
+    await userStore.initialize();
+  }
+
+  async function ensureUsername(): Promise<string> {
+    if (isGuest.value) {
+      return guestUsername.value ?? 'Guest';
+    }
+    const resolved = await userStore.ensureUsername();
+    return resolved ?? 'User';
+  }
+
+  function continueAsGuest(): void {
+    isGuest.value = true;
+    guestUserId.value = createGuestUserId();
+    guestUsername.value = createGuestUsername();
+    guestAccessToken.value = GUEST_SESSION_TOKEN;
+  }
+
   return {
     // State
-    userId: refs.userId,
-    username: refs.username,
-    displayUsername: refs.displayUsername,
-    isAuthenticated: refs.isAuthenticated,
+    userId,
+    username,
+    displayUsername,
+    isAuthenticated,
+    isGuest,
+    accessToken: computed(() => (isGuest.value ? guestAccessToken.value : refs.accessToken.value)),
     isInitialized: refs.isInitialized,
     // Actions
     signUp,
-    login: userStore.login,
-    logout: userStore.logout,
-    initialize: userStore.initialize,
-    ensureUsername: userStore.ensureUsername,
+    login,
+    logout,
+    initialize,
+    ensureUsername,
+    continueAsGuest,
   };
 }

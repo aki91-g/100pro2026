@@ -20,11 +20,13 @@ The architecture separates responsibilities into:
 - Session token race protection in `useItems.ts` using `currentLoadToken`.
 - Pinia-safe token injection into `HonoClient` via deferred token getter from `main.ts`.
 - Strong alignment with backend contract fields (`snake_case` item properties like `duration_minutes`, `sync_status`).
+- Frontend-only guest login: `useAuth` can create a transient guest identity (`isGuest`) without writing auth data to backend.
+- Guest-mode item handling in `useItems`: item CRUD runs in memory only, marks items as `local_only`, and skips sync/network calls.
 - **Automated 30-second sync**: Background interval timer synchronizes items automatically when authenticated, with in-flight guard to prevent concurrent syncs.
 - **Schema enforcement**: `due` field is mandatory across all layers (frontend type, backend model, database schema), `motivation` is nullable, `description` is nullable.
 - **ScatterPlot visualization**: Interactive SVG scatter plot (`ScatterPlot.vue`) renders task items by due date with configurable Y-axis, color, and radius fields, powered by `useGraph.ts` and D3 force simulation.
-- **Debug test helpers**: `testCreate` and `testFetch` functions remain in `MainDashboard.vue` for in-development validation.
 - **TaskDrawer self-contained CRUD**: `TaskDrawer.vue` calls `useItems()` directly for create, archive, and soft-delete operations, eliminating the need to delegate item mutations through parent component event handlers.
+- **UI polish pass**: `SpecialThanks.vue` modal uses responsive centered grid cards with viewport-safe internal scrolling; `TaskDrawer.vue` edit mode now has consistent control styling and a sticky action footer.
 
 ## Data And Control Flow
 ### Authentication flow
@@ -32,6 +34,13 @@ The architecture separates responsibilities into:
 2. `useAuth()` delegates to `useUserStore()`.
 3. `user` store calls `authRepository.autoLogin()` and fallback `getActiveSession()`.
 4. On success, store holds `userId`, `username`, and `accessToken`.
+
+### Guest authentication flow
+1. `LoginView.vue` calls `useAuth().continueAsGuest()` when user clicks Continue as Guest.
+2. `useAuth` sets shared guest refs (`isGuest`, guest username, guest userId, dummy token).
+3. `isAuthenticated` resolves true while guest mode is active.
+4. `useItems` reads `isGuest` and keeps all items in memory only.
+5. Logout clears guest refs and clears in-memory items through existing session invalidation flow.
 
 ### Registration flow
 1. `LoginView.vue` Sign Up mode calls `useAuth().signUp(email, password, username)`.
@@ -52,6 +61,7 @@ The architecture separates responsibilities into:
 3. Fetches pass session token into `fetchActiveItems(token)`.
 4. `useItems()` applies results only if token still matches `currentLoadToken`.
 5. Logout calls `invalidateSession()`, increments token, and clears in-memory items.
+6. In guest mode, `fetchActiveItems()` is local-only and does not call repositories.
 
 ### Automated sync flow
 1. `App.vue` calls `startAutoSync()` from `useItems()` when user authenticates.
@@ -59,6 +69,7 @@ The architecture separates responsibilities into:
 3. In-flight guard prevents concurrent sync operations (checks `isSyncing.value`).
 4. On logout or unmount, `stopAutoSync()` clears the interval timer.
 5. Manual sync via UI still works and respects same in-flight guard.
+6. Guest mode skips `startAutoSync()` and all sync requests.
 
 ### API mode and transport flow
 1. Repositories call `getApiMode()` once (memoized).
@@ -92,7 +103,10 @@ apps/frontend/
 │   ├── assets/
 │   │   └── vue.svg
 │   ├── components/
+│   │   ├── Header.vue
+│   │   ├── GraphControl.vue
 │   │   ├── ScatterPlot.vue
+│   │   ├── SpecialThanks.vue
 │   │   ├── SyncStatusBadge.vue
 │   │   ├── TaskDrawer.vue
 │   │   └── TaskList.vue
@@ -109,7 +123,7 @@ apps/frontend/
 │   │   └── item.ts
 │   ├── views/
 │   │   ├── LoginView.vue
-│   │   └── MainDashboard.vue
+│   │   └── MainView.vue
 │   ├── App.vue
 │   ├── main.ts
 │   ├── style.css
@@ -141,7 +155,7 @@ Description:
 - Root container and auth gate.
 - Orchestrates initialization and auth-state transitions.
 - Uses composables, not direct transport calls.
-- Routes between `LoginView` and `MainDashboard`.
+- Routes between `LoginView` and `MainView`.
 - Manages automated sync lifecycle: starts `autoSync` on authentication, stops on unmount.
 
 Key Functions/Exported Members:
@@ -244,7 +258,8 @@ Description:
 - **Create mode**: Form with title, description, due datetime, duration, and motivation fields; submits via `itemRepository` through `useItems`, then emits `select-item` with the newly created item and transitions to 'view' mode. Cancel button returns to 'tasks' mode.
 - **View mode**: Displays selected item details (status, due date, motivation, duration) with an "Edit" button in the top-right corner of the task card. Clicking "Edit" transitions to edit mode. Header shows "← Back to List" button to return to tasks.
 - **Tasks mode**: Shows `<TaskList>` component displaying all active items. Task rows are clickable and emit `select-item` event to switch to 'view' mode for that task. Header shows "+ New Task" button in top-right to create new tasks.
-- **Edit mode** (internal, not user-accessible from nav): Hidden form pre-filled with selected item data; saves via `updateItem` and includes **Archive** (amber) and **Delete** (red) action buttons with confirmation. Clicking "Cancel" returns to 'view' mode. Clicking "Save Changes" returns to 'view' mode with updated item state.
+- **Edit mode** (internal, not user-accessible from nav): Vertical single-column form with consistent field spacing for title, description, due, duration, motivation, and status. Footer actions are sticky at the bottom with subtle top border/shadow so Save and Cancel remain accessible while scrolling long descriptions.
+- **Status control**: Includes inline status selector (`todo`, `doing`, `done`) that maps to backend status values (`todo`, `inprogress`, `done`) and updates immediately.
 - Header title updates based on mode: "Tasks" (tasks mode), "Task Details" (view), "Create Task" (create), "Edit Task" (edit).
 - Keyboard accessible: `Escape` closes the drawer.
 - Mode transitions: Tasks<->Create (via "+ New Task" button), View->Tasks (via "← Back to List" button), View->Edit (via Edit button), Create->View (after creation), Tasks->View (via task click).
@@ -258,6 +273,17 @@ Key Functions/Exported Members:
 - Internal actions: `submitCreate()`, `handleEditSubmit()`, `handleArchive()`, `handleDelete()`.
 - Local loading states: `isCreating`, `isSavingEdit`, `isArchiving`, `isDeleting`.
 - Navigation state: `previousMode` (preserved for potential future use).
+
+### `src/components/SpecialThanks.vue`
+Description:
+- Branded acknowledgment modal opened from the header.
+- Uses centered card layout with role-based grid cards for Program Host, Special Support, and Feedback contributors.
+- Supports viewport-constrained height and internal body scrolling to avoid clipping on smaller screens.
+
+Key Functions/Exported Members:
+- Default Vue component export.
+- Props: `show`.
+- Emits: `close`.
 
 ### `src/components/SyncStatusBadge.vue`
 Description:
@@ -287,10 +313,11 @@ Key Functions/Exported Members:
 Description:
 - Lightweight auth facade around `useUserStore`.
 - Exposes auth state/actions to views without leaking store internals.
+- Adds frontend-only guest auth state (`isGuest`) with `continueAsGuest()` and dummy access token.
 - Maps signup errors (`OFFLINE_REQUIRED_FOR_SIGNUP`, config issues, Supabase API errors, malformed responses) to user-friendly UI text for registration UX.
 
 Key Functions/Exported Members:
-- `useAuth()` returning refs/actions: `isAuthenticated`, `initialize`, `signUp`, `login`, `logout`, etc.
+- `useAuth()` returning refs/actions: `isAuthenticated`, `isGuest`, `initialize`, `signUp`, `login`, `logout`, `continueAsGuest`, etc.
 - `signUp` wrapper translates technical signup errors into actionable copy for `LoginView`.
 
 ### `src/composables/useGraph.ts`
@@ -314,6 +341,7 @@ Description:
 - Core item workflow and shared state module.
 - Implements race-safe session token strategy.
 - Delegates persistence to `itemRepository`.
+- Supports guest-mode local-only CRUD in memory and bypasses repository/sync operations when `isGuest` is true.
 - **Automated sync**: Manages 30-second interval timer with `startAutoSync()`/`stopAutoSync()` and in-flight guard.
 - **Schema enforcement**: `createItem()` requires `due` parameter and accepts optional `description`.
 
@@ -375,33 +403,32 @@ Description:
 - Active login screen for routing.
 - Uses `useAuth` for authentication command.
 - Supports dual-mode auth UI: Login and Sign Up (`isRegisterMode`).
+- Adds a Continue as Guest action for transient frontend-only sessions.
 - Sign Up mode includes username input with basic validation.
 - Enforces online-only account creation using `navigator.onLine` state.
-- Shows disclaimer: "An active internet connection is required to create a new account."
-- On successful sign up with returned session token, auth gate transitions directly to `MainDashboard`.
+- On successful sign up with returned session token, auth gate transitions directly to `MainView`.
 - If signup succeeds without session token (email confirmation flow), view stays unauthenticated and shows mapped pending-confirmation guidance.
 - Includes accessibility improvements (labels, ARIA alert).
 
 Key Functions/Exported Members:
 - Default Vue component export.
-- Internal handlers: `handleLogin()`, `handleRegister()`, `setMode()`, online status listeners.
+- Internal handlers: `handleLogin()`, `handleRegister()`, `handleGuestLogin()`, online status listeners.
 
-### `src/views/MainDashboard.vue`
+### `src/views/MainView.vue`
 Description:
 - Main authenticated workspace for task visualization and management.
 - Composes auth, items, and sync-status workflows.
-- Handles remote catch-up events via Tauri event listener.
+- Handles remote catch-up events via Tauri event listener (non-guest sessions).
 - **ScatterPlot integration**: Renders `<ScatterPlot :items="items" />` with configurable Y-axis, color, and radius fields, and relays `select-item` clicks to the `TaskDrawer` in 'view' mode.
 - **TaskDrawer orchestration**: Opens `TaskDrawer` in `create`, `view`, `tasks`, or `edit` mode; passes shared item state as props; all item mutations are handled internally by `TaskDrawer` via `useItems()`.
   - "New Task" button opens drawer in 'create' mode.
   - "Tasks" button opens drawer in 'tasks' mode (shows all active tasks for quick access).
   - Clicking a task in the scatter plot calls `handleSelectItem()` which opens drawer in 'view' mode for that task.
-- **Debug helpers**: `testCreate` (creates a random debug task) and `testFetch` (logs items to console) are present for in-development use, exposed as fixed-position buttons in the UI.
+- **Guest-aware header**: Passes `isGuest` into `Header.vue` so UI displays Guest Mode state.
 
 Key Functions/Exported Members:
 - Default Vue component export.
 - Internal actions: `loadItems`, `handleRefreshItems`, `handleSelectItem`, `handleLogout`, `openDrawer`.
-- Debug actions: `testCreate`, `testFetch`.
 
 ### `src/style.css`
 Description:
@@ -554,7 +581,7 @@ onUnmounted(() => {
 
 ### Example 6: ScatterPlot usage
 ```vue
-<!-- Inside MainDashboard.vue template -->
+<!-- Inside MainView.vue template -->
 <ScatterPlot :items="items" />
 ```
 ```ts
@@ -606,10 +633,7 @@ Earlier debug infrastructure removed from the repository layer:
 - **Removed services**: `DebugService` from Rust backend
 
 ### Current Debug State
-`MainDashboard.vue` retains development-only helpers:
-- **`testCreate`**: Creates a randomly-titled task with a random motivation score, logs result to console.
-- **`testFetch`**: Fetches active items and logs the full array to console.
-- These are exposed as fixed-position buttons in the UI. Remove before shipping to production.
+- No dedicated frontend debug helper buttons are documented in the current `MainView.vue` implementation.
 
 ### Automated Sync Implementation
 - **Interval**: 30-second automatic synchronization when authenticated
