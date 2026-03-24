@@ -12,6 +12,11 @@ defineProps<{
 const emit = defineEmits<{
   (event: 'select-item', item: Item): void;
 }>();
+
+function displayStatus(status: Item['status']): string {
+  if (status === 'inprogress') return 'doing';
+  return status;
+}
 </script>
 
 <template>
@@ -42,7 +47,7 @@ const emit = defineEmits<{
         <div class="task-main">
           <div class="task-top">
             <span :class="['status-pill', item.status.toLowerCase()]">
-              {{ item.status }}
+              {{ displayStatus(item.status) }}
             </span>
             <span class="motivation">
               <span class="fire">🔥</span> {{ item.motivation }}

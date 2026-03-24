@@ -26,6 +26,7 @@ The architecture separates responsibilities into:
 - **Schema enforcement**: `due` field is mandatory across all layers (frontend type, backend model, database schema), `motivation` is nullable, `description` is nullable.
 - **ScatterPlot visualization**: Interactive SVG scatter plot (`ScatterPlot.vue`) renders task items by due date with configurable Y-axis, color, and radius fields, powered by `useGraph.ts` and D3 force simulation.
 - **TaskDrawer self-contained CRUD**: `TaskDrawer.vue` calls `useItems()` directly for create, archive, and soft-delete operations, eliminating the need to delegate item mutations through parent component event handlers.
+- **UI polish pass**: `SpecialThanks.vue` modal uses responsive centered grid cards with viewport-safe internal scrolling; `TaskDrawer.vue` edit mode now has consistent control styling and a sticky action footer.
 
 ## Data And Control Flow
 ### Authentication flow
@@ -102,7 +103,10 @@ apps/frontend/
 │   ├── assets/
 │   │   └── vue.svg
 │   ├── components/
+│   │   ├── Header.vue
+│   │   ├── GraphControl.vue
 │   │   ├── ScatterPlot.vue
+│   │   ├── SpecialThanks.vue
 │   │   ├── SyncStatusBadge.vue
 │   │   ├── TaskDrawer.vue
 │   │   └── TaskList.vue
@@ -254,7 +258,8 @@ Description:
 - **Create mode**: Form with title, description, due datetime, duration, and motivation fields; submits via `itemRepository` through `useItems`, then emits `select-item` with the newly created item and transitions to 'view' mode. Cancel button returns to 'tasks' mode.
 - **View mode**: Displays selected item details (status, due date, motivation, duration) with an "Edit" button in the top-right corner of the task card. Clicking "Edit" transitions to edit mode. Header shows "← Back to List" button to return to tasks.
 - **Tasks mode**: Shows `<TaskList>` component displaying all active items. Task rows are clickable and emit `select-item` event to switch to 'view' mode for that task. Header shows "+ New Task" button in top-right to create new tasks.
-- **Edit mode** (internal, not user-accessible from nav): Hidden form pre-filled with selected item data; saves via `updateItem` and includes **Archive** (amber) and **Delete** (red) action buttons with confirmation. Clicking "Cancel" returns to 'view' mode. Clicking "Save Changes" returns to 'view' mode with updated item state.
+- **Edit mode** (internal, not user-accessible from nav): Vertical single-column form with consistent field spacing for title, description, due, duration, motivation, and status. Footer actions are sticky at the bottom with subtle top border/shadow so Save and Cancel remain accessible while scrolling long descriptions.
+- **Status control**: Includes inline status selector (`todo`, `doing`, `done`) that maps to backend status values (`todo`, `inprogress`, `done`) and updates immediately.
 - Header title updates based on mode: "Tasks" (tasks mode), "Task Details" (view), "Create Task" (create), "Edit Task" (edit).
 - Keyboard accessible: `Escape` closes the drawer.
 - Mode transitions: Tasks<->Create (via "+ New Task" button), View->Tasks (via "← Back to List" button), View->Edit (via Edit button), Create->View (after creation), Tasks->View (via task click).
@@ -268,6 +273,17 @@ Key Functions/Exported Members:
 - Internal actions: `submitCreate()`, `handleEditSubmit()`, `handleArchive()`, `handleDelete()`.
 - Local loading states: `isCreating`, `isSavingEdit`, `isArchiving`, `isDeleting`.
 - Navigation state: `previousMode` (preserved for potential future use).
+
+### `src/components/SpecialThanks.vue`
+Description:
+- Branded acknowledgment modal opened from the header.
+- Uses centered card layout with role-based grid cards for Program Host, Special Support, and Feedback contributors.
+- Supports viewport-constrained height and internal body scrolling to avoid clipping on smaller screens.
+
+Key Functions/Exported Members:
+- Default Vue component export.
+- Props: `show`.
+- Emits: `close`.
 
 ### `src/components/SyncStatusBadge.vue`
 Description:
