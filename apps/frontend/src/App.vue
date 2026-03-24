@@ -7,7 +7,7 @@ import { useItems } from '@/composables/useItems';
 
 // Components
 import LoginView from '@/views/LoginView.vue';
-import MainDashboard from '@/views/MainDashboard.vue';
+import MainDashboard from '@/views/MainView.vue';
 
 // Auth
 const { isAuthenticated, initialize } = useAuth();
@@ -25,16 +25,13 @@ onUnmounted(() => {
   stopAutoSync();
 });
 
-// Watch for authentication changes
 watch(
   isAuthenticated,
   async (authenticated) => {
     if (authenticated) {
-      // Start a new session and background sync loop when user logs in
       const sessionToken = startNewSession();
       startAutoSync(sessionToken);
     } else {
-      // Stop sync loop, invalidate session, and clear items on logout
       stopAutoSync();
       invalidateSession();
     }

@@ -20,6 +20,7 @@ const emit = defineEmits<{
   (event: 'update:open', value: boolean): void;
   (event: 'update:mode', value: DrawerMode): void;
   (event: 'select-item', item: Item): void;
+  (event: 'success'): void;
 }>();
 
 const createTitle = ref('');
@@ -160,8 +161,7 @@ async function submitCreate(): Promise<void> {
     if (created) {
       emit('select-item', created);
       emit('update:mode', 'view');
-    } else {
-      console.warn('Created item not found in repository:', id);
+      emit('success');
     }
   } catch (error) {
     console.error('Failed to create item:', error);
@@ -171,14 +171,13 @@ async function submitCreate(): Promise<void> {
 }
 
 async function handleArchive(): Promise<void> {
-  if (isMutating.value) return;
-  if (!props.selectedItem) return;
+  if (isMutating.value || !props.selectedItem) return;
 
   isArchiving.value = true;
   try {
     await archiveItem(props.selectedItem.id);
+    emit('success');
     emit('update:open', false);
-    emit('update:mode', 'view');
   } catch (error) {
     console.error('Failed to archive item:', error);
   } finally {
@@ -187,15 +186,14 @@ async function handleArchive(): Promise<void> {
 }
 
 async function handleDelete(): Promise<void> {
-  if (isMutating.value) return;
-  if (!props.selectedItem) return;
+  if (isMutating.value || !props.selectedItem) return;
   if (!confirm('Are you sure you want to delete this task?')) return;
 
   isDeleting.value = true;
   try {
     await softDeleteItem(props.selectedItem.id);
+    emit('success');
     emit('update:open', false);
-    emit('update:mode', 'view');
   } catch (error) {
     console.error('Failed to delete item:', error);
   } finally {
@@ -205,9 +203,7 @@ async function handleDelete(): Promise<void> {
 
 async function handleEditSubmit(): Promise<void> {
   if (isMutating.value) return;
-  if (!props.selectedItem || !editTitle.value.trim() || !editDue.value.trim()) {
-    return;
-  }
+  if (!props.selectedItem || !editTitle.value.trim() || !editDue.value.trim()) return;
 
   isSavingEdit.value = true;
   try {
@@ -220,6 +216,8 @@ async function handleEditSubmit(): Promise<void> {
       motivation: editMotivation.value,
     });
 
+    emit('success');
+    
     emit('select-item', {
       ...props.selectedItem,
       title: editTitle.value.trim(),

@@ -68,8 +68,8 @@ function getLabel() {
 }
 
 .error {
-  background: `#ffebee`;
-  color: `#c62828`;
+  background: #ffebee;
+  color: #c62828;
 }
 
 .syncing {
