@@ -2,7 +2,8 @@
 defineProps<{ show: boolean }>();
 const emit = defineEmits<{ 'close': [] }>();
 
-const mentors = ['メンターの面々'];
+const hosts = ['TS', 'TY']
+const mentors = ['YB', 'AS', 'KY', 'MA'];
 const feedbacks = ['RK(友人)', 'RN(友人・9期生)'];
 </script>
 
@@ -38,8 +39,10 @@ const feedbacks = ['RK(友人)', 'RN(友人・9期生)'];
             <h3 class="thanks-title">Special Thanks to</h3>
             <div class="thanks-grid">
               <section class="thanks-item">
-                <span class="role-label">Program Host</span>
-                <p class="person-name">下川さん</p>
+                <span class="role-label">Program Hosts</span>
+                <ul class="name-grid">
+                  <li v-for="name in hosts" :key="name" class="name-chip">{{ name }}</li>
+                </ul>
               </section>
 
               <section class="thanks-item">
@@ -50,7 +53,7 @@ const feedbacks = ['RK(友人)', 'RN(友人・9期生)'];
               </section>
 
               <section class="thanks-item thanks-item-wide">
-                <span class="role-label">Feedbacks from</span>
+                <span class="role-label">Feedback from</span>
                 <ul class="name-grid feedback-grid">
                   <li v-for="name in feedbacks" :key="name" class="name-chip">{{ name }}</li>
                 </ul>
@@ -142,6 +145,7 @@ const feedbacks = ['RK(友人)', 'RN(友人・9期生)'];
 .modal-body {
   padding: 1rem 2.25rem 2rem;
   text-align: center;
+  min-height: 0;
   overflow-y: auto;
 }
 

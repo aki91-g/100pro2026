@@ -34,13 +34,15 @@ const editDescription = ref<string | null>(null);
 const editDue = ref('');
 const editDuration = ref<number | null>(null);
 const editMotivation = ref(5);
-const selectedStatusUi = ref<'todo' | 'doing' | 'done'>('todo');
+const selectedStatusUi = ref<'backlog' | 'todo' | 'doing' | 'done'>('todo');
 const isSavingEdit = ref(false);
 const isCreating = ref(false);
 const isArchiving = ref(false);
 const isDeleting = ref(false);
 const isUpdatingStatus = ref(false);
 const previousMode = ref<'view' | 'tasks'>('view');
+const viewStatusSelectId = 'task-drawer-status-view';
+const editStatusSelectId = 'task-drawer-status-edit';
 
 const { createItem, updateItem, updateItemStatus, archiveItem, softDeleteItem, items: repositoryItems } = useItems();
 
@@ -112,13 +114,15 @@ function hydrateEditForm(item: Item | null): void {
   selectedStatusUi.value = toUiStatus(item.status);
 }
 
-function toUiStatus(status: Item['status']): 'todo' | 'doing' | 'done' {
+function toUiStatus(status: Item['status']): 'backlog' | 'todo' | 'doing' | 'done' {
+  if (status === 'backlog') return 'backlog';
   if (status === 'done') return 'done';
   if (status === 'inprogress') return 'doing';
   return 'todo';
 }
 
-function fromUiStatus(status: 'todo' | 'doing' | 'done'): Item['status'] {
+function fromUiStatus(status: 'backlog' | 'todo' | 'doing' | 'done'): Item['status'] {
+  if (status === 'backlog') return 'backlog';
   if (status === 'doing') return 'inprogress';
   if (status === 'done') return 'done';
   return 'todo';
@@ -254,21 +258,27 @@ async function handleEditSubmit(): Promise<void> {
 async function handleStatusChange(): Promise<void> {
   if (!props.selectedItem || isMutating.value) return;
 
+  const selectedItemSnapshot = props.selectedItem;
+  const selectedItemId = props.selectedItem.id;
+  const originalStatus = props.selectedItem.status;
+  const originalSyncStatus = props.selectedItem.sync_status;
+
   const nextStatus = fromUiStatus(selectedStatusUi.value);
-  if (props.selectedItem.status === nextStatus) return;
+  if (originalStatus === nextStatus) return;
 
   isUpdatingStatus.value = true;
   try {
-    await updateItemStatus(props.selectedItem.id, nextStatus);
+    await updateItemStatus(selectedItemId, nextStatus);
     emit('select-item', {
-      ...props.selectedItem,
+      ...selectedItemSnapshot,
+      id: selectedItemId,
       status: nextStatus,
-      sync_status: props.selectedItem.sync_status === 'local_only' ? 'local_only' : 'modified',
+      sync_status: originalSyncStatus === 'local_only' ? 'local_only' : 'modified',
       updated_at: new Date().toISOString(),
     });
   } catch (error) {
     console.error('Failed to update item status:', error);
-    selectedStatusUi.value = toUiStatus(props.selectedItem.status);
+    selectedStatusUi.value = toUiStatus(originalStatus);
   } finally {
     isUpdatingStatus.value = false;
   }
@@ -377,13 +387,16 @@ onUnmounted(() => {
                 
                 <div class="detail-grid">
                   <div class="grid-item">
-                    <span class="label">Status</span>
+                    <label class="label" :for="viewStatusSelectId">Status</label>
                     <select
+                      :id="viewStatusSelectId"
                       v-model="selectedStatusUi"
                       class="status-select"
                       :disabled="isMutating"
+                      aria-label="Task status in details view"
                       @change="handleStatusChange"
                     >
+                      <option value="backlog">Backlog</option>
                       <option value="todo">todo</option>
                       <option value="doing">doing</option>
                       <option value="done">done</option>
@@ -429,13 +442,16 @@ onUnmounted(() => {
                 </div>
 
                 <div class="input-group">
-                  <label>Status</label>
+                  <label :for="editStatusSelectId">Status</label>
                   <select
+                    :id="editStatusSelectId"
                     v-model="selectedStatusUi"
                     :disabled="isMutating"
                     class="user-input status-select"
+                    aria-label="Task status in edit form"
                     @change="handleStatusChange"
                   >
+                    <option value="backlog">Backlog</option>
                     <option value="todo">todo</option>
                     <option value="doing">doing</option>
                     <option value="done">done</option>
