@@ -22,6 +22,8 @@ let loadingCount = 0;
 let currentLoadToken = 0;
 let stopSyncStatusBinding: (() => void) | null = null;
 type SyncStatus = 'pending' | 'success' | 'error' | undefined;
+let boundSyncMapRef: Ref<Record<string, SyncStatus>> | null = null;
+let previousSyncMap: Record<string, SyncStatus> = {};
 
 /**
  * Composable for managing items/tasks
@@ -32,15 +34,19 @@ export function useItems() {
   function reconcileSyncStatus(syncMap: Record<string, SyncStatus>): void {
     items.value.forEach((item) => {
       const status = syncMap[item.id];
-      if (status === 'success') {
+      const previousStatus = previousSyncMap[item.id];
+      if (status === 'success' && previousStatus === 'pending' && item.sync_status === 'modified') {
         item.sync_status = 'synced';
       } else if (status === 'pending' && item.sync_status !== 'local_only') {
         item.sync_status = 'modified';
       }
     });
+    previousSyncMap = { ...syncMap };
   }
 
   function bindSyncStatusMap(syncMap: Ref<Record<string, SyncStatus>>): void {
+    boundSyncMapRef = syncMap;
+    previousSyncMap = {};
     stopSyncStatusBinding?.();
     stopSyncStatusBinding = watch(
       syncMap,
@@ -95,6 +101,9 @@ export function useItems() {
       // Only update if this is the current session
       if (sessionToken === undefined || sessionToken === currentLoadToken) {
         items.value = data;
+        if (boundSyncMapRef) {
+          reconcileSyncStatus(boundSyncMapRef.value);
+        }
       }
       
       return data;

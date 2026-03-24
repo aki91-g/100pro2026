@@ -132,6 +132,7 @@ watch(
       await auth.ensureUsername();
       return;
     }
+    startNewSession();
     triggerWelcomeToastOnce();
     await handleRefreshItems(); 
   },
