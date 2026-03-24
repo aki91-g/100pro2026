@@ -1,14 +1,14 @@
 <script setup lang="ts">
-import type { GraphAxisField, GraphTimeRangeKey, GraphVisualField } from '@/types/graph';
+import type { GraphAxisField, GraphTimeRangeKey, GraphVisualField, SelectOption } from '@/types/graph';
 
 defineProps<{
   range: GraphTimeRangeKey;
   yField: GraphAxisField;
   colorField: GraphVisualField;
   radiusField: GraphVisualField;
-  rangeOptions: any[];
-  axisOptions: any[];
-  visualOptions: any[];
+  rangeOptions: SelectOption<GraphTimeRangeKey>[];
+  axisOptions: SelectOption<GraphAxisField>[];
+  visualOptions: SelectOption<GraphVisualField>[];
 }>();
 
 const emit = defineEmits<{
@@ -27,28 +27,28 @@ const emit = defineEmits<{
     <div class="controls-grid">
       <div class="input-group">
         <label>Window</label>
-        <select :value="range" @change="emit('update:range', ($event.target as HTMLSelectElement).value as any)">
+        <select :value="range" @change="emit('update:range', ($event.target as HTMLSelectElement).value as GraphTimeRangeKey)">
           <option v-for="o in rangeOptions" :key="o.value" :value="o.value">{{ o.label }}</option>
         </select>
       </div>
 
       <div class="input-group">
         <label>Y-Axis</label>
-        <select :value="yField" @change="emit('update:yField', ($event.target as HTMLSelectElement).value as any)">
+        <select :value="yField" @change="emit('update:yField', ($event.target as HTMLSelectElement).value as GraphAxisField)">
           <option v-for="o in axisOptions" :key="o.value" :value="o.value">{{ o.label }}</option>
         </select>
       </div>
 
       <div class="input-group">
         <label>Color</label>
-        <select :value="colorField" @change="emit('update:colorField', ($event.target as HTMLSelectElement).value as any)">
+        <select :value="colorField" @change="emit('update:colorField', ($event.target as HTMLSelectElement).value as GraphVisualField)">
           <option v-for="o in visualOptions" :key="o.value" :value="o.value">{{ o.label }}</option>
         </select>
       </div>
 
       <div class="input-group">
         <label>Radius</label>
-        <select :value="radiusField" @change="emit('update:radiusField', ($event.target as HTMLSelectElement).value as any)">
+        <select :value="radiusField" @change="emit('update:radiusField', ($event.target as HTMLSelectElement).value as GraphVisualField)">
           <option v-for="o in visualOptions" :key="o.value" :value="o.value">{{ o.label }}</option>
         </select>
       </div>

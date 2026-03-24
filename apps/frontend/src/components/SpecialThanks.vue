@@ -21,7 +21,7 @@ const feedbacks = ['RK(友人)', 'RN(友人・9期生)', '○○ (9期生)'];
             <span class="label">Developed by</span>
             <h3 class="author-name">Suzuha Takaki</h3>
             <div class="author-links">
-              <a href="https://github.com/aki91-g" target="_blank" class="link">GitHub Profile →</a>
+              <a href="https://github.com/aki91-g" target="_blank" rel="noopener noreferrer" class="link">GitHub Profile →</a>
             </div>
           </div>
 
@@ -29,7 +29,7 @@ const feedbacks = ['RK(友人)', 'RN(友人・9期生)', '○○ (9期生)'];
             <p class="intro-text">
               TaskGraphは <strong>100 program 9期 (2026春期)</strong> において製作されました。
             </p>
-            <a href="https://100program.jp" target="_blank" class="link">100 program Official Site →</a>
+            <a href="https://100program.jp" target="_blank" rel="noopener noreferrer" class="link">100 program Official Site →</a>
           </div>
 
           <div class="divider"></div>
@@ -44,9 +44,9 @@ const feedbacks = ['RK(友人)', 'RN(友人・9期生)', '○○ (9期生)'];
 
               <div class="thanks-item">
                 <span class="role-label">Special Support</span>
-                <p class="feedback-list">
+                <ul class="feedback-list">
                   <li v-for="name in mentors" :key="name">{{ name }}</li>
-                </p>
+                </ul>
               </div>
 
             <div class="feedback-section">

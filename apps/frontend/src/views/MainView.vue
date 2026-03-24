@@ -2,7 +2,7 @@
 import { computed, ref, watch, onMounted, onUnmounted } from 'vue';
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 import type { Item } from '@/types/item';
-import type { GraphAxisField, GraphTimeRangeKey, GraphVisualField } from '@/types/graph';
+import type { GraphAxisField, GraphTimeRangeKey, GraphVisualField, SelectOption } from '@/types/graph';
 
 import { useAuth } from '@/composables/useAuth';
 import { useItems } from '@/composables/useItems';
@@ -15,8 +15,9 @@ import GraphControlBar from '@/components/GraphControl.vue';
 import SpecialThanksModal from '@/components/SpecialThanks.vue';
 
 const auth = useAuth();
-const { items, isSyncing, fetchActiveItems, startNewSession, getCurrentToken } = useItems();
+const { items, isSyncing, fetchActiveItems, startNewSession, getCurrentToken, bindSyncStatusMap } = useItems();
 const { syncMap, errorMap } = useSyncStatus();
+const { displayUsername } = auth;
 
 // --- Graph State ---
 const selectedRange = ref<GraphTimeRangeKey>('1w');
@@ -24,19 +25,19 @@ const selectedYField = ref<GraphAxisField>('duration_minutes');
 const selectedColorField = ref<GraphVisualField>('motivation');
 const selectedRadiusField = ref<GraphVisualField>('duration_minutes');
 
-const rangeOptions = [
+const rangeOptions: SelectOption<GraphTimeRangeKey>[] = [
   { value: '1d', label: '1 day' }, { value: '3d', label: '3 days' },
   { value: '1w', label: '1 week' }, { value: '2w', label: '2 weeks' },
   { value: '1m', label: '1 month' },
 ];
 
-const axisOptions = [
+const axisOptions: SelectOption<GraphAxisField>[] = [
   { value: 'duration_minutes', label: 'Duration' },
   { value: 'motivation', label: 'Motivation' },
   { value: 'status', label: 'Status' },
 ];
 
-const visualOptions = [
+const visualOptions: SelectOption<GraphVisualField>[] = [
   { value: 'none', label: 'None' },
   { value: 'duration_minutes', label: 'Duration' },
   { value: 'motivation', label: 'Motivation' },
@@ -44,16 +45,19 @@ const visualOptions = [
 ];
 
 // --- UI State ---
+type DrawerMode = 'create' | 'view' | 'edit' | 'tasks';
+
 const isDrawerOpen = ref(false);
 const isFullscreen = ref(false);
 const isThanksOpen = ref(false);
-const drawerMode = ref<'create' | 'view' | 'edit' | 'tasks'>('view');
+const drawerMode = ref<DrawerMode>('view');
 const selectedItem = ref<Item | null>(null);
 const showWelcomeToast = ref(false);
 
 let hasShownWelcomeToast = false;
 let welcomeTimer: number | null = null;
 let unlistenRemoteCatchup: UnlistenFn | null = null;
+let hasCompletedInitialLoad = false;
 
 // --- Logic ---
 const hasResolvedUsername = computed(() => {
@@ -74,6 +78,7 @@ async function loadItems(sessionToken: number): Promise<void> {
 }
 
 const handleRefreshItems = () => loadItems(getCurrentToken());
+bindSyncStatusMap(syncMap);
 
 const handleLogout = async () => {
   if (confirm('Are you sure you want to logout?')) {
@@ -81,7 +86,7 @@ const handleLogout = async () => {
   }
 };
 
-const openDrawer = (mode: any) => {
+const openDrawer = (mode: DrawerMode) => {
   drawerMode.value = mode;
   isDrawerOpen.value = true;
 };
@@ -107,6 +112,7 @@ onMounted(async () => {
   await auth.ensureUsername();
   unlistenRemoteCatchup = await listen('remote-catchup', () => handleRefreshItems());
   await loadItems(startNewSession());
+  hasCompletedInitialLoad = true;
   window.addEventListener('keydown', handleGlobalKeydown);
 });
 
@@ -119,6 +125,8 @@ onUnmounted(() => {
 watch(
   auth.username,
   async (nextUsername) => {
+    if (!hasCompletedInitialLoad) return;
+
     const normalized = nextUsername?.trim().toLowerCase();
     if (!normalized || normalized === 'unknown') {
       await auth.ensureUsername();
@@ -127,16 +135,7 @@ watch(
     triggerWelcomeToastOnce();
     await handleRefreshItems(); 
   },
-  { immediate: true },
 );
-
-watch(syncMap, (nextMap) => {
-  items.value.forEach(item => {
-    const status = nextMap[item.id];
-    if (status === 'success') item.sync_status = 'synced';
-    else if (status === 'pending' && item.sync_status !== 'local_only') item.sync_status = 'modified';
-  });
-}, { deep: true });
 </script>
 
 <template>
@@ -148,7 +147,7 @@ watch(syncMap, (nextMap) => {
 
     <transition name="toast">
       <div v-if="showWelcomeToast" class="welcome-toast">
-        Welcome {{ auth.displayUsername.value }}
+        Welcome {{ displayUsername }}
       </div>
     </transition>
 
@@ -158,7 +157,7 @@ watch(syncMap, (nextMap) => {
     }">
       <template v-if="!isFullscreen">
         <AppHeader 
-          :display-username="auth.displayUsername.value" 
+          :display-username="displayUsername" 
           :is-syncing="isSyncing" 
           @logout="handleLogout"
           @show-thanks="isThanksOpen = true" 

@@ -5,6 +5,11 @@ export type GraphAxisField = 'duration_minutes' | 'motivation' | 'status';
 export type GraphVisualField = 'none' | 'duration_minutes' | 'motivation' | 'status';
 export type GraphMarker = 'circle' | 'triangle-left' | 'triangle-right';
 
+export interface SelectOption<T extends string> {
+  label: string;
+  value: T;
+}
+
 export interface Point {
   x: number;
   y: number;

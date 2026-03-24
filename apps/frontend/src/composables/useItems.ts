@@ -1,4 +1,4 @@
-import { ref } from 'vue';
+import { ref, watch, type Ref } from 'vue';
 import type { Item } from '@/types/item';
 import { itemRepository } from '@/api/itemRepository';
 
@@ -20,12 +20,36 @@ let loadingCount = 0;
 
 // Session token for preventing race conditions on auth state changes
 let currentLoadToken = 0;
+let stopSyncStatusBinding: (() => void) | null = null;
+type SyncStatus = 'pending' | 'success' | 'error' | undefined;
 
 /**
  * Composable for managing items/tasks
  * Handles fetching, creation, updates, and syncing with race condition protection
  */
 export function useItems() {
+
+  function reconcileSyncStatus(syncMap: Record<string, SyncStatus>): void {
+    items.value.forEach((item) => {
+      const status = syncMap[item.id];
+      if (status === 'success') {
+        item.sync_status = 'synced';
+      } else if (status === 'pending' && item.sync_status !== 'local_only') {
+        item.sync_status = 'modified';
+      }
+    });
+  }
+
+  function bindSyncStatusMap(syncMap: Ref<Record<string, SyncStatus>>): void {
+    stopSyncStatusBinding?.();
+    stopSyncStatusBinding = watch(
+      syncMap,
+      (nextMap) => {
+        reconcileSyncStatus(nextMap);
+      },
+      { deep: true, immediate: true },
+    );
+  }
 
   // Request counting for concurrency-safe isLoading
   function startLoading() {
@@ -265,6 +289,7 @@ export function useItems() {
     getCurrentToken,
     invalidateSession,
     startNewSession,
+    bindSyncStatusMap,
     // Actions
     fetchActiveItems,
     fetchArchivedItems,

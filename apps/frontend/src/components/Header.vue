@@ -5,9 +5,9 @@ defineProps<{
 }>();
 
 const emit = defineEmits<{
-  (e: 'logout'): void;
-  (e: 'show-thanks'): void; 
-  (e: 'show-help'): void;
+  logout: [];
+  'show-thanks': [];
+  'show-help': [];
 }>();
 </script>
 
