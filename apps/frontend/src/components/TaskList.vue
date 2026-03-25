@@ -173,7 +173,6 @@ function displayStatus(status: Item['status']): string {
   letter-spacing: 0.02em;
 }
 
-/* 各ステータスの色味をグラスデザインに合わせ調整 */
 .todo { background: var(--status-bg-todo); color: var(--status-text-todo); }
 .inprogress { background: var(--status-bg-inprogress); color: var(--status-text-inprogress); }
 .done { background: var(--status-bg-done); color: var(--status-text-done); }

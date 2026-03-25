@@ -30,6 +30,7 @@ const createDescription = ref<string | null>(null);
 const createDue = ref('');
 const createDuration = ref<number | null>(null);
 const createMotivation = ref(5);
+const createStatusUi = ref<'backlog' | 'todo' | 'doing' | 'done'>('todo');
 
 const editTitle = ref('');
 const editDescription = ref<string | null>(null);
@@ -45,6 +46,7 @@ const isUpdatingStatus = ref(false);
 const previousMode = ref<'view' | 'tasks'>('view');
 const viewStatusSelectId = 'task-drawer-status-view';
 const editStatusSelectId = 'task-drawer-status-edit';
+const createStatusSelectId = 'task-drawer-status-create';
 
 const { createItem, updateItem, updateItemStatus, archiveItem, softDeleteItem, items: repositoryItems } = useItems();
 const { t, language } = useSettings();
@@ -99,6 +101,7 @@ function resetCreateForm(): void {
   createDescription.value = null;
   createDuration.value = null;
   createMotivation.value = 5;
+  createStatusUi.value = 'todo';
 
   const now = new Date();
   now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
@@ -211,6 +214,11 @@ async function submitCreate(): Promise<void> {
       due: new Date(createDue.value).toISOString(),
       durationMinutes: createDuration.value,
     });
+
+    const createStatus = fromUiStatus(createStatusUi.value);
+    if (createStatus !== 'todo') {
+      await updateItemStatus(id, createStatus);
+    }
 
     const created = repositoryItems.value.find((item) => item.id === id) ?? null;
     if (created) {
@@ -404,29 +412,59 @@ onUnmounted(() => {
         <div class="drawer-body">
           <transition name="fade-slide" mode="out-in">
             <form v-if="mode === 'create'" key="create" @submit.prevent="submitCreate" class="task-form">
-              <div class="input-group">
-                <label>{{ t('drawerTitleRequired') }}</label>
-                <input v-model="createTitle" type="text" :placeholder="t('drawerTitlePlaceholder')" :disabled="isCreating" class="user-input" />
-              </div>
+              <div class="edit-fields">
+                <div class="input-group">
+                  <label>{{ t('drawerTitleRequired') }}</label>
+                  <input v-model="createTitle" type="text" :placeholder="t('drawerTitlePlaceholder')" :disabled="isCreating" class="user-input" />
+                </div>
 
-              <div class="input-group">
-                <label>{{ t('drawerDescription') }}</label>
-                <textarea v-model="createDescription" rows="3" :placeholder="t('drawerDescriptionPlaceholder')" :disabled="isCreating" class="user-input" />
-              </div>
+                <div class="input-group">
+                  <label>{{ t('drawerDescription') }}</label>
+                  <textarea v-model="createDescription" rows="6" :placeholder="t('drawerDescriptionPlaceholder')" :disabled="isCreating" class="user-input" />
+                </div>
 
-              <div class="input-row">
                 <div class="input-group">
                   <label>{{ t('drawerDueRequired') }}</label>
                   <input v-model="createDue" type="datetime-local" :disabled="isCreating" class="user-input" />
                 </div>
+
                 <div class="input-group">
                   <label>{{ t('drawerDurationMin') }}</label>
                   <input v-model.number="createDuration" type="number" min="1" :disabled="isCreating" class="user-input" />
                 </div>
+
+                <div class="input-group">
+                  <label>{{ t('drawerMotivation') }}</label>
+                  <div class="motivation-field">
+                    <input
+                      v-model.number="createMotivation"
+                      type="range"
+                      min="1"
+                      max="10"
+                      step="1"
+                      :disabled="isCreating"
+                      class="motivation-slider"
+                    />
+                    <span class="motivation-value">{{ createMotivation }}</span>
+                  </div>
+                </div>
+
+                <div class="input-group">
+                  <label :for="createStatusSelectId">{{ t('drawerStatus') }}</label>
+                  <select
+                    :id="createStatusSelectId"
+                    v-model="createStatusUi"
+                    :disabled="isCreating"
+                    class="user-input status-select"
+                    :aria-label="t('drawerStatusAriaEdit')"
+                  >
+                    <option v-for="statusOption in localizedStatusOptions" :key="statusOption.value" :value="statusOption.value">{{ statusOption.label }}</option>
+                  </select>
+                </div>
               </div>
 
-              <div class="form-actions">
-                <button type="button" class="link-text" @click="cancelCreate">{{ t('drawerCancel') }}</button>
+              <div class="edit-footer">
+                <button type="button" class="secondary-action" @click="cancelCreate">{{ t('drawerCancel') }}</button>
                 <button type="submit" :disabled="!createTitle.trim() || !createDue.trim() || isCreating" class="primary-button">
                   {{ isCreating ? t('drawerCreating') : t('drawerCreateTask') }}
                 </button>
@@ -489,9 +527,18 @@ onUnmounted(() => {
 
                 <div class="input-group">
                   <label>{{ t('drawerMotivation') }}</label>
-                  <select v-model.number="editMotivation" :disabled="isSavingEdit" class="user-input">
-                    <option v-for="n in 10" :key="n" :value="n">{{ n }}</option>
-                  </select>
+                  <div class="motivation-field">
+                    <input
+                      v-model.number="editMotivation"
+                      type="range"
+                      min="1"
+                      max="10"
+                      step="1"
+                      :disabled="isSavingEdit"
+                      class="motivation-slider"
+                    />
+                    <span class="motivation-value">{{ editMotivation }}</span>
+                  </div>
                 </div>
 
                 <div class="input-group">
@@ -854,6 +901,26 @@ onUnmounted(() => {
   outline: none;
   border-color: var(--tg-border-strong);
   box-shadow: 0 0 0 3px rgba(100, 116, 139, 0.18);
+}
+
+.motivation-field {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.motivation-slider {
+  flex: 1;
+  accent-color: #64748b;
+  cursor: pointer;
+}
+
+.motivation-value {
+  min-width: 2rem;
+  text-align: right;
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: var(--text-primary);
 }
 
 /* --- Danger Zone --- */

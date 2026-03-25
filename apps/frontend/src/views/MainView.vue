@@ -303,7 +303,7 @@ watch(
   position: absolute;
   top: 0.85rem;
   right: 0.9rem;
-  z-index: 80;
+  z-index: 10;
   display: inline-flex;
   gap: 0.5rem;
 }
