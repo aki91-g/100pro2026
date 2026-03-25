@@ -7,6 +7,7 @@ import type { GraphAxisField, GraphTimeRangeKey, GraphVisualField, SelectOption 
 import { useAuth } from '@/composables/useAuth';
 import { useItems } from '@/composables/useItems';
 import { useSyncStatus } from '@/composables/useSyncStatus';
+import { useSettings } from '@/composables/useSettings';
 
 import ScatterPlot from '@/components/ScatterPlot.vue';
 import TaskDrawer from '@/components/TaskDrawer.vue';
@@ -18,6 +19,7 @@ const auth = useAuth();
 const { items, isSyncing, fetchActiveItems, startNewSession, getCurrentToken, bindSyncStatusMap } = useItems();
 const { syncMap, errorMap } = useSyncStatus();
 const { displayUsername, isGuest } = auth;
+const { t } = useSettings();
 
 // --- Graph State ---
 const selectedRange = ref<GraphTimeRangeKey>('1w');
@@ -25,24 +27,26 @@ const selectedYField = ref<GraphAxisField>('duration_minutes');
 const selectedColorField = ref<GraphVisualField>('motivation');
 const selectedRadiusField = ref<GraphVisualField>('duration_minutes');
 
-const rangeOptions: SelectOption<GraphTimeRangeKey>[] = [
-  { value: '1d', label: '1 day' }, { value: '3d', label: '3 days' },
-  { value: '1w', label: '1 week' }, { value: '2w', label: '2 weeks' },
-  { value: '1m', label: '1 month' },
-];
+const rangeOptions = computed<SelectOption<GraphTimeRangeKey>[]>(() => [
+  { value: '1d', label: t('range1d') },
+  { value: '3d', label: t('range3d') },
+  { value: '1w', label: t('range1w') },
+  { value: '2w', label: t('range2w') },
+  { value: '1m', label: t('range1m') },
+]);
 
-const axisOptions: SelectOption<GraphAxisField>[] = [
-  { value: 'duration_minutes', label: 'Duration' },
-  { value: 'motivation', label: 'Motivation' },
-  { value: 'status', label: 'Status' },
-];
+const axisOptions = computed<SelectOption<GraphAxisField>[]>(() => [
+  { value: 'duration_minutes', label: t('axisDuration') },
+  { value: 'motivation', label: t('axisMotivation') },
+  { value: 'status', label: t('axisStatus') },
+]);
 
-const visualOptions: SelectOption<GraphVisualField>[] = [
-  { value: 'none', label: 'None' },
-  { value: 'duration_minutes', label: 'Duration' },
-  { value: 'motivation', label: 'Motivation' },
-  { value: 'status', label: 'Status' },
-];
+const visualOptions = computed<SelectOption<GraphVisualField>[]>(() => [
+  { value: 'none', label: t('visualNone') },
+  { value: 'duration_minutes', label: t('axisDuration') },
+  { value: 'motivation', label: t('axisMotivation') },
+  { value: 'status', label: t('axisStatus') },
+]);
 
 // --- UI State ---
 type DrawerMode = 'create' | 'view' | 'edit' | 'tasks';
@@ -52,6 +56,7 @@ const isFullscreen = ref(false);
 const isThanksOpen = ref(false);
 const drawerMode = ref<DrawerMode>('view');
 const selectedItem = ref<Item | null>(null);
+const createSeed = ref<{ due: string; motivation: number } | null>(null);
 const showWelcomeToast = ref(false);
 
 let hasShownWelcomeToast = false;
@@ -81,19 +86,29 @@ const handleRefreshItems = () => loadItems(getCurrentToken());
 bindSyncStatusMap(syncMap);
 
 const handleLogout = async () => {
-  if (confirm('Are you sure you want to logout?')) {
+  if (confirm(t('logoutConfirm'))) {
     await auth.logout().catch(e => console.error(e));
   }
 };
 
 const openDrawer = (mode: DrawerMode) => {
+  if (mode !== 'create') {
+    createSeed.value = null;
+  }
   drawerMode.value = mode;
   isDrawerOpen.value = true;
 };
 
 const handleSelectItem = (item: Item) => {
+  createSeed.value = null;
   selectedItem.value = item;
   drawerMode.value = 'view';
+  isDrawerOpen.value = true;
+};
+
+const handleRequestCreateFromPlot = (payload: { due: string; motivation: number }) => {
+  createSeed.value = payload;
+  drawerMode.value = 'create';
   isDrawerOpen.value = true;
 };
 
@@ -151,7 +166,7 @@ watch(
 
     <transition name="toast">
       <div v-if="showWelcomeToast" class="welcome-toast">
-        Welcome {{ displayUsername }}
+        {{ t('welcome') }} {{ displayUsername }}
       </div>
     </transition>
 
@@ -177,21 +192,30 @@ watch(
           :range-options="rangeOptions"
           :axis-options="axisOptions"
           :visual-options="visualOptions"
-          @refresh="handleRefreshItems"
           @open-drawer="openDrawer"
-          @toggle-fullscreen="toggleFullscreen"
         />
       </template>
 
       <main class="content-body" :class="{ 'fullscreen-mode': isFullscreen }">
         <section class="plot-container">
-          <button 
-            v-if="isFullscreen" 
-            class="exit-fullscreen-btn" 
-            @click="toggleFullscreen"
-          >
-            Exit Fullscreen (Esc)
-          </button>
+          <div class="plot-actions" role="toolbar" aria-label="Graph actions">
+            <button
+              class="plot-action-btn"
+              type="button"
+              :title="t('refresh')"
+              @click="handleRefreshItems"
+            >
+              ↻
+            </button>
+            <button
+              class="plot-action-btn plot-action-strong"
+              type="button"
+              :title="isFullscreen ? t('exitFullscreen') : t('maximizeGraph')"
+              @click="toggleFullscreen"
+            >
+              {{ isFullscreen ? '☒' : '⛶' }}
+            </button>
+          </div>
           
           <ScatterPlot
             :items="items"
@@ -201,6 +225,7 @@ watch(
             v-model:radius-field="selectedRadiusField"
             class="plot-component"
             @select-item="handleSelectItem"
+            @request-create="handleRequestCreateFromPlot"
           />
         </section>
       </main>
@@ -209,6 +234,7 @@ watch(
     <TaskDrawer
       :open="isDrawerOpen"
       :mode="drawerMode"
+      :create-seed="createSeed"
       :selected-item="selectedItem"
       :items="items"
       :sync-map="syncMap"
@@ -228,7 +254,7 @@ watch(
   position: relative;
   height: 100dvh;
   overflow: hidden;
-  background: linear-gradient(to bottom right, #f1f5f9, #f8fafc, #eff6ff);
+  background: var(--tg-page-gradient);
 }
 
 .main-layout {
@@ -257,7 +283,7 @@ watch(
   z-index: 40;
   margin: 0;
   padding: 1rem;
-  background: #f8fafc;
+  background: var(--tg-surface-raised);
 }
 
 /* --- Plot Area (Added padding for axis spacing) --- */
@@ -265,13 +291,47 @@ watch(
   flex: 1;
   position: relative;
   border-radius: 1rem;
-  border: 1px solid #e2e8f0;
-  background-color: #fff;
-  /* 点が軸に近すぎないように内側に余白を追加 */
-  padding: 1.5rem 1.5rem 1rem 1rem; 
-  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+  border: 1px solid var(--tg-border-default);
+  background-color: var(--tg-surface);
+  padding: 3.5rem 1.5rem 1rem 1rem;
+  box-shadow: var(--tg-shadow-soft);
   display: flex;
   flex-direction: column;
+}
+
+.plot-actions {
+  position: absolute;
+  top: 0.85rem;
+  right: 0.9rem;
+  z-index: 80;
+  display: inline-flex;
+  gap: 0.5rem;
+}
+
+.plot-action-btn {
+  min-width: 2.2rem;
+  height: 2.2rem;
+  border-radius: 0.6rem;
+  border: 1px solid var(--tg-border-default);
+  background: var(--tg-surface-translucent);
+  color: var(--tg-text-default);
+  font-size: 1rem;
+  font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+  backdrop-filter: blur(8px);
+  box-shadow: var(--tg-shadow-soft);
+  transition: transform 0.2s ease, background-color 0.2s ease, border-color 0.2s ease;
+}
+
+.plot-action-btn:hover {
+  transform: translateY(-1px);
+  background: var(--tg-surface);
+  border-color: var(--tg-border-strong);
+}
+
+.plot-action-strong {
+  font-size: 1.2rem;
 }
 
 .plot-component {
@@ -279,29 +339,6 @@ watch(
   width: 100%;
   height: 100%;
   min-height: 0;
-}
-
-.exit-fullscreen-btn {
-  position: absolute;
-  top: 1rem;
-  right: 1rem;
-  z-index: 100;
-  background: rgba(255, 255, 255, 0.9);
-  backdrop-filter: blur(8px);
-  border: 1px solid #e2e8f0;
-  padding: 0.5rem 1rem;
-  border-radius: 0.625rem;
-  font-size: 0.75rem;
-  font-weight: 600;
-  color: #475569;
-  cursor: pointer;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-  transition: all 0.2s;
-}
-
-.exit-fullscreen-btn:hover {
-  background: #fff;
-  transform: translateY(-1px);
 }
 
 /* --- Drawer Slide Adjustment --- */
@@ -316,7 +353,7 @@ watch(
   position: fixed;
   left: 50%;
   top: 1.5rem;
-  z-index: 1000;
+  z-index: 30000;
   transform: translateX(-50%);
   border-radius: 0.75rem;
   border: 1px solid #6ee7b7;

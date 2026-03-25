@@ -2,9 +2,46 @@
 
 :root {
   font-family: Inter, sans-serif;
-  color: #2c3e50;
-  background-color: #ffffff;
+  color: #0f172a;
+  background-color: #f8fafc;
   color-scheme: light;
+
+  --tg-text-strong: #020617;
+  --tg-text-default: #1e293b;
+  --tg-text-muted: #64748b;
+  --tg-border-muted: rgba(226, 232, 240, 0.8);
+  --tg-border-default: #e2e8f0;
+  --tg-border-strong: #94a3b8;
+  --tg-surface: #ffffff;
+  --tg-surface-raised: #f8fafc;
+  --tg-surface-translucent: rgba(255, 255, 255, 0.9);
+  --tg-shadow-soft: 0 1px 2px rgba(0, 0, 0, 0.05);
+  --tg-shadow-elevated: 0 16px 30px rgba(15, 23, 42, 0.18);
+  --tg-page-gradient: linear-gradient(to bottom right, #f1f5f9, #f8fafc, #eff6ff);
+
+  --bg-primary: var(--tg-surface);
+  --bg-secondary: var(--tg-surface-raised);
+  --text-primary: var(--tg-text-default);
+  --text-strong: var(--tg-text-strong);
+  --text-muted: var(--tg-text-muted);
+  --border-color: var(--tg-border-default);
+}
+
+.dark {
+  color-scheme: dark;
+
+  --tg-text-strong: #f8fafc;
+  --tg-text-default: #e2e8f0;
+  --tg-text-muted: #94a3b8;
+  --tg-border-muted: rgba(71, 85, 105, 0.8);
+  --tg-border-default: #334155;
+  --tg-border-strong: #64748b;
+  --tg-surface: #0f172a;
+  --tg-surface-raised: #111827;
+  --tg-surface-translucent: rgba(15, 23, 42, 0.82);
+  --tg-shadow-soft: 0 1px 2px rgba(0, 0, 0, 0.35);
+  --tg-shadow-elevated: 0 16px 30px rgba(2, 6, 23, 0.55);
+  --tg-page-gradient: radial-gradient(circle at 10% 20%, #1e293b 0%, #0f172a 50%, #020617 100%);
 }
 
 * {
@@ -15,7 +52,9 @@ html,
 body {
   margin: 0;
   min-height: 100vh;
-  background: #f5f7f8;
+  background: var(--tg-surface-raised);
+  color: var(--tg-text-default);
+  transition: background-color 0.25s ease, color 0.25s ease;
 }
 
 #app {

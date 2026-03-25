@@ -3,6 +3,11 @@
 ## Overview
 Desktop exposes Rust commands via Tauri invoke.
 
+UI note (2026-03):
+- Frontend navigation/settings now use a header User Profile Menu.
+- Theme (`light`/`dark`) and language (`en`/`ja`) are local UI preferences persisted in frontend `localStorage`.
+- No new Tauri command was added for these settings; command surface below is unchanged.
+
 Frontend command call style:
 - invoke("command_name", payload)
 

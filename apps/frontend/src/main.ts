@@ -6,11 +6,15 @@ import './style.css'
 import App from './App.vue'
 import { honoClient } from './api/honoClient'
 import { useUserStore } from './stores/user'
+import { useSettings } from './composables/useSettings'
 
 const app = createApp(App)
 const pinia = createPinia()
 
 app.use(pinia)
+
+const { initializeSettings } = useSettings()
+initializeSettings()
 
 // Token lookup is deferred until request time to avoid early-store access.
 honoClient.setTokenGetter(() => useUserStore(pinia).accessToken ?? null)

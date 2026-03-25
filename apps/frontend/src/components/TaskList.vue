@@ -91,7 +91,7 @@ function displayStatus(status: Item['status']): string {
 .section-header h2 {
   font-size: 1rem;
   font-weight: 800;
-  color: #1e293b;
+  color: var(--text-strong);
   letter-spacing: 0.05em;
   text-transform: uppercase;
   margin: 0;
@@ -120,8 +120,8 @@ function displayStatus(status: Item['status']): string {
   width: 100%;
   text-align: left;
   padding: 1rem 1.25rem;
-  background: rgba(255, 255, 255, 0.6);
-  border: 1px solid rgba(226, 232, 240, 0.8);
+  background: color-mix(in srgb, var(--bg-primary) 72%, transparent);
+  border: 1px solid color-mix(in srgb, var(--tg-border-default) 82%, transparent);
   border-radius: 16px;
   cursor: pointer;
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
@@ -130,7 +130,7 @@ function displayStatus(status: Item['status']): string {
 }
 
 .task-row:hover {
-  background: white;
+  background: var(--bg-primary);
   border-color: #a855f7;
   transform: translateY(-2px);
   box-shadow: 0 10px 20px rgba(0, 0, 0, 0.04);
@@ -196,7 +196,7 @@ function displayStatus(status: Item['status']): string {
 .task-title {
   font-size: 0.95rem;
   font-weight: 700;
-  color: #1e293b;
+  color: var(--text-strong);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -204,7 +204,7 @@ function displayStatus(status: Item['status']): string {
 
 .task-desc {
   font-size: 0.8rem;
-  color: #94a3b8;
+  color: var(--text-muted);
   margin-top: 0.1rem;
   white-space: nowrap;
   overflow: hidden;
@@ -214,7 +214,7 @@ function displayStatus(status: Item['status']): string {
 /* --- Decorative Chevron --- */
 .task-chevron {
   margin-left: 1rem;
-  color: #cbd5e1;
+  color: var(--tg-border-default);
   transition: transform 0.3s ease, color 0.3s ease;
 }
 

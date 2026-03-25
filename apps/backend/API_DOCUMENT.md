@@ -3,6 +3,11 @@
 ## Overview
 This service is a Hono API backed by Supabase.
 
+UI note (2026-03):
+- Frontend navigation/settings were consolidated into a header User Profile Menu.
+- Theme and language are stored client-side (`localStorage`) and do not introduce new backend endpoints.
+- Existing auth/item routes remain unchanged.
+
 Base URL example:
 - http://localhost:10000
 

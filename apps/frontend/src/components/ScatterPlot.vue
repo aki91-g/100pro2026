@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, watch, onMounted, onUnmounted, nextTick } from 'vue';
 import type { Item } from '@/types/item';
+import { useSettings } from '@/composables/useSettings';
 import type {
   GraphAxisField,
   GraphConfig,
@@ -17,6 +18,7 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   (event: 'select-item', item: Item): void;
+  (event: 'request-create', payload: { due: string; motivation: number }): void;
 }>();
 
 const selectedRangeModel = defineModel<GraphTimeRangeKey>('range', { default: '1w' });
@@ -52,6 +54,22 @@ const clusterMenu = ref<{ visible: boolean; left: number; top: number; items: It
   left: 0,
   top: 0,
   items: [],
+});
+const hoverTooltip = ref<{ visible: boolean; left: number; top: number; title: string; status: string }>({
+  visible: false,
+  left: 0,
+  top: 0,
+  title: '',
+  status: '',
+});
+
+const { theme, t } = useSettings();
+
+const themeTokens = ref({
+  background: '#ffffff',
+  border: '#e2e8f0',
+  label: '#64748b',
+  labelStrong: '#334155',
 });
 
 const {
@@ -144,6 +162,35 @@ function drawTriangle(
   ctx.closePath();
 }
 
+function brightenHexColor(color: string, amount: number): string {
+  const normalized = color.trim();
+  const hexMatch = /^#([0-9a-f]{6})$/i.exec(normalized);
+  if (!hexMatch) return color;
+
+  const hex = hexMatch[1] ?? '000000';
+  const r = Number.parseInt(hex.slice(0, 2), 16);
+  const g = Number.parseInt(hex.slice(2, 4), 16);
+  const b = Number.parseInt(hex.slice(4, 6), 16);
+
+  const adjust = (value: number) => Math.round(value + (255 - value) * amount);
+  return `rgb(${adjust(r)}, ${adjust(g)}, ${adjust(b)})`;
+}
+
+function syncThemeTokens(): void {
+  const styles = getComputedStyle(document.documentElement);
+  const background = styles.getPropertyValue('--bg-primary').trim();
+  const border = styles.getPropertyValue('--border-color').trim();
+  const label = styles.getPropertyValue('--text-muted').trim();
+  const labelStrong = styles.getPropertyValue('--text-primary').trim();
+
+  themeTokens.value = {
+    background: background || '#ffffff',
+    border: border || '#e2e8f0',
+    label: label || '#64748b',
+    labelStrong: labelStrong || '#334155',
+  };
+}
+
 function drawScene(): void {
   const ctx = syncCanvasBackingStore();
   if (!ctx) return;
@@ -156,18 +203,22 @@ function drawScene(): void {
   if (layout.value.innerWidth <= 0 || layout.value.innerHeight <= 0) return;
 
   const { plotLeft, plotRight, plotTop, plotBottom, originX } = layout.value;
+  const isDarkMode = theme.value === 'dark';
+
+  ctx.fillStyle = themeTokens.value.background;
+  ctx.fillRect(0, 0, width, height);
 
   // Zone styling with improved contrast
   // Past zone: Warm red with subtle transparency
-  ctx.fillStyle = 'rgba(229, 57, 70, 0.08)';
+  ctx.fillStyle = isDarkMode ? 'rgba(248, 113, 113, 0.12)' : 'rgba(229, 57, 70, 0.08)';
   ctx.fillRect(plotLeft, plotTop, Math.max(originX - plotLeft, 0), plotBottom - plotTop);
 
   // Future zone: Cool blue with improved visibility
-  ctx.fillStyle = 'rgba(37, 99, 235, 0.08)';
+  ctx.fillStyle = isDarkMode ? 'rgba(96, 165, 250, 0.12)' : 'rgba(37, 99, 235, 0.08)';
   ctx.fillRect(originX, plotTop, Math.max(plotRight - originX, 0), plotBottom - plotTop);
 
-  // Grid lines with enhanced visibility
-  ctx.strokeStyle = 'rgba(148, 163, 184, 0.3)';
+  // Grid lines are aligned to shared border token for cross-component consistency.
+  ctx.strokeStyle = themeTokens.value.border;
   ctx.lineWidth = 1;
   ctx.setLineDash([4, 6]);
   for (const tick of yTicks.value) {
@@ -184,7 +235,7 @@ function drawScene(): void {
   }
 
   // Now line with improved visibility
-  ctx.strokeStyle = 'rgba(15, 23, 42, 0.55)';
+  ctx.strokeStyle = isDarkMode ? 'rgba(226, 232, 240, 0.5)' : 'rgba(15, 23, 42, 0.55)';
   ctx.lineWidth = 1.4;
   ctx.setLineDash([6, 6]);
   ctx.beginPath();
@@ -194,7 +245,7 @@ function drawScene(): void {
   ctx.setLineDash([]);
 
   // Axes labels
-  ctx.fillStyle = '#64748b';
+  ctx.fillStyle = themeTokens.value.label;
   ctx.font = '11px ui-sans-serif, system-ui, -apple-system, Segoe UI';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'top';
@@ -209,17 +260,18 @@ function drawScene(): void {
 
   ctx.textAlign = 'left';
   ctx.textBaseline = 'bottom';
-  ctx.fillText('Past', plotLeft + 4, plotTop - 4);
+  ctx.fillText(t('past'), plotLeft + 4, plotTop - 4);
   ctx.textAlign = 'right';
-  ctx.fillText('Future', plotRight - 4, plotTop - 4);
+  ctx.fillText(t('future'), plotRight - 4, plotTop - 4);
 
   // Nodes and badges
   for (const group of graphGroups.value) {
     const radius = Math.max(group.radius, 6);
 
     ctx.save();
-    ctx.fillStyle = group.color;
-    ctx.strokeStyle = 'rgba(255,255,255,0.95)';
+    const dotColor = isDarkMode ? brightenHexColor(group.color, 0.28) : group.color;
+    ctx.fillStyle = dotColor;
+    ctx.strokeStyle = isDarkMode ? 'rgba(15, 23, 42, 0.92)' : 'rgba(255,255,255,0.95)';
     ctx.lineWidth = 2;
 
     if (group.marker === 'circle') {
@@ -322,6 +374,17 @@ function closeClusterMenu(): void {
   clusterMenu.value.items = [];
 }
 
+function closeHoverTooltip(): void {
+  hoverTooltip.value.visible = false;
+}
+
+function getStatusLabel(status: Item['status']): string {
+  if (status === 'backlog') return t('statusBacklog');
+  if (status === 'inprogress') return t('statusDoing');
+  if (status === 'done') return t('statusDone');
+  return t('statusTodo');
+}
+
 function handleCanvasClick(event: MouseEvent): void {
   const point = getCanvasPoint(event);
   if (!point) return;
@@ -342,6 +405,58 @@ function handleCanvasClick(event: MouseEvent): void {
   }
 
   openClusterMenu(clickedGroup);
+}
+
+function handleCanvasMove(event: MouseEvent): void {
+  const point = getCanvasPoint(event);
+  if (!point) {
+    closeHoverTooltip();
+    return;
+  }
+
+  const hoveredGroup = findClickedGroup(point.x, point.y);
+  if (!hoveredGroup) {
+    closeHoverTooltip();
+    return;
+  }
+
+  const firstItem = hoveredGroup.items[0];
+  if (!firstItem) {
+    closeHoverTooltip();
+    return;
+  }
+
+  const title = hoveredGroup.items.length > 1
+    ? `${hoveredGroup.items.length} ${t('groupedTasksCount')}`
+    : firstItem.title;
+
+  hoverTooltip.value = {
+    visible: true,
+    left: clamp(point.x + 16, 8, Math.max(8, layout.value.width - 230)),
+    top: clamp(point.y + 16, 8, Math.max(8, layout.value.height - 80)),
+    title,
+    status: `${t('statusPrefix')}: ${getStatusLabel(firstItem.status)}`,
+  };
+}
+
+function handleCanvasDoubleClick(event: MouseEvent): void {
+  const point = getCanvasPoint(event);
+  if (!point || layout.value.innerWidth <= 0 || layout.value.innerHeight <= 0) return;
+
+  const rangeMs = graphConfig.timeRanges[selectedRange.value];
+  const ratioX = clamp((point.x - layout.value.plotLeft) / layout.value.innerWidth, 0, 1);
+  const timeOffsetMs = (ratioX * 2 - 1) * rangeMs;
+  const dueIso = new Date(layout.value.nowMs + timeOffsetMs).toISOString();
+
+  const ratioY = 1 - clamp((point.y - layout.value.plotTop) / layout.value.innerHeight, 0, 1);
+  const motivation = clamp(Math.round(1 + ratioY * 9), 1, 10);
+
+  closeClusterMenu();
+  closeHoverTooltip();
+  emit('request-create', {
+    due: dueIso,
+    motivation,
+  });
 }
 
 function handleClusterItemSelect(item: Item): void {
@@ -407,8 +522,23 @@ watch(selectedRadiusField, (value) => {
 
 watch([selectedRange, selectedYField, selectedColorField, selectedRadiusField], () => {
   closeClusterMenu();
+  closeHoverTooltip();
   refreshNow();
 });
+
+watch(
+  theme,
+  () => {
+    // Theme switch only needs a repaint; skip expensive graph recomputation.
+    syncThemeTokens();
+    if (animationFrame !== null) {
+      window.cancelAnimationFrame(animationFrame);
+      animationFrame = null;
+    }
+    drawScene();
+  },
+  { flush: 'sync', immediate: true },
+);
 
 watch(
   [graphGroups, layout, warnings],
@@ -421,6 +551,7 @@ watch(
 );
 
 onMounted(async () => {
+  syncThemeTokens();
   await nextTick();
   updateViewportSize();
   await nextTick();
@@ -453,6 +584,7 @@ onUnmounted(() => {
   if (sizeRetryFrame !== null) {
     window.cancelAnimationFrame(sizeRetryFrame);
   }
+  closeHoverTooltip();
   destroy();
 });
 </script>
@@ -475,14 +607,26 @@ onUnmounted(() => {
         class="main-canvas"
         :style="stageStyle"
         @click="handleCanvasClick"
+        @mousemove="handleCanvasMove"
+        @mouseleave="closeHoverTooltip"
+        @dblclick.prevent="handleCanvasDoubleClick"
       />
+
+      <div
+        v-if="hoverTooltip.visible"
+        class="hover-tooltip"
+        :style="{ left: `${hoverTooltip.left}px`, top: `${hoverTooltip.top}px` }"
+      >
+        <p class="tooltip-title">{{ hoverTooltip.title }}</p>
+        <p class="tooltip-status">{{ hoverTooltip.status }}</p>
+      </div>
 
       <div
         v-if="clusterMenu.visible"
         class="cluster-popup"
         :style="{ left: `${clusterMenu.left}px`, top: `${clusterMenu.top}px` }"
       >
-        <p class="popup-header">Grouped Tasks</p>
+        <p class="popup-header">{{ t('groupedTasks') }}</p>
         <ul class="popup-list">
           <li v-for="item in clusterMenu.items" :key="item.id">
             <button
@@ -525,17 +669,17 @@ onUnmounted(() => {
   align-items: center;
   gap: 0.5rem;
   padding: 0.5rem 1rem;
-  background: rgba(255, 255, 255, 0.7);
+  background: color-mix(in srgb, var(--bg-primary) 70%, transparent);
   backdrop-filter: blur(10px);
   border: 1px solid rgba(226, 232, 240, 0.8);
   border-radius: 10px;
   font-size: 0.7rem;
-  color: #64748b;
+  color: var(--text-primary);
   width: fit-content;
 }
 
 .debug-panel strong {
-  color: #1e293b;
+  color: var(--text-strong);
   font-weight: 800;
 }
 
@@ -544,14 +688,14 @@ onUnmounted(() => {
 }
 
 .debug-panel .label {
-  color: #94a3b8;
+  color: var(--text-muted);
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.05em;
 }
 
 .debug-panel .dot {
-  color: #e2e8f0;
+  color: var(--tg-border-default);
 }
 
 /* --- Main Canvas Viewport --- */
@@ -560,7 +704,7 @@ onUnmounted(() => {
   flex: 1;
   min-height: 0;
   overflow: hidden;
-  background: white;
+  background: var(--bg-primary);
   border-radius: 20px;
   border: 1px solid rgba(226, 232, 240, 0.8);
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.03);
@@ -579,9 +723,9 @@ onUnmounted(() => {
   position: absolute;
   z-index: 30;
   width: 260px;
-  background: rgba(255, 255, 255, 0.9);
+  background: color-mix(in srgb, var(--bg-primary) 92%, transparent);
   backdrop-filter: blur(20px);
-  border: 1px solid rgba(255, 255, 255, 0.8);
+  border: 1px solid color-mix(in srgb, var(--tg-border-default) 80%, transparent);
   border-radius: 16px;
   padding: 0.75rem;
   box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
@@ -591,7 +735,7 @@ onUnmounted(() => {
 .popup-header {
   font-size: 0.65rem;
   font-weight: 800;
-  color: #94a3b8;
+  color: var(--text-muted);
   text-transform: uppercase;
   letter-spacing: 0.1em;
   margin-bottom: 0.75rem;
@@ -611,7 +755,7 @@ onUnmounted(() => {
   width: 4px;
 }
 .popup-list::-webkit-scrollbar-thumb {
-  background: #e2e8f0;
+  background: var(--tg-border-default);
   border-radius: 10px;
 }
 
@@ -621,7 +765,7 @@ onUnmounted(() => {
   text-align: left;
   font-size: 0.85rem;
   font-weight: 600;
-  color: #475569;
+  color: var(--text-primary);
   background: transparent;
   border: none;
   border-radius: 10px;
@@ -632,6 +776,34 @@ onUnmounted(() => {
 .popup-item:hover {
   background: rgba(168, 85, 247, 0.08);
   color: #a855f7;
+}
+
+.hover-tooltip {
+  position: absolute;
+  z-index: 35;
+  pointer-events: none;
+  min-width: 180px;
+  max-width: 220px;
+  border-radius: 12px;
+  border: 1px solid color-mix(in srgb, var(--tg-border-default) 85%, transparent);
+  background: color-mix(in srgb, var(--bg-primary) 93%, transparent);
+  backdrop-filter: blur(14px);
+  box-shadow: 0 10px 26px rgba(2, 6, 23, 0.2);
+  padding: 0.55rem 0.7rem;
+}
+
+.tooltip-title {
+  margin: 0;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--text-strong);
+  line-height: 1.35;
+}
+
+.tooltip-status {
+  margin: 0.22rem 0 0;
+  font-size: 0.72rem;
+  color: var(--text-muted);
 }
 
 /* --- Warnings --- */

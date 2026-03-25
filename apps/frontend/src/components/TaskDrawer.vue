@@ -3,12 +3,14 @@ import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import type { Item } from '@/types/item';
 import TaskList from '@/components/TaskList.vue';
 import { useItems } from '@/composables/useItems';
+import { useSettings } from '@/composables/useSettings';
 
 type DrawerMode = 'create' | 'view' | 'edit' | 'tasks';
 
 const props = defineProps<{
   open: boolean;
   mode: DrawerMode;
+  createSeed?: { due: string; motivation: number } | null;
   selectedItem: Item | null;
   items: Item[];
   syncMap: Record<string, 'pending' | 'success' | 'error' | undefined>;
@@ -45,6 +47,7 @@ const viewStatusSelectId = 'task-drawer-status-view';
 const editStatusSelectId = 'task-drawer-status-edit';
 
 const { createItem, updateItem, updateItemStatus, archiveItem, softDeleteItem, items: repositoryItems } = useItems();
+const { t } = useSettings();
 
 const strictSyncMap = computed<Record<string, 'pending' | 'success' | 'error'>>(() => {
   const normalized: Record<string, 'pending' | 'success' | 'error'> = {};
@@ -69,13 +72,20 @@ const strictErrorMap = computed<Record<string, string>>(() => {
 const isMutating = computed(() => isSavingEdit.value || isArchiving.value || isDeleting.value || isUpdatingStatus.value);
 const drawerTitle = computed(() => (
   props.mode === 'create'
-    ? 'Create Task'
+    ? t('drawerCreateTask')
     : props.mode === 'view'
-      ? 'Details'
+      ? t('drawerDetails')
       : props.mode === 'edit'
-        ? 'Edit Task'
-        : 'Tasks'
+        ? t('drawerEditTask')
+        : t('list')
 ));
+
+const localizedStatusOptions = computed(() => ([
+  { value: 'backlog', label: t('statusBacklog') },
+  { value: 'todo', label: t('statusTodo') },
+  { value: 'doing', label: t('statusDoing') },
+  { value: 'done', label: t('statusDone') },
+]));
 
 function toDatetimeLocal(isoValue: string): string {
   const date = new Date(isoValue);
@@ -93,6 +103,18 @@ function resetCreateForm(): void {
   const now = new Date();
   now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
   createDue.value = now.toISOString().slice(0, 16);
+}
+
+function applyCreateSeed(): void {
+  const seed = props.createSeed;
+  if (!seed) return;
+
+  const dueDate = new Date(seed.due);
+  if (!Number.isNaN(dueDate.getTime())) {
+    createDue.value = toDatetimeLocal(dueDate.toISOString());
+  }
+
+  createMotivation.value = Math.min(10, Math.max(1, Math.round(seed.motivation)));
 }
 
 function hydrateEditForm(item: Item | null): void {
@@ -207,7 +229,7 @@ async function handleArchive(): Promise<void> {
 
 async function handleDelete(): Promise<void> {
   if (isMutating.value || !props.selectedItem) return;
-  if (!confirm('Are you sure you want to delete this task?')) return;
+  if (!confirm(t('drawerDeleteConfirm'))) return;
 
   isDeleting.value = true;
   try {
@@ -289,9 +311,20 @@ watch(
   (mode) => {
     if (mode === 'create') {
       resetCreateForm();
+      applyCreateSeed();
     }
   },
   { immediate: true },
+);
+
+watch(
+  () => props.createSeed,
+  () => {
+    if (props.mode === 'create' && props.open) {
+      applyCreateSeed();
+    }
+  },
+  { deep: true },
 );
 
 watch(
@@ -329,7 +362,7 @@ onUnmounted(() => {
               <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
               </svg>
-              <span>Back</span>
+              <span>{{ t('drawerBack') }}</span>
             </button>
             <h2 id="task-drawer-title" class="drawer-title">{{ drawerTitle }}</h2>
           </div>
@@ -339,9 +372,9 @@ onUnmounted(() => {
               <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
               </svg>
-              <span>New</span>
+              <span>{{ t('new') }}</span>
             </button>
-            <button type="button" class="secondary-button-sm" @click="closeDrawer">Close</button>
+            <button type="button" class="secondary-button-sm" @click="closeDrawer">{{ t('drawerClose') }}</button>
           </div>
         </header>
 
@@ -349,30 +382,30 @@ onUnmounted(() => {
           <transition name="fade-slide" mode="out-in">
             <form v-if="mode === 'create'" key="create" @submit.prevent="submitCreate" class="task-form">
               <div class="input-group">
-                <label>Title *</label>
-                <input v-model="createTitle" type="text" placeholder="Task name..." :disabled="isCreating" class="user-input" />
+                <label>{{ t('drawerTitleRequired') }}</label>
+                <input v-model="createTitle" type="text" :placeholder="t('drawerTitlePlaceholder')" :disabled="isCreating" class="user-input" />
               </div>
 
               <div class="input-group">
-                <label>Description</label>
-                <textarea v-model="createDescription" rows="3" placeholder="Optional notes" :disabled="isCreating" class="user-input" />
+                <label>{{ t('drawerDescription') }}</label>
+                <textarea v-model="createDescription" rows="3" :placeholder="t('drawerDescriptionPlaceholder')" :disabled="isCreating" class="user-input" />
               </div>
 
               <div class="input-row">
                 <div class="input-group">
-                  <label>Due *</label>
+                  <label>{{ t('drawerDueRequired') }}</label>
                   <input v-model="createDue" type="datetime-local" :disabled="isCreating" class="user-input" />
                 </div>
                 <div class="input-group">
-                  <label>Duration (min)</label>
+                  <label>{{ t('drawerDurationMin') }}</label>
                   <input v-model.number="createDuration" type="number" min="1" :disabled="isCreating" class="user-input" />
                 </div>
               </div>
 
               <div class="form-actions">
-                <button type="button" class="link-text" @click="cancelCreate">Cancel</button>
+                <button type="button" class="link-text" @click="cancelCreate">{{ t('drawerCancel') }}</button>
                 <button type="submit" :disabled="!createTitle.trim() || !createDue.trim() || isCreating" class="primary-button">
-                  {{ isCreating ? 'Creating...' : 'Create Task' }}
+                  {{ isCreating ? t('drawerCreating') : t('drawerCreateTask') }}
                 </button>
               </div>
             </form>
@@ -381,30 +414,27 @@ onUnmounted(() => {
               <div v-if="selectedItem" class="detail-card">
                 <div class="detail-header">
                   <h3>{{ selectedItem.title }}</h3>
-                  <button type="button" class="edit-link" @click="startEdit">Edit</button>
+                  <button type="button" class="edit-link" @click="startEdit">{{ t('drawerEdit') }}</button>
                 </div>
-                <p class="detail-desc">{{ selectedItem.description || 'No description' }}</p>
+                <p class="detail-desc">{{ selectedItem.description || t('drawerNoDescription') }}</p>
                 
                 <div class="detail-grid">
                   <div class="grid-item">
-                    <label class="label" :for="viewStatusSelectId">Status</label>
+                    <label class="label" :for="viewStatusSelectId">{{ t('drawerStatus') }}</label>
                     <select
                       :id="viewStatusSelectId"
                       v-model="selectedStatusUi"
                       class="status-select"
                       :disabled="isMutating"
-                      aria-label="Task status in details view"
+                      :aria-label="t('drawerStatusAriaView')"
                       @change="handleStatusChange"
                     >
-                      <option value="backlog">Backlog</option>
-                      <option value="todo">todo</option>
-                      <option value="doing">doing</option>
-                      <option value="done">done</option>
+                      <option v-for="statusOption in localizedStatusOptions" :key="statusOption.value" :value="statusOption.value">{{ statusOption.label }}</option>
                     </select>
                   </div>
-                  <div class="grid-item"><span class="label">Due</span><p>{{ new Date(selectedItem.due).toLocaleString() }}</p></div>
-                  <div class="grid-item"><span class="label">Motivation</span><p>{{ selectedItem.motivation ?? '5' }}</p></div>
-                  <div class="grid-item"><span class="label">Duration</span><p>{{ selectedItem.duration_minutes ?? '---' }} min</p></div>
+                  <div class="grid-item"><span class="label">{{ t('drawerDue') }}</span><p>{{ new Date(selectedItem.due).toLocaleString() }}</p></div>
+                  <div class="grid-item"><span class="label">{{ t('drawerMotivation') }}</span><p>{{ selectedItem.motivation ?? '5' }}</p></div>
+                  <div class="grid-item"><span class="label">{{ t('drawerDuration') }}</span><p>{{ selectedItem.duration_minutes ?? '---' }} {{ t('drawerMinuteUnit') }}</p></div>
                 </div>
               </div>
             </div>
@@ -416,58 +446,55 @@ onUnmounted(() => {
             <form v-else key="edit" class="task-form edit-form" @submit.prevent="handleEditSubmit">
               <div class="edit-fields">
                 <div class="input-group">
-                  <label>Title</label>
+                  <label>{{ t('drawerTitle') }}</label>
                   <input v-model="editTitle" type="text" :disabled="isSavingEdit" class="user-input" />
                 </div>
                 <div class="input-group">
-                  <label>Description</label>
+                  <label>{{ t('drawerDescription') }}</label>
                   <textarea v-model="editDescription" rows="6" :disabled="isSavingEdit" class="user-input" />
                 </div>
 
                 <div class="input-group">
-                  <label>Due</label>
+                  <label>{{ t('drawerDue') }}</label>
                   <input v-model="editDue" type="datetime-local" :disabled="isSavingEdit" class="user-input" />
                 </div>
 
                 <div class="input-group">
-                  <label>Duration (min)</label>
+                  <label>{{ t('drawerDurationMin') }}</label>
                   <input v-model.number="editDuration" type="number" min="1" :disabled="isSavingEdit" class="user-input" />
                 </div>
 
                 <div class="input-group">
-                  <label>Motivation</label>
+                  <label>{{ t('drawerMotivation') }}</label>
                   <select v-model.number="editMotivation" :disabled="isSavingEdit" class="user-input">
                     <option v-for="n in 10" :key="n" :value="n">{{ n }}</option>
                   </select>
                 </div>
 
                 <div class="input-group">
-                  <label :for="editStatusSelectId">Status</label>
+                  <label :for="editStatusSelectId">{{ t('drawerStatus') }}</label>
                   <select
                     :id="editStatusSelectId"
                     v-model="selectedStatusUi"
                     :disabled="isMutating"
                     class="user-input status-select"
-                    aria-label="Task status in edit form"
+                    :aria-label="t('drawerStatusAriaEdit')"
                     @change="handleStatusChange"
                   >
-                    <option value="backlog">Backlog</option>
-                    <option value="todo">todo</option>
-                    <option value="doing">doing</option>
-                    <option value="done">done</option>
+                    <option v-for="statusOption in localizedStatusOptions" :key="statusOption.value" :value="statusOption.value">{{ statusOption.label }}</option>
                   </select>
                 </div>
 
                 <div class="danger-zone">
-                  <button type="button" class="danger-button-outline" @click="handleArchive" :disabled="isMutating">Archive</button>
-                  <button type="button" class="danger-button-outline" @click="handleDelete" :disabled="isMutating">Delete</button>
+                  <button type="button" class="danger-button-outline" @click="handleArchive" :disabled="isMutating">{{ t('drawerArchive') }}</button>
+                  <button type="button" class="danger-button-outline" @click="handleDelete" :disabled="isMutating">{{ t('drawerDelete') }}</button>
                 </div>
               </div>
 
               <div class="edit-footer">
-                <button type="button" class="secondary-action" @click="cancelEdit">Cancel</button>
+                <button type="button" class="secondary-action" @click="cancelEdit">{{ t('drawerCancel') }}</button>
                 <button type="submit" :disabled="!editTitle.trim() || !editDue.trim() || isMutating" class="primary-button">
-                  Save Changes
+                  {{ t('drawerSaveChanges') }}
                 </button>
               </div>
             </form>
@@ -500,9 +527,9 @@ onUnmounted(() => {
   width: 100%;
   max-width: 500px;
   height: 100%;
-  background: rgba(255, 255, 255, 0.85);
+  background: color-mix(in srgb, var(--bg-primary) 85%, transparent);
   backdrop-filter: blur(30px);
-  border-left: 1px solid rgba(255, 255, 255, 0.5);
+  border-left: 1px solid color-mix(in srgb, var(--bg-primary) 55%, transparent);
   box-shadow: -10px 0 50px rgba(0, 0, 0, 0.05);
   display: flex;
   flex-direction: column;
@@ -542,7 +569,7 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+  border-bottom: 1px solid var(--tg-border-default);
 }
 
 .header-left, .header-right {
@@ -554,7 +581,7 @@ onUnmounted(() => {
 .drawer-title {
   font-size: 1.25rem;
   font-weight: 800;
-  color: #1e293b;
+  color: var(--text-strong);
   letter-spacing: -0.02em;
 }
 
@@ -603,7 +630,7 @@ onUnmounted(() => {
   display: block;
   font-size: 0.75rem;
   font-weight: 700;
-  color: #64748b;
+  color: var(--text-muted);
   text-transform: uppercase;
   letter-spacing: 0.05em;
   margin-bottom: 0.4rem;
@@ -611,11 +638,11 @@ onUnmounted(() => {
 
 .user-input {
   width: 100%;
-  background: #ffffff;
-  border: 1px solid #cbd5e1;
+  background: var(--bg-primary);
+  border: 1px solid var(--tg-border-default);
   border-radius: 0.75rem;
   padding: 0.7rem 0.9rem;
-  color: #0f172a;
+  color: var(--text-primary);
   font-size: 0.95rem;
   transition: border-color 0.24s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.24s cubic-bezier(0.16, 1, 0.3, 1), background 0.24s cubic-bezier(0.16, 1, 0.3, 1);
 }
@@ -623,7 +650,7 @@ onUnmounted(() => {
 .user-input:focus {
   outline: none;
   border-color: #64748b;
-  background: white;
+  background: var(--bg-primary);
   box-shadow: 0 0 0 3px rgba(100, 116, 139, 0.15);
 }
 
@@ -641,14 +668,14 @@ onUnmounted(() => {
 }
 
 .primary-button:disabled {
-  background: #e2e8f0;
-  color: #94a3b8;
+  background: var(--bg-secondary);
+  color: var(--text-muted);
   box-shadow: none;
   cursor: not-allowed;
 }
 
 .primary-button-sm {
-  background: linear-gradient(135deg, #ef4444 0%, #a855f7 100%);
+  background: linear-gradient(135deg, #ef4444 0%, #a855f7 50%, #3b82f6 100%);
   color: white;
   padding: 0.5rem 1rem;
   border-radius: 8px;
@@ -660,9 +687,9 @@ onUnmounted(() => {
 }
 
 .secondary-button-sm {
-  background: white;
-  border: 1px solid #e2e8f0;
-  color: #64748b;
+  background: var(--bg-primary);
+  border: 1px solid var(--tg-border-default);
+  color: var(--text-primary);
   padding: 0.5rem 1rem;
   border-radius: 8px;
   font-size: 0.875rem;
@@ -673,13 +700,13 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   gap: 0.4rem;
-  color: #64748b;
+  color: var(--text-primary);
   font-size: 0.875rem;
   font-weight: 600;
 }
 
 .link-text {
-  color: #94a3b8;
+  color: var(--text-muted);
   font-weight: 600;
   cursor: pointer;
 }
@@ -700,15 +727,15 @@ onUnmounted(() => {
   align-items: center;
   gap: 0.75rem;
   padding: 0.85rem 0 0.25rem;
-  border-top: 1px solid rgba(148, 163, 184, 0.25);
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.86), #ffffff 35%);
+  border-top: 1px solid color-mix(in srgb, var(--tg-border-default) 75%, transparent);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--bg-primary) 86%, transparent), var(--bg-primary) 35%);
   box-shadow: 0 -8px 20px rgba(15, 23, 42, 0.04);
 }
 
 .secondary-action {
-  border: 1px solid #cbd5e1;
-  background: #f8fafc;
-  color: #475569;
+  border: 1px solid var(--tg-border-default);
+  background: var(--bg-secondary);
+  color: var(--text-primary);
   border-radius: 0.75rem;
   padding: 0.7rem 1rem;
   font-weight: 600;
@@ -717,15 +744,15 @@ onUnmounted(() => {
 }
 
 .secondary-action:hover {
-  border-color: #94a3b8;
-  background: #f1f5f9;
-  color: #334155;
+  border-color: var(--tg-border-strong);
+  background: color-mix(in srgb, var(--bg-secondary) 75%, var(--bg-primary));
+  color: var(--text-strong);
 }
 
 /* --- Details View --- */
 .detail-card {
-  background: rgba(255, 255, 255, 0.5);
-  border: 1px solid rgba(255, 255, 255, 0.8);
+  background: color-mix(in srgb, var(--bg-primary) 72%, transparent);
+  border: 1px solid color-mix(in srgb, var(--tg-border-default) 82%, transparent);
   border-radius: 20px;
   padding: 1.5rem;
 }
@@ -740,7 +767,7 @@ onUnmounted(() => {
 .detail-header h3 {
   font-size: 1.25rem;
   font-weight: 800;
-  color: #1e293b;
+  color: var(--text-strong);
 }
 
 .edit-link {
@@ -750,7 +777,7 @@ onUnmounted(() => {
 }
 
 .detail-desc {
-  color: #64748b;
+  color: var(--text-primary);
   font-size: 0.95rem;
   margin-bottom: 1.5rem;
   line-height: 1.6;
@@ -766,24 +793,24 @@ onUnmounted(() => {
   display: block;
   font-size: 0.65rem;
   font-weight: 800;
-  color: #cbd5e1;
+  color: var(--text-muted);
   text-transform: uppercase;
   margin-bottom: 0.25rem;
 }
 
 .grid-item p {
-  color: #475569;
+  color: var(--text-primary);
   font-weight: 600;
   font-size: 0.9rem;
 }
 
 .status-select {
   width: 100%;
-  background: #ffffff;
-  border: 1px solid #cbd5e1;
+  background: var(--bg-primary);
+  border: 1px solid var(--tg-border-default);
   border-radius: 0.75rem;
   padding: 0.7rem 0.9rem;
-  color: #334155;
+  color: var(--text-primary);
   font-size: 0.92rem;
   font-weight: 600;
   text-transform: lowercase;
@@ -791,13 +818,13 @@ onUnmounted(() => {
 }
 
 .status-select:hover {
-  border-color: #94a3b8;
+  border-color: var(--tg-border-strong);
   box-shadow: 0 2px 10px rgba(15, 23, 42, 0.06);
 }
 
 .status-select:focus {
   outline: none;
-  border-color: #334155;
+  border-color: var(--tg-border-strong);
   box-shadow: 0 0 0 3px rgba(100, 116, 139, 0.18);
 }
 
@@ -815,7 +842,7 @@ onUnmounted(() => {
   flex: 1;
   padding: 0.6rem;
   border: 1px solid #fecaca;
-  background: white;
+  background: var(--bg-primary);
   color: #dc2626;
   border-radius: 0.75rem;
   font-size: 0.8rem;
