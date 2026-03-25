@@ -69,7 +69,7 @@ const teamMembers = ['柿花雨実'];
 .modal-overlay {
   position: fixed;
   inset: 0;
-  z-index: 30000;
+  z-index: var(--z-modal);
   background: rgba(15, 23, 42, 0.75);
   backdrop-filter: blur(10px);
   display: flex;

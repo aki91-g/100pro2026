@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref } from 'vue';
+import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
 import { useSettings } from '@/composables/useSettings';
 
 const props = defineProps<{
@@ -18,6 +18,7 @@ const { theme, language, toggleTheme, toggleLanguage, t } = useSettings();
 
 const isMenuOpen = ref(false);
 const menuRootRef = ref<HTMLElement | null>(null);
+const menuPanelRef = ref<HTMLElement | null>(null);
 
 const avatarLabel = computed(() => {
   const trimmed = props.displayUsername?.trim();
@@ -41,6 +42,46 @@ function closeMenu(): void {
   isMenuOpen.value = false;
 }
 
+function focusMenuItem(index: number): void {
+  const menuPanel = menuPanelRef.value;
+  if (!menuPanel) return;
+
+  const items = Array.from(menuPanel.querySelectorAll<HTMLElement>('[role="menuitem"]'));
+  if (items.length === 0) return;
+
+  const wrappedIndex = (index + items.length) % items.length;
+  items[wrappedIndex]?.focus();
+}
+
+function handleMenuKeydown(event: KeyboardEvent): void {
+  if (!isMenuOpen.value) return;
+
+  const menuPanel = menuPanelRef.value;
+  if (!menuPanel) return;
+
+  const items = Array.from(menuPanel.querySelectorAll<HTMLElement>('[role="menuitem"]'));
+  if (items.length === 0) return;
+
+  const activeIndex = items.findIndex((item) => item === document.activeElement);
+
+  if (event.key === 'ArrowDown') {
+    event.preventDefault();
+    focusMenuItem(activeIndex < 0 ? 0 : activeIndex + 1);
+    return;
+  }
+
+  if (event.key === 'ArrowUp') {
+    event.preventDefault();
+    focusMenuItem(activeIndex < 0 ? items.length - 1 : activeIndex - 1);
+    return;
+  }
+
+  if (event.key === 'Escape') {
+    event.preventDefault();
+    closeMenu();
+  }
+}
+
 function handleLogout(): void {
   closeMenu();
   emit('logout');
@@ -62,6 +103,12 @@ onMounted(() => {
 onUnmounted(() => {
   document.removeEventListener('click', handleDocumentClick);
 });
+
+watch(isMenuOpen, async (open) => {
+  if (!open) return;
+  await nextTick();
+  focusMenuItem(0);
+});
 </script>
 
 <template>
@@ -69,14 +116,15 @@ onUnmounted(() => {
     <div class="header-content">
       <div class="branding">
         <h1 class="title">{{ t('appTitle') }}</h1>
-        <div 
+        <button
+          type="button"
           class="version-badge" 
-          role="button" 
           :title="t('specialThanks')"
+          :aria-label="t('specialThanks')"
           @click="emit('show-thanks')"
         >
           <span class="gradient-text">100 program v9</span>
-        </div>
+        </button>
       </div>
 
       <div class="user-actions">
@@ -103,13 +151,13 @@ onUnmounted(() => {
           </button>
 
           <transition name="menu-fade">
-            <div v-if="isMenuOpen" class="menu-panel" role="menu" @click.stop>
-              <button type="button" class="menu-item" @click="toggleTheme">
+            <div v-if="isMenuOpen" ref="menuPanelRef" class="menu-panel" role="menu" @keydown="handleMenuKeydown" @click.stop>
+              <button type="button" class="menu-item" role="menuitem" @click="toggleTheme">
                 <span class="menu-label">{{ t('theme') }}</span>
                 <span class="menu-value">{{ themeLabel }}</span>
               </button>
 
-              <button type="button" class="menu-item" @click="toggleLanguage">
+              <button type="button" class="menu-item" role="menuitem" @click="toggleLanguage">
                 <span class="menu-label">{{ t('language') }}</span>
                 <span class="menu-value">{{ languageLabel }}</span>
               </button>
@@ -122,7 +170,7 @@ onUnmounted(() => {
                 </span>
               </div>
 
-              <button type="button" class="menu-item logout-item" @click="handleLogout">
+              <button type="button" class="menu-item logout-item" role="menuitem" @click="handleLogout">
                 {{ t('logout') }}
               </button>
             </div>
@@ -136,7 +184,7 @@ onUnmounted(() => {
 <style scoped>
 .app-header {
   position: relative;
-  z-index: 20;
+  z-index: var(--z-header);
   border-radius: 1rem;
   border: 1px solid var(--tg-border-muted);
   background-color: var(--tg-surface-translucent);
@@ -164,6 +212,7 @@ onUnmounted(() => {
 }
 
 .version-badge {
+  appearance: none;
   border-radius: 9999px;
   border: 1px solid #e2e8f0;
   background-color: var(--badge-bg);
@@ -220,12 +269,14 @@ onUnmounted(() => {
 
 .profile-menu {
   position: relative;
-  z-index: 30;
+  z-index: calc(var(--z-header) + 10);
+  min-width: 0;
 }
 
 .profile-trigger {
   display: inline-flex;
   align-items: center;
+  min-width: 0;
   gap: 0.625rem;
   border-radius: 9999px;
   border: 1px solid var(--tg-border-default);
@@ -267,7 +318,15 @@ onUnmounted(() => {
   animation: pulse 2s infinite;
 }
 
-.username { font-weight: 500; color: var(--tg-text-strong); }
+.username {
+  min-width: 0;
+  max-width: 12rem;
+  font-weight: 500;
+  color: var(--tg-text-strong);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  overflow: hidden;
+}
 
 .guest-badge {
   border-radius: 9999px;
@@ -289,7 +348,7 @@ onUnmounted(() => {
   background: var(--tg-surface);
   box-shadow: var(--tg-shadow-elevated);
   padding: 0.45rem;
-  z-index: 40;
+  z-index: var(--z-dropdown);
 }
 
 .menu-item {
@@ -341,7 +400,7 @@ onUnmounted(() => {
 }
 
 .logout-item:hover {
-  background-color: #fef2f2;
+  background-color: var(--bg-danger-hover, #fef2f2);
 }
 
 .menu-fade-enter-active,
