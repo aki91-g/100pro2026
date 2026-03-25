@@ -1,61 +1,56 @@
 <script setup lang="ts">
+import { useSettings } from '@/composables/useSettings';
+
 defineProps<{ show: boolean }>();
 const emit = defineEmits<{ 'close': [] }>();
+const { t } = useSettings();
 
-const hosts = ['TS', 'TY'];
-const mentors = ['YB', 'AS', 'KY', 'MA'];
-const feedbacks = ['RK(友人)', 'RN(友人・9期生)'];
+const feedbacks = ['河原諒晟', '長坂怜', '小野春花'];
+const teamMembers = ['柿花雨実'];
 </script>
 
 <template>
   <transition name="modal-fade">
     <div v-if="show" class="modal-overlay" @click.self="emit('close')">
-      <div class="modal-card">
+      <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="specialThanksTitle">
         <header class="modal-header">
           <div class="v9-tag">100 program v9</div>
-          <h2 class="modal-title">TaskGraph</h2>
-          <button class="close-btn" @click="emit('close')" aria-label="Close">&times;</button>
+          <h2 id="specialThanksTitle" class="modal-title">TaskGraph</h2>
+          <button class="close-btn" @click="emit('close')" :aria-label="t('thanksClose')">&times;</button>
         </header>
 
         <div class="modal-body">
           <div class="author-section">
-            <span class="label">Developed by</span>
+            <span class="label">{{ t('thanksDevelopedBy') }}</span>
             <h3 class="author-name">Suzuha Takaki</h3>
             <div class="author-links">
-              <a href="https://github.com/aki91-g" target="_blank" rel="noopener noreferrer" class="link">GitHub Profile →</a>
+              <a href="https://github.com/aki91-g" target="_blank" rel="noopener noreferrer" class="link">{{ t('thanksGithubProfile') }} →</a>
             </div>
           </div>
 
           <div class="program-info">
             <p class="intro-text">
-              TaskGraphは <strong>100 program 9期 (2026春期)</strong> において製作されました。
+              {{ t('thanksIntro', { program: '100 program 9th (Spring 2026)' }) }}
             </p>
-            <a href="https://100program.jp" target="_blank" rel="noopener noreferrer" class="link">100 program Official Site →</a>
+            <a href="https://100program.jp" target="_blank" rel="noopener noreferrer" class="link">{{ t('thanksOfficialSite') }} →</a>
           </div>
 
           <div class="divider"></div>
 
           <div class="thanks-container">
-            <h3 class="thanks-title">Special Thanks to</h3>
+            <h3 class="thanks-title">{{ t('thanksSectionTitle') }}</h3>
             <div class="thanks-grid">
               <section class="thanks-item">
-                <span class="role-label">Program Hosts</span>
+                <span class="role-label">{{ t('thanksFeedback') }}</span>
                 <ul class="name-grid">
-                  <li v-for="name in hosts" :key="name" class="name-chip">{{ name }}</li>
+                  <li v-for="name in feedbacks" :key="name" class="name-chip">{{ name }}</li>
                 </ul>
               </section>
 
               <section class="thanks-item">
-                <span class="role-label">Special Support</span>
+                <span class="role-label">{{ t('thanksTeam') }}</span>
                 <ul class="name-grid">
-                  <li v-for="name in mentors" :key="name" class="name-chip">{{ name }}</li>
-                </ul>
-              </section>
-
-              <section class="thanks-item thanks-item-wide">
-                <span class="role-label">Feedback from</span>
-                <ul class="name-grid feedback-grid">
-                  <li v-for="name in feedbacks" :key="name" class="name-chip">{{ name }}</li>
+                  <li v-for="name in teamMembers" :key="name" class="name-chip">{{ name }}</li>
                 </ul>
               </section>
             </div>
@@ -63,7 +58,7 @@ const feedbacks = ['RK(友人)', 'RN(友人・9期生)'];
         </div>
 
         <footer class="modal-footer">
-          <p class="copyright">&copy; 2026 TaskGraph Project</p>
+          <p class="copyright">&copy; 2026 {{ t('thanksCopyright') }}</p>
         </footer>
       </div>
     </div>
@@ -74,7 +69,7 @@ const feedbacks = ['RK(友人)', 'RN(友人・9期生)'];
 .modal-overlay {
   position: fixed;
   inset: 0;
-  z-index: 9999;
+  z-index: var(--z-modal);
   background: rgba(15, 23, 42, 0.75);
   backdrop-filter: blur(10px);
   display: flex;
@@ -85,7 +80,7 @@ const feedbacks = ['RK(友人)', 'RN(友人・9期生)'];
 
 /* メインカード */
 .modal-card {
-  background: #ffffff;
+  background: var(--bg-primary);
   width: 100%;
   max-width: 720px;
   max-height: min(88vh, 820px);
@@ -102,14 +97,14 @@ const feedbacks = ['RK(友人)', 'RN(友人・9期生)'];
   padding: 2rem 2rem 1rem;
   text-align: center;
   position: relative;
-  background: linear-gradient(to bottom, #f8fafc, #ffffff);
+  background: linear-gradient(to bottom, var(--bg-secondary), var(--bg-primary));
   flex-shrink: 0;
 }
 
 .modal-title {
   font-size: 2rem;
   font-weight: 900;
-  color: #0f172a;
+  color: var(--text-strong);
   letter-spacing: -0.05em;
   margin: 0;
 }
@@ -130,16 +125,17 @@ const feedbacks = ['RK(友人)', 'RN(友人・9期生)'];
   position: absolute;
   top: 1.5rem;
   right: 1.5rem;
+  z-index: 2;
   font-size: 2rem;
   background: none;
   border: none;
-  color: #94a3b8;
+  color: var(--text-muted);
   cursor: pointer;
   line-height: 1;
   transition: color 0.2s;
 }
 
-.close-btn:hover { color: #64748b; }
+.close-btn:hover { color: var(--text-primary); }
 
 /* ボディ */
 .modal-body {
@@ -150,11 +146,11 @@ const feedbacks = ['RK(友人)', 'RN(友人・9期生)'];
 }
 
 .author-section {
-  background: #f8fafc;
+  background: var(--bg-secondary);
   padding: 1.5rem;
   border-radius: 1.5rem;
   margin-bottom: 1.5rem;
-  border: 1px solid #f1f5f9;
+  border: 1px solid var(--tg-border-default);
 }
 
 .author-section .label {
@@ -162,33 +158,33 @@ const feedbacks = ['RK(友人)', 'RN(友人・9期生)'];
   font-size: 0.7rem;
   text-transform: uppercase;
   letter-spacing: 0.15em;
-  color: #64748b;
+  color: var(--text-muted);
   margin-bottom: 0.5rem;
 }
 
 .author-name {
   font-size: 1.75rem;
   font-weight: 900;
-  color: #0f172a;
+  color: var(--text-strong);
   margin: 0 0 0.5rem 0;
 }
 
 .intro-text {
   font-size: 0.95rem;
   line-height: 1.6;
-  color: #475569;
+  color: var(--text-primary);
 }
 
 .divider {
   height: 1px;
-  background: linear-gradient(to right, transparent, #e2e8f0, transparent);
+  background: linear-gradient(to right, transparent, var(--tg-border-default), transparent);
   margin: 2.5rem 0;
 }
 
 .thanks-title {
   font-size: 1.5rem;
   font-weight: 950;
-  color: #0f172a;
+  color: var(--text-strong);
   margin-bottom: 1.5rem;
   letter-spacing: -0.06em;
 }
@@ -201,15 +197,11 @@ const feedbacks = ['RK(友人)', 'RN(友人・9期生)'];
 }
 
 .thanks-item {
-  border: 1px solid #e2e8f0;
+  border: 1px solid var(--tg-border-default);
   border-radius: 1rem;
   padding: 1rem;
-  background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+  background: linear-gradient(180deg, var(--bg-primary) 0%, var(--bg-secondary) 100%);
   text-align: center;
-}
-
-.thanks-item-wide {
-  grid-column: 1 / -1;
 }
 
 .role-label {
@@ -217,14 +209,14 @@ const feedbacks = ['RK(友人)', 'RN(友人・9期生)'];
   font-size: 0.65rem;
   text-transform: uppercase;
   letter-spacing: 0.1em;
-  color: #94a3b8;
+  color: var(--text-muted);
   margin-bottom: 0.5rem;
 }
 
 .person-name {
   font-size: 1.15rem;
   font-weight: 800;
-  color: #1e293b;
+  color: var(--text-primary);
   padding: 0.4rem 1rem;
   margin: 0;
 }
@@ -238,18 +230,14 @@ const feedbacks = ['RK(友人)', 'RN(友人・9期生)'];
   gap: 0.6rem;
 }
 
-.feedback-grid {
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-}
-
 .name-chip {
-  border: 1px solid #dbe3ee;
-  background: #ffffff;
+  border: 1px solid var(--tg-border-default);
+  background: var(--bg-primary);
   border-radius: 0.75rem;
   padding: 0.5rem 0.65rem;
   font-size: 1rem;
   font-weight: 700;
-  color: #334155;
+  color: var(--text-primary);
 }
 
 .link {
@@ -264,14 +252,14 @@ const feedbacks = ['RK(友人)', 'RN(友人・9期生)'];
 
 .modal-footer {
   padding: 1.25rem;
-  background: #f8fafc;
-  border-top: 1px solid #f1f5f9;
+  background: var(--bg-secondary);
+  border-top: 1px solid var(--tg-border-default);
   flex-shrink: 0;
 }
 
 .copyright {
   font-size: 0.75rem;
-  color: #94a3b8;
+  color: var(--text-muted);
   margin: 0;
 }
 
@@ -306,12 +294,7 @@ const feedbacks = ['RK(友人)', 'RN(友人・9期生)'];
     grid-template-columns: 1fr;
   }
 
-  .thanks-item-wide {
-    grid-column: auto;
-  }
-
-  .name-grid,
-  .feedback-grid {
+  .name-grid {
     grid-template-columns: 1fr;
   }
 }

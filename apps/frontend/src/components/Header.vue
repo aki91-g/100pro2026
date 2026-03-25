@@ -1,5 +1,8 @@
 <script setup lang="ts">
-defineProps<{
+import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
+import { useSettings } from '@/composables/useSettings';
+
+const props = defineProps<{
   displayUsername: string;
   isSyncing: boolean;
   isGuest: boolean;
@@ -10,43 +13,168 @@ const emit = defineEmits<{
   'show-thanks': [];
   'show-help': [];
 }>();
+
+const { theme, language, toggleTheme, toggleLanguage, t } = useSettings();
+
+const isMenuOpen = ref(false);
+const menuRootRef = ref<HTMLElement | null>(null);
+const menuPanelRef = ref<HTMLElement | null>(null);
+
+const avatarLabel = computed(() => {
+  const trimmed = props.displayUsername?.trim();
+  if (!trimmed) return 'U';
+  return trimmed.slice(0, 1).toUpperCase();
+});
+
+const syncStatusLabel = computed(() => {
+  if (props.isGuest) return t('guestLocalMode');
+  return props.isSyncing ? t('dbSyncing') : t('dbIdle');
+});
+
+const themeLabel = computed(() => (theme.value === 'light' ? t('light') : t('dark')));
+const languageLabel = computed(() => (language.value === 'en' ? t('english') : t('japanese')));
+
+function toggleMenu(): void {
+  isMenuOpen.value = !isMenuOpen.value;
+}
+
+function closeMenu(): void {
+  isMenuOpen.value = false;
+}
+
+function focusMenuItem(index: number): void {
+  const menuPanel = menuPanelRef.value;
+  if (!menuPanel) return;
+
+  const items = Array.from(menuPanel.querySelectorAll<HTMLElement>('[role="menuitem"]'));
+  if (items.length === 0) return;
+
+  const wrappedIndex = (index + items.length) % items.length;
+  items[wrappedIndex]?.focus();
+}
+
+function handleMenuKeydown(event: KeyboardEvent): void {
+  if (!isMenuOpen.value) return;
+
+  const menuPanel = menuPanelRef.value;
+  if (!menuPanel) return;
+
+  const items = Array.from(menuPanel.querySelectorAll<HTMLElement>('[role="menuitem"]'));
+  if (items.length === 0) return;
+
+  const activeIndex = items.findIndex((item) => item === document.activeElement);
+
+  if (event.key === 'ArrowDown') {
+    event.preventDefault();
+    focusMenuItem(activeIndex < 0 ? 0 : activeIndex + 1);
+    return;
+  }
+
+  if (event.key === 'ArrowUp') {
+    event.preventDefault();
+    focusMenuItem(activeIndex < 0 ? items.length - 1 : activeIndex - 1);
+    return;
+  }
+
+  if (event.key === 'Escape') {
+    event.preventDefault();
+    closeMenu();
+  }
+}
+
+function handleLogout(): void {
+  closeMenu();
+  emit('logout');
+}
+
+function handleDocumentClick(event: MouseEvent): void {
+  if (!menuRootRef.value) return;
+  const target = event.target as Node | null;
+  if (!target) return;
+  if (!menuRootRef.value.contains(target)) {
+    closeMenu();
+  }
+}
+
+onMounted(() => {
+  document.addEventListener('click', handleDocumentClick);
+});
+
+onUnmounted(() => {
+  document.removeEventListener('click', handleDocumentClick);
+});
+
+watch(isMenuOpen, async (open) => {
+  if (!open) return;
+  await nextTick();
+  focusMenuItem(0);
+});
 </script>
 
 <template>
   <header class="app-header">
     <div class="header-content">
       <div class="branding">
-        <h1 class="title">TaskGraph</h1>
-        <div 
+        <h1 class="title">{{ t('appTitle') }}</h1>
+        <button
+          type="button"
           class="version-badge" 
-          role="button" 
-          title="Special Thanks"
+          :title="t('specialThanks')"
+          :aria-label="t('specialThanks')"
           @click="emit('show-thanks')"
         >
           <span class="gradient-text">100 program v9</span>
-        </div>
+        </button>
       </div>
 
       <div class="user-actions">
         <button 
           class="help-circle" 
-          title="How to use"
+          :title="t('helpTitle')"
+          :aria-label="t('helpTitle')"
           @click="emit('show-help')"
         >
           ?
         </button>
 
-        <span class="status-indicator" :class="{ 'is-syncing': isSyncing && !isGuest }">
-          <span class="dot" />
-          {{ isGuest ? 'Guest local mode' : isSyncing ? 'Database syncing...' : 'Database idle' }}
-        </span>
-
-        <div class="profile-chip">
-          <span class="username">{{ displayUsername }}</span>
-          <span v-if="isGuest" class="guest-badge">Guest Mode</span>
-          <button type="button" class="logout-btn" @click="emit('logout')">
-            Logout
+        <div class="profile-menu" ref="menuRootRef">
+          <button
+            type="button"
+            class="profile-trigger"
+            :aria-expanded="isMenuOpen"
+            aria-haspopup="menu"
+            @click.stop="toggleMenu"
+          >
+            <span class="avatar">{{ avatarLabel }}</span>
+            <span class="username">{{ displayUsername }}</span>
+            <span v-if="isGuest" class="guest-badge">{{ t('guestMode') }}</span>
           </button>
+
+          <transition name="menu-fade">
+            <div v-if="isMenuOpen" ref="menuPanelRef" class="menu-panel" role="menu" @keydown="handleMenuKeydown" @click.stop>
+              <button type="button" class="menu-item" role="menuitem" @click="toggleTheme">
+                <span class="menu-label">{{ t('theme') }}</span>
+                <span class="menu-value">{{ themeLabel }}</span>
+              </button>
+
+              <button type="button" class="menu-item" role="menuitem" @click="toggleLanguage">
+                <span class="menu-label">{{ t('language') }}</span>
+                <span class="menu-value">{{ languageLabel }}</span>
+              </button>
+
+              <div class="menu-item menu-status" :class="{ 'is-syncing': isSyncing && !isGuest }">
+                <span class="menu-label">{{ t('syncStatus') }}</span>
+                <span class="status-value">
+                  <span class="dot" />
+                  {{ syncStatusLabel }}
+                </span>
+              </div>
+
+              <button type="button" class="menu-item logout-item" role="menuitem" @click="handleLogout">
+                {{ t('logout') }}
+              </button>
+            </div>
+          </transition>
         </div>
       </div>
     </div>
@@ -55,11 +183,13 @@ const emit = defineEmits<{
 
 <style scoped>
 .app-header {
+  position: relative;
+  z-index: var(--z-header);
   border-radius: 1rem;
-  border: 1px solid rgba(226, 232, 240, 0.8);
-  background-color: rgba(255, 255, 255, 0.9);
+  border: 1px solid var(--tg-border-muted);
+  background-color: var(--tg-surface-translucent);
   padding: 0.75rem 1rem;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+  box-shadow: var(--tg-shadow-soft);
   backdrop-filter: blur(4px);
 }
 
@@ -77,14 +207,15 @@ const emit = defineEmits<{
   font-size: 1.25rem;
   font-weight: 600;
   letter-spacing: -0.025em;
-  color: #020617;
+  color: var(--tg-text-strong);
   margin: 0;
 }
 
 .version-badge {
+  appearance: none;
   border-radius: 9999px;
   border: 1px solid #e2e8f0;
-  background-color: #fff;
+  background-color: var(--badge-bg);
   padding: 0.25rem 0.75rem;
   font-size: 0.875rem;
   font-weight: 600;
@@ -96,7 +227,7 @@ const emit = defineEmits<{
 .version-badge:hover {
   transform: translateY(-1px);
   box-shadow: 0 4px 12px rgba(168, 85, 247, 0.15);
-  background-color: #fafafa;
+  background-color: var(--badge-bg);
 }
 
 .gradient-text {
@@ -117,9 +248,9 @@ const emit = defineEmits<{
   width: 26px;
   height: 26px;
   border-radius: 50%;
-  border: 1px solid #cbd5e1;
-  background: white;
-  color: #64748b;
+  border: 1px solid var(--tg-border-default);
+  background: var(--tg-surface);
+  color: var(--tg-text-muted);
   font-size: 0.8rem;
   font-weight: 700;
   cursor: pointer;
@@ -130,29 +261,49 @@ const emit = defineEmits<{
 }
 
 .help-circle:hover {
-  background: #f8fafc;
-  color: #1e293b;
-  border-color: #94a3b8;
+  background: var(--tg-surface-raised);
+  color: var(--tg-text-default);
+  border-color: var(--tg-border-strong);
   transform: scale(1.05);
 }
 
-.status-indicator {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.5rem;
-  border-radius: 9999px;
-  border: 1px solid #cbd5e1;
-  background-color: #f1f5f9;
-  padding: 0.25rem 0.75rem;
-  font-size: 0.75rem;
-  font-weight: 500;
-  color: #334155;
+.profile-menu {
+  position: relative;
+  z-index: calc(var(--z-header) + 10);
+  min-width: 0;
 }
 
-.status-indicator.is-syncing {
-  border-color: #93c5fd;
-  background-color: #eff6ff;
-  color: #1d4ed8;
+.profile-trigger {
+  display: inline-flex;
+  align-items: center;
+  min-width: 0;
+  gap: 0.625rem;
+  border-radius: 9999px;
+  border: 1px solid var(--tg-border-default);
+  background-color: var(--tg-surface);
+  padding: 0.375rem 0.625rem;
+  cursor: pointer;
+  transition: transform 0.2s, box-shadow 0.2s, border-color 0.2s;
+}
+
+.profile-trigger:hover {
+  transform: translateY(-1px);
+  box-shadow: var(--tg-shadow-soft);
+  border-color: var(--tg-border-strong);
+}
+
+.avatar {
+  width: 1.75rem;
+  height: 1.75rem;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: #ffffff;
+  background: linear-gradient(135deg, #ef4444, #a855f7, #3b82f6);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.25);
 }
 
 .dot {
@@ -167,18 +318,15 @@ const emit = defineEmits<{
   animation: pulse 2s infinite;
 }
 
-.profile-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.75rem;
-  border-radius: 9999px;
-  border: 1px solid #e2e8f0;
-  background-color: #fff;
-  padding: 0.375rem 0.75rem;
-  font-size: 0.875rem;
+.username {
+  min-width: 0;
+  max-width: 12rem;
+  font-weight: 500;
+  color: var(--tg-text-strong);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  overflow: hidden;
 }
-
-.username { font-weight: 500; color: #0f172a; }
 
 .guest-badge {
   border-radius: 9999px;
@@ -190,20 +338,93 @@ const emit = defineEmits<{
   font-weight: 700;
 }
 
-.logout-btn {
-  border-radius: 0.375rem;
-  border: 1px solid #cbd5e1;
-  background-color: #fff;
-  padding: 0.25rem 0.625rem;
-  font-size: 0.75rem;
-  cursor: pointer;
-  transition: all 0.2s;
+.menu-panel {
+  position: absolute;
+  top: calc(100% + 0.55rem);
+  right: 0;
+  min-width: 18rem;
+  border-radius: 0.85rem;
+  border: 1px solid var(--tg-border-default);
+  background: var(--tg-surface);
+  box-shadow: var(--tg-shadow-elevated);
+  padding: 0.45rem;
+  z-index: var(--z-dropdown);
 }
 
-.logout-btn:hover {
-  background-color: #fef2f2;
-  border-color: #fecaca;
-  color: #ef4444;
+.menu-item {
+  width: 100%;
+  border: 0;
+  background: transparent;
+  border-radius: 0.6rem;
+  color: var(--tg-text-default);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.625rem 0.75rem;
+  font-size: 0.82rem;
+  text-align: left;
+  transition: background-color 0.2s, color 0.2s;
+}
+
+.menu-item:hover {
+  background-color: var(--tg-surface-raised);
+}
+
+.menu-label {
+  font-weight: 600;
+}
+
+.menu-value {
+  color: var(--tg-text-muted);
+}
+
+.menu-status {
+  cursor: default;
+}
+
+.menu-status .status-value {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  color: var(--tg-text-muted);
+}
+
+.menu-status.is-syncing .status-value {
+  color: #1d4ed8;
+}
+
+.logout-item {
+  color: #dc2626;
+  font-weight: 700;
+}
+
+.logout-item:hover {
+  background-color: var(--bg-danger-hover, #fef2f2);
+}
+
+.menu-fade-enter-active,
+.menu-fade-leave-active {
+  transition: opacity 0.18s ease, transform 0.18s ease;
+  transform-origin: top right;
+}
+
+.menu-fade-enter-from,
+.menu-fade-leave-to {
+  opacity: 0;
+  transform: translateY(-6px) scale(0.98);
+}
+
+@media (max-width: 640px) {
+  .header-content {
+    align-items: flex-start;
+  }
+
+  .menu-panel {
+    right: 0;
+    left: auto;
+    min-width: min(18rem, 92vw);
+  }
 }
 
 @keyframes pulse {

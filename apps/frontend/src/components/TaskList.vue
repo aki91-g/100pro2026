@@ -1,6 +1,9 @@
 <script setup lang="ts">
 import type { Item } from "@/types/item";
 import SyncStatusBadge from "@/components/SyncStatusBadge.vue";
+import { useSettings } from "@/composables/useSettings";
+
+const { t } = useSettings();
 
 defineProps<{
   items: Item[];
@@ -14,8 +17,10 @@ const emit = defineEmits<{
 }>();
 
 function displayStatus(status: Item['status']): string {
-  if (status === 'inprogress') return 'doing';
-  return status;
+  if (status === 'backlog') return t('statusBacklog');
+  if (status === 'inprogress') return t('statusDoing');
+  if (status === 'done') return t('statusDone');
+  return t('statusTodo');
 }
 </script>
 
@@ -23,7 +28,7 @@ function displayStatus(status: Item['status']): string {
   <section v-if="items.length > 0" class="task-section">
     <header class="section-header">
       <span class="icon">📋</span>
-      <h2>Tasks</h2>
+      <h2>{{ t('list') }}</h2>
       <span class="count">{{ items.length }}</span>
     </header>
 
@@ -91,7 +96,7 @@ function displayStatus(status: Item['status']): string {
 .section-header h2 {
   font-size: 1rem;
   font-weight: 800;
-  color: #1e293b;
+  color: var(--text-strong);
   letter-spacing: 0.05em;
   text-transform: uppercase;
   margin: 0;
@@ -120,8 +125,8 @@ function displayStatus(status: Item['status']): string {
   width: 100%;
   text-align: left;
   padding: 1rem 1.25rem;
-  background: rgba(255, 255, 255, 0.6);
-  border: 1px solid rgba(226, 232, 240, 0.8);
+  background: color-mix(in srgb, var(--bg-primary) 72%, transparent);
+  border: 1px solid color-mix(in srgb, var(--tg-border-default) 82%, transparent);
   border-radius: 16px;
   cursor: pointer;
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
@@ -130,7 +135,7 @@ function displayStatus(status: Item['status']): string {
 }
 
 .task-row:hover {
-  background: white;
+  background: var(--bg-primary);
   border-color: #a855f7;
   transform: translateY(-2px);
   box-shadow: 0 10px 20px rgba(0, 0, 0, 0.04);
@@ -169,10 +174,14 @@ function displayStatus(status: Item['status']): string {
 }
 
 /* 各ステータスの色味をグラスデザインに合わせ調整 */
-.todo { background: #f1f5f9; color: #64748b; }
-.inprogress { background: rgba(251, 191, 36, 0.1); color: #b45309; }
-.done { background: rgba(34, 197, 94, 0.1); color: #15803d; }
-.backlog { background: #f8fafc; color: #94a3b8; border: 1px dashed #e2e8f0; }
+.todo { background: var(--status-bg-todo); color: var(--status-text-todo); }
+.inprogress { background: var(--status-bg-inprogress); color: var(--status-text-inprogress); }
+.done { background: var(--status-bg-done); color: var(--status-text-done); }
+.backlog {
+  background: var(--status-bg-backlog);
+  color: var(--status-text-backlog);
+  border: 1px dashed var(--status-border-backlog);
+}
 
 .motivation {
   font-size: 0.75rem;
@@ -196,7 +205,7 @@ function displayStatus(status: Item['status']): string {
 .task-title {
   font-size: 0.95rem;
   font-weight: 700;
-  color: #1e293b;
+  color: var(--text-strong);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -204,7 +213,7 @@ function displayStatus(status: Item['status']): string {
 
 .task-desc {
   font-size: 0.8rem;
-  color: #94a3b8;
+  color: var(--text-muted);
   margin-top: 0.1rem;
   white-space: nowrap;
   overflow: hidden;
@@ -214,7 +223,7 @@ function displayStatus(status: Item['status']): string {
 /* --- Decorative Chevron --- */
 .task-chevron {
   margin-left: 1rem;
-  color: #cbd5e1;
+  color: var(--tg-border-default);
   transition: transform 0.3s ease, color 0.3s ease;
 }
 

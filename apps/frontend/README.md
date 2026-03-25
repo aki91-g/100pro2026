@@ -4,6 +4,14 @@ This template should help get you started developing with Vue 3 and TypeScript i
 
 Learn more about the recommended Project Setup and IDE Support in the [Vue Docs TypeScript Guide](https://vuejs.org/guide/typescript/overview.html#project-setup).
 
+## Recent UI Updates
+
+- ScatterPlot theme sync now repaints after `nextTick()` on theme changes to avoid dark/light transition lag.
+- Canvas background and grid lines now map directly from `useSettings.theme` for stable first-frame rendering.
+- Task list status pills use shared CSS variables for instant light/dark readability.
+- Special Thanks modal labels are now routed through the i18n `t()` helper.
+- Brand badge background remains controlled by `--badge-bg` (kept white in both themes).
+
 ## Directory
 以下はGitHub Actionsによって、pushごとに最新のツリーに入れ替わります。
 タグを編集しないでください。

@@ -21,6 +21,9 @@ The architecture separates responsibilities into:
 - Pinia-safe token injection into `HonoClient` via deferred token getter from `main.ts`.
 - Strong alignment with backend contract fields (`snake_case` item properties like `duration_minutes`, `sync_status`).
 - Frontend-only guest login: `useAuth` can create a transient guest identity (`isGuest`) without writing auth data to backend.
+- Global UI settings via `useSettings`: theme (`light`/`dark`) and language (`en`/`ja`) are shared through a composable singleton and persisted in `localStorage`.
+- Header profile consolidation: logout, theme switch, language switch, and sync status are grouped into a single avatar-triggered User Profile Menu.
+- i18n foundation: user-facing text in main shell screens is resolved through `t(key)` translation mapping for incremental expansion.
 - Guest-mode item handling in `useItems`: item CRUD runs in memory only, marks items as `local_only`, and skips sync/network calls.
 - **Guest seed data**: When guest mode is activated, `useItems` automatically populates the in-memory items array with 5 sample tasks showcasing varied statuses (backlog, todo, inprogress, done) and different Motivation/Duration values to demonstrate the ScatterPlot's visualization capabilities.
 - **Automated 30-second sync**: Background interval timer synchronizes items automatically when authenticated, with in-flight guard to prevent concurrent syncs.
@@ -81,6 +84,13 @@ The architecture separates responsibilities into:
 2. Factory returns Tauri or Hono implementation.
 3. In Hono mode, `honoClient` attaches bearer token via injected token getter.
 
+### UI settings and localization flow
+1. `main.ts` initializes `useSettings().initializeSettings()` before mount.
+2. Saved `theme` and `language` are restored from `localStorage`.
+3. Theme toggles add/remove `.dark` on the root `html` element.
+4. Shared UI strings call `t(key)` and resolve from the active language dictionary.
+5. Header User Profile Menu is the single entry point for theme/language toggles, sync indicator, and logout.
+
 ## API Mode Rules (`src/api/config.ts`)
 Mode selection priority:
 1. If Tauri runtime is detected (`window.__TAURI__` or `window.__TAURI_INTERNALS__`), use `tauri`.
@@ -119,6 +129,7 @@ apps/frontend/
 │   │   ├── useAuth.ts
 │   │   ├── useGraph.ts
 │   │   ├── useItems.ts
+│   │   ├── useSettings.ts
 │   │   └── useSyncStatus.ts
 │   ├── layouts/
 │   ├── stores/
