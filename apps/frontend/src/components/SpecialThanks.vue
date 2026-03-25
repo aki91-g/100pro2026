@@ -12,10 +12,10 @@ const teamMembers = ['柿花雨実'];
 <template>
   <transition name="modal-fade">
     <div v-if="show" class="modal-overlay" @click.self="emit('close')">
-      <div class="modal-card">
+      <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="specialThanksTitle">
         <header class="modal-header">
           <div class="v9-tag">100 program v9</div>
-          <h2 class="modal-title">TaskGraph</h2>
+          <h2 id="specialThanksTitle" class="modal-title">TaskGraph</h2>
           <button class="close-btn" @click="emit('close')" :aria-label="t('thanksClose')">&times;</button>
         </header>
 
@@ -30,7 +30,7 @@ const teamMembers = ['柿花雨実'];
 
           <div class="program-info">
             <p class="intro-text">
-              {{ t('thanksIntroLead') }} <strong>100 program 9th (Spring 2026)</strong>{{ t('thanksIntroTail') }}
+              {{ t('thanksIntro', { program: '100 program 9th (Spring 2026)' }) }}
             </p>
             <a href="https://100program.jp" target="_blank" rel="noopener noreferrer" class="link">{{ t('thanksOfficialSite') }} →</a>
           </div>

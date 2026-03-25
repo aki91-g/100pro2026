@@ -47,7 +47,7 @@ const viewStatusSelectId = 'task-drawer-status-view';
 const editStatusSelectId = 'task-drawer-status-edit';
 
 const { createItem, updateItem, updateItemStatus, archiveItem, softDeleteItem, items: repositoryItems } = useItems();
-const { t } = useSettings();
+const { t, language } = useSettings();
 
 const strictSyncMap = computed<Record<string, 'pending' | 'success' | 'error'>>(() => {
   const normalized: Record<string, 'pending' | 'success' | 'error'> = {};
@@ -134,6 +134,19 @@ function hydrateEditForm(item: Item | null): void {
   editDuration.value = item.duration_minutes;
   editMotivation.value = typeof item.motivation === 'number' ? item.motivation : 5;
   selectedStatusUi.value = toUiStatus(item.status);
+}
+
+function formatDateForLocale(isoValue: string): string {
+  const date = new Date(isoValue);
+  if (Number.isNaN(date.getTime())) return '';
+  const locale = language.value === 'ja' ? 'ja-JP' : 'en-US';
+  return date.toLocaleString(locale, {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
 }
 
 function toUiStatus(status: Item['status']): 'backlog' | 'todo' | 'doing' | 'done' {
@@ -328,6 +341,16 @@ watch(
 );
 
 watch(
+  () => props.open,
+  (isOpen) => {
+    if (isOpen && props.mode === 'create') {
+      resetCreateForm();
+      applyCreateSeed();
+    }
+  },
+);
+
+watch(
   () => props.selectedItem,
   (item) => {
     hydrateEditForm(item);
@@ -432,7 +455,7 @@ onUnmounted(() => {
                       <option v-for="statusOption in localizedStatusOptions" :key="statusOption.value" :value="statusOption.value">{{ statusOption.label }}</option>
                     </select>
                   </div>
-                  <div class="grid-item"><span class="label">{{ t('drawerDue') }}</span><p>{{ new Date(selectedItem.due).toLocaleString() }}</p></div>
+                  <div class="grid-item"><span class="label">{{ t('drawerDue') }}</span><p>{{ formatDateForLocale(selectedItem.due) }}</p></div>
                   <div class="grid-item"><span class="label">{{ t('drawerMotivation') }}</span><p>{{ selectedItem.motivation ?? '5' }}</p></div>
                   <div class="grid-item"><span class="label">{{ t('drawerDuration') }}</span><p>{{ selectedItem.duration_minutes ?? '---' }} {{ t('drawerMinuteUnit') }}</p></div>
                 </div>

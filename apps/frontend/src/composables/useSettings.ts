@@ -86,8 +86,7 @@ const messages = {
     thanksClose: 'Close',
     thanksDevelopedBy: 'Developed by',
     thanksGithubProfile: 'GitHub Profile',
-    thanksIntroLead: 'TaskGraph was created during',
-    thanksIntroTail: '.',
+    thanksIntro: 'TaskGraph was created during {program}.',
     thanksOfficialSite: '100 program Official Site',
     thanksSectionTitle: 'Special Thanks to',
     thanksFeedback: 'Feedback / フィードバック協力',
@@ -169,8 +168,7 @@ const messages = {
     thanksClose: '閉じる',
     thanksDevelopedBy: '開発者',
     thanksGithubProfile: 'GitHubプロフィール',
-    thanksIntroLead: 'TaskGraphは',
-    thanksIntroTail: 'で制作されました。',
+    thanksIntro: 'TaskGraphは{program}で制作されました。',
     thanksOfficialSite: '100 program 公式サイト',
     thanksSectionTitle: '謝意',
     thanksFeedback: 'Feedback / フィードバック協力',
@@ -180,6 +178,7 @@ const messages = {
 } as const;
 
 type TranslationKey = keyof (typeof messages)['en'];
+type TranslationParams = Record<string, string | number>;
 
 function isThemeMode(value: string | null): value is ThemeMode {
   return value === 'light' || value === 'dark';
@@ -242,8 +241,13 @@ export function useSettings() {
     setLanguage(language.value === 'en' ? 'ja' : 'en');
   }
 
-  function t(key: TranslationKey): string {
-    return messages[language.value][key] ?? messages.en[key] ?? key;
+  function t(key: TranslationKey, params?: TranslationParams): string {
+    const base = String(messages[language.value][key] ?? messages.en[key] ?? key);
+    if (!params) return base;
+
+    return Object.entries(params).reduce((accumulator, [paramKey, value]) => {
+      return accumulator.replaceAll(`{${paramKey}}`, String(value));
+    }, base);
   }
 
   return {

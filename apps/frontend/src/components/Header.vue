@@ -83,6 +83,7 @@ onUnmounted(() => {
         <button 
           class="help-circle" 
           :title="t('helpTitle')"
+          :aria-label="t('helpTitle')"
           @click="emit('show-help')"
         >
           ?
@@ -135,7 +136,7 @@ onUnmounted(() => {
 <style scoped>
 .app-header {
   position: relative;
-  z-index: 11000;
+  z-index: 20;
   border-radius: 1rem;
   border: 1px solid var(--tg-border-muted);
   background-color: var(--tg-surface-translucent);
@@ -219,7 +220,7 @@ onUnmounted(() => {
 
 .profile-menu {
   position: relative;
-  z-index: 11020;
+  z-index: 30;
 }
 
 .profile-trigger {
@@ -288,7 +289,7 @@ onUnmounted(() => {
   background: var(--tg-surface);
   box-shadow: var(--tg-shadow-elevated);
   padding: 0.45rem;
-  z-index: 11040;
+  z-index: 40;
 }
 
 .menu-item {
