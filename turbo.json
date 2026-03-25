@@ -3,7 +3,8 @@
   "tasks": {
     "build": {
       "dependsOn": ["^build"],
-      "outputs": ["dist/**", "src-tauri/target/release/bundle/**"]
+      "outputs": ["dist/**", "src-tauri/target/release/bundle/**"],
+      "env": ["SUPABASE_URL", "SUPABASE_ANON_KEY", "DATABASE_URL"]
     },
     "dev": {
       "cache": false,

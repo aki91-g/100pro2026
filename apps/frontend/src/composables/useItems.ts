@@ -125,9 +125,9 @@ export function useItems() {
 
   // Watch for guest mode activation and seed sample items
   watch(
-    () => [auth.isGuest.value, auth.userId.value],
+    () => [auth.isGuest.value, auth.userId.value] as const,
     ([isGuest, userId]) => {
-      if (isGuest && !guestSeedInitialized && userId) {
+      if (isGuest && !guestSeedInitialized && typeof userId === 'string') {
         items.value = generateGuestSeedItems(userId);
         guestSeedInitialized = true;
       } else if (!isGuest) {

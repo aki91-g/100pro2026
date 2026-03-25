@@ -123,8 +123,7 @@ pub async fn init_postgres() -> Option<sqlx::PgPool> {
     let url = std::env::var("DATABASE_URL").ok()?;
 
     // 1. Configure options with 0 capacity
-    let mut options = sqlx::postgres::PgConnectOptions::from_str(&url).ok()?;
-    options = options.statement_cache_capacity(0);
+    let options = sqlx::postgres::PgConnectOptions::from_str(&url).ok()?.statement_cache_capacity(0);
 
     // 2. Build the pool
     let pool = match sqlx::postgres::PgPoolOptions::new()
