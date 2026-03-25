@@ -123,7 +123,7 @@ watch(isMenuOpen, async (open) => {
           :aria-label="t('specialThanks')"
           @click="emit('show-thanks')"
         >
-          <span class="gradient-text">100 program v9</span>
+          {{ t('aboutUs') }}
         </button>
       </div>
 
@@ -214,8 +214,9 @@ watch(isMenuOpen, async (open) => {
 .version-badge {
   appearance: none;
   border-radius: 9999px;
-  border: 1px solid #e2e8f0;
-  background-color: var(--badge-bg);
+  border: 1px solid var(--tg-border-default);
+  background-color: var(--tg-surface);
+  color: var(--tg-text-default);
   padding: 0.25rem 0.75rem;
   font-size: 0.875rem;
   font-weight: 600;
@@ -226,15 +227,9 @@ watch(isMenuOpen, async (open) => {
 
 .version-badge:hover {
   transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(168, 85, 247, 0.15);
-  background-color: var(--badge-bg);
-}
-
-.gradient-text {
-  background: linear-gradient(to right, #ef4444, #a855f7, #3b82f6);
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
+  box-shadow: var(--tg-shadow-soft);
+  border-color: var(--tg-border-strong);
+  background-color: var(--tg-surface-raised);
 }
 
 .user-actions {

@@ -13,6 +13,7 @@ const isInitialized = ref(false);
 const messages = {
   en: {
     appTitle: 'TaskGraph',
+    aboutUs: 'About us',
     specialThanks: 'Special Thanks',
     helpTitle: 'How to use',
     guestMode: 'Guest Mode',
@@ -95,6 +96,7 @@ const messages = {
   },
   ja: {
     appTitle: 'TaskGraph',
+    aboutUs: 'About us',
     specialThanks: '謝意',
     helpTitle: '使い方',
     guestMode: 'ゲストモード',
