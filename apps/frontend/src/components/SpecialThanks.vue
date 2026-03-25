@@ -1,10 +1,12 @@
 <script setup lang="ts">
+import { useSettings } from '@/composables/useSettings';
+
 defineProps<{ show: boolean }>();
 const emit = defineEmits<{ 'close': [] }>();
+const { t } = useSettings();
 
-const hosts = ['TS', 'TY'];
-const mentors = ['YB', 'AS', 'KY', 'MA'];
-const feedbacks = ['RK(友人)', 'RN(友人・9期生)'];
+const feedbacks = ['河原諒晟', '長坂怜', '小野春花'];
+const teamMembers = ['柿花雨実'];
 </script>
 
 <template>
@@ -14,48 +16,41 @@ const feedbacks = ['RK(友人)', 'RN(友人・9期生)'];
         <header class="modal-header">
           <div class="v9-tag">100 program v9</div>
           <h2 class="modal-title">TaskGraph</h2>
-          <button class="close-btn" @click="emit('close')" aria-label="Close">&times;</button>
+          <button class="close-btn" @click="emit('close')" :aria-label="t('thanksClose')">&times;</button>
         </header>
 
         <div class="modal-body">
           <div class="author-section">
-            <span class="label">Developed by</span>
+            <span class="label">{{ t('thanksDevelopedBy') }}</span>
             <h3 class="author-name">Suzuha Takaki</h3>
             <div class="author-links">
-              <a href="https://github.com/aki91-g" target="_blank" rel="noopener noreferrer" class="link">GitHub Profile →</a>
+              <a href="https://github.com/aki91-g" target="_blank" rel="noopener noreferrer" class="link">{{ t('thanksGithubProfile') }} →</a>
             </div>
           </div>
 
           <div class="program-info">
             <p class="intro-text">
-              TaskGraphは <strong>100 program 9期 (2026春期)</strong> において製作されました。
+              {{ t('thanksIntroLead') }} <strong>100 program 9th (Spring 2026)</strong>{{ t('thanksIntroTail') }}
             </p>
-            <a href="https://100program.jp" target="_blank" rel="noopener noreferrer" class="link">100 program Official Site →</a>
+            <a href="https://100program.jp" target="_blank" rel="noopener noreferrer" class="link">{{ t('thanksOfficialSite') }} →</a>
           </div>
 
           <div class="divider"></div>
 
           <div class="thanks-container">
-            <h3 class="thanks-title">Special Thanks to</h3>
+            <h3 class="thanks-title">{{ t('thanksSectionTitle') }}</h3>
             <div class="thanks-grid">
               <section class="thanks-item">
-                <span class="role-label">Program Hosts</span>
+                <span class="role-label">{{ t('thanksFeedback') }}</span>
                 <ul class="name-grid">
-                  <li v-for="name in hosts" :key="name" class="name-chip">{{ name }}</li>
+                  <li v-for="name in feedbacks" :key="name" class="name-chip">{{ name }}</li>
                 </ul>
               </section>
 
               <section class="thanks-item">
-                <span class="role-label">Special Support</span>
+                <span class="role-label">{{ t('thanksTeam') }}</span>
                 <ul class="name-grid">
-                  <li v-for="name in mentors" :key="name" class="name-chip">{{ name }}</li>
-                </ul>
-              </section>
-
-              <section class="thanks-item thanks-item-wide">
-                <span class="role-label">Feedback from</span>
-                <ul class="name-grid feedback-grid">
-                  <li v-for="name in feedbacks" :key="name" class="name-chip">{{ name }}</li>
+                  <li v-for="name in teamMembers" :key="name" class="name-chip">{{ name }}</li>
                 </ul>
               </section>
             </div>
@@ -63,7 +58,7 @@ const feedbacks = ['RK(友人)', 'RN(友人・9期生)'];
         </div>
 
         <footer class="modal-footer">
-          <p class="copyright">&copy; 2026 TaskGraph Project</p>
+          <p class="copyright">&copy; 2026 {{ t('thanksCopyright') }}</p>
         </footer>
       </div>
     </div>
@@ -74,7 +69,7 @@ const feedbacks = ['RK(友人)', 'RN(友人・9期生)'];
 .modal-overlay {
   position: fixed;
   inset: 0;
-  z-index: 9999;
+  z-index: 30000;
   background: rgba(15, 23, 42, 0.75);
   backdrop-filter: blur(10px);
   display: flex;
@@ -130,6 +125,7 @@ const feedbacks = ['RK(友人)', 'RN(友人・9期生)'];
   position: absolute;
   top: 1.5rem;
   right: 1.5rem;
+  z-index: 2;
   font-size: 2rem;
   background: none;
   border: none;
@@ -208,10 +204,6 @@ const feedbacks = ['RK(友人)', 'RN(友人・9期生)'];
   text-align: center;
 }
 
-.thanks-item-wide {
-  grid-column: 1 / -1;
-}
-
 .role-label {
   display: block;
   font-size: 0.65rem;
@@ -238,12 +230,8 @@ const feedbacks = ['RK(友人)', 'RN(友人・9期生)'];
   gap: 0.6rem;
 }
 
-.feedback-grid {
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-}
-
 .name-chip {
-  border: 1px solid #dbe3ee;
+  border: 1px solid var(--tg-border-default);
   background: var(--bg-primary);
   border-radius: 0.75rem;
   padding: 0.5rem 0.65rem;
@@ -306,12 +294,7 @@ const feedbacks = ['RK(友人)', 'RN(友人・9期生)'];
     grid-template-columns: 1fr;
   }
 
-  .thanks-item-wide {
-    grid-column: auto;
-  }
-
-  .name-grid,
-  .feedback-grid {
+  .name-grid {
     grid-template-columns: 1fr;
   }
 }

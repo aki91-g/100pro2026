@@ -165,7 +165,7 @@ onUnmounted(() => {
 .version-badge {
   border-radius: 9999px;
   border: 1px solid #e2e8f0;
-  background-color: #ffffff !important;
+  background-color: var(--badge-bg);
   padding: 0.25rem 0.75rem;
   font-size: 0.875rem;
   font-weight: 600;
@@ -177,7 +177,7 @@ onUnmounted(() => {
 .version-badge:hover {
   transform: translateY(-1px);
   box-shadow: 0 4px 12px rgba(168, 85, 247, 0.15);
-  background-color: #ffffff !important;
+  background-color: var(--badge-bg);
 }
 
 .gradient-text {

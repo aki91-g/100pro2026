@@ -164,10 +164,13 @@ function drawTriangle(
 
 function brightenHexColor(color: string, amount: number): string {
   const normalized = color.trim();
-  const hexMatch = /^#([0-9a-f]{6})$/i.exec(normalized);
-  if (!hexMatch) return color;
+  const shortHexMatch = /^#([0-9a-f]{3})$/i.exec(normalized);
+  const longHexMatch = /^#([0-9a-f]{6})$/i.exec(normalized);
+  const hex = shortHexMatch
+    ? shortHexMatch[1]?.split('').map((value) => `${value}${value}`).join('')
+    : longHexMatch?.[1];
+  if (!hex) return color;
 
-  const hex = hexMatch[1] ?? '000000';
   const r = Number.parseInt(hex.slice(0, 2), 16);
   const g = Number.parseInt(hex.slice(2, 4), 16);
   const b = Number.parseInt(hex.slice(4, 6), 16);
@@ -204,8 +207,10 @@ function drawScene(): void {
 
   const { plotLeft, plotRight, plotTop, plotBottom, originX } = layout.value;
   const isDarkMode = theme.value === 'dark';
+  const bgColor = isDarkMode ? '#111827' : '#ffffff';
+  const gridColor = isDarkMode ? '#334155' : '#e2e8f0';
 
-  ctx.fillStyle = themeTokens.value.background;
+  ctx.fillStyle = bgColor;
   ctx.fillRect(0, 0, width, height);
 
   // Zone styling with improved contrast
@@ -217,8 +222,8 @@ function drawScene(): void {
   ctx.fillStyle = isDarkMode ? 'rgba(96, 165, 250, 0.12)' : 'rgba(37, 99, 235, 0.08)';
   ctx.fillRect(originX, plotTop, Math.max(plotRight - originX, 0), plotBottom - plotTop);
 
-  // Grid lines are aligned to shared border token for cross-component consistency.
-  ctx.strokeStyle = themeTokens.value.border;
+  // Grid color is mapped directly from theme state for transition-safe repaint.
+  ctx.strokeStyle = gridColor;
   ctx.lineWidth = 1;
   ctx.setLineDash([4, 6]);
   for (const tick of yTicks.value) {
@@ -528,7 +533,8 @@ watch([selectedRange, selectedYField, selectedColorField, selectedRadiusField], 
 
 watch(
   theme,
-  () => {
+  async () => {
+    await nextTick();
     // Theme switch only needs a repaint; skip expensive graph recomputation.
     syncThemeTokens();
     if (animationFrame !== null) {
@@ -537,7 +543,7 @@ watch(
     }
     drawScene();
   },
-  { flush: 'sync', immediate: true },
+  { flush: 'post', immediate: true },
 );
 
 watch(
@@ -556,6 +562,7 @@ onMounted(async () => {
   updateViewportSize();
   await nextTick();
   updateViewportSize();
+  drawScene();
 
   resizeObserver = new ResizeObserver(() => {
     updateViewportSize();

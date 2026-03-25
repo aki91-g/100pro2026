@@ -1,6 +1,9 @@
 <script setup lang="ts">
 import type { Item } from "@/types/item";
 import SyncStatusBadge from "@/components/SyncStatusBadge.vue";
+import { useSettings } from "@/composables/useSettings";
+
+const { t } = useSettings();
 
 defineProps<{
   items: Item[];
@@ -14,8 +17,10 @@ const emit = defineEmits<{
 }>();
 
 function displayStatus(status: Item['status']): string {
-  if (status === 'inprogress') return 'doing';
-  return status;
+  if (status === 'backlog') return t('statusBacklog');
+  if (status === 'inprogress') return t('statusDoing');
+  if (status === 'done') return t('statusDone');
+  return t('statusTodo');
 }
 </script>
 
@@ -23,7 +28,7 @@ function displayStatus(status: Item['status']): string {
   <section v-if="items.length > 0" class="task-section">
     <header class="section-header">
       <span class="icon">📋</span>
-      <h2>Tasks</h2>
+      <h2>{{ t('list') }}</h2>
       <span class="count">{{ items.length }}</span>
     </header>
 
@@ -169,10 +174,14 @@ function displayStatus(status: Item['status']): string {
 }
 
 /* 各ステータスの色味をグラスデザインに合わせ調整 */
-.todo { background: #f1f5f9; color: #64748b; }
-.inprogress { background: rgba(251, 191, 36, 0.1); color: #b45309; }
-.done { background: rgba(34, 197, 94, 0.1); color: #15803d; }
-.backlog { background: #f8fafc; color: #94a3b8; border: 1px dashed #e2e8f0; }
+.todo { background: var(--status-bg-todo); color: var(--status-text-todo); }
+.inprogress { background: var(--status-bg-inprogress); color: var(--status-text-inprogress); }
+.done { background: var(--status-bg-done); color: var(--status-text-done); }
+.backlog {
+  background: var(--status-bg-backlog);
+  color: var(--status-text-backlog);
+  border: 1px dashed var(--status-border-backlog);
+}
 
 .motivation {
   font-size: 0.75rem;

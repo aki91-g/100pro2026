@@ -83,10 +83,20 @@ const messages = {
     statusPrefix: 'Status',
     past: 'Past',
     future: 'Future',
+    thanksClose: 'Close',
+    thanksDevelopedBy: 'Developed by',
+    thanksGithubProfile: 'GitHub Profile',
+    thanksIntroLead: 'TaskGraph was created during',
+    thanksIntroTail: '.',
+    thanksOfficialSite: '100 program Official Site',
+    thanksSectionTitle: 'Special Thanks to',
+    thanksFeedback: 'Feedback / フィードバック協力',
+    thanksTeam: 'Team Members / チームメンバー',
+    thanksCopyright: 'TaskGraph Project',
   },
   ja: {
     appTitle: 'TaskGraph',
-    specialThanks: 'スペシャルサンクス',
+    specialThanks: '謝意',
     helpTitle: '使い方',
     guestMode: 'ゲストモード',
     guestLocalMode: 'ゲストローカルモード',
@@ -156,6 +166,16 @@ const messages = {
     statusPrefix: 'ステータス',
     past: '過去',
     future: '未来',
+    thanksClose: '閉じる',
+    thanksDevelopedBy: '開発者',
+    thanksGithubProfile: 'GitHubプロフィール',
+    thanksIntroLead: 'TaskGraphは',
+    thanksIntroTail: 'で制作されました。',
+    thanksOfficialSite: '100 program 公式サイト',
+    thanksSectionTitle: '謝意',
+    thanksFeedback: 'Feedback / フィードバック協力',
+    thanksTeam: 'Team Members / チームメンバー',
+    thanksCopyright: 'TaskGraph プロジェクト',
   },
 } as const;
 
@@ -189,6 +209,8 @@ function initializeSettings(): void {
 
     if (isThemeMode(savedTheme)) {
       theme.value = savedTheme;
+    } else if (window.matchMedia?.('(prefers-color-scheme: dark)').matches) {
+      theme.value = 'dark';
     }
     if (isLanguageCode(savedLanguage)) {
       language.value = savedLanguage;
@@ -202,8 +224,8 @@ function initializeSettings(): void {
 
 export function useSettings() {
   function setTheme(nextTheme: ThemeMode): void {
-    applyThemeClass(nextTheme);
     theme.value = nextTheme;
+    applyThemeClass(nextTheme);
     persistSettings();
   }
 

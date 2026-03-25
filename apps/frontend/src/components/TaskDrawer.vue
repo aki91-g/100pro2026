@@ -506,6 +506,11 @@ onUnmounted(() => {
 </template>
 
 <style scoped>
+:global(.dark) .drawer-content {
+  --bg-primary: var(--tg-surface);
+  --bg-secondary: var(--tg-surface-raised);
+}
+
 /* --- Layout & Overlay --- */
 .drawer-overlay {
   position: fixed;
