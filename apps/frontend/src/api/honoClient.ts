@@ -1,4 +1,5 @@
 import type { Item } from '@/types/item';
+import type { ThanksMember } from '@/types/thanks';
 
 
 export interface HonoItemsClient {
@@ -11,6 +12,7 @@ export interface HonoItemsClient {
   archiveItem(id: string): Promise<void>;
   softDeleteItem(id: string): Promise<void>;
   syncItems(): Promise<number>;
+  getSpecialThanks(): Promise<ThanksMember[]>;
 }
 
 export interface CreateItemPayload {
@@ -94,6 +96,26 @@ export class HonoClient implements HonoItemsClient {
       console.warn(`[HonoClient] Received ${invalidDueCount} item(s) with invalid due timestamps.`);
     }
     return normalized;
+  }
+
+  private normalizeThanksMember(raw: unknown): ThanksMember | null {
+    const row = (raw ?? {}) as Record<string, unknown>;
+    const name = typeof row.name === 'string' ? row.name.trim() : '';
+    const category = row.category;
+
+    if (!name) return null;
+    if (category !== 'host' && category !== 'mentor' && category !== 'feedback') {
+      return null;
+    }
+
+    return { name, category };
+  }
+
+  private normalizeThanksMembers(raw: unknown): ThanksMember[] {
+    if (!Array.isArray(raw)) return [];
+    return raw
+      .map((entry) => this.normalizeThanksMember(entry))
+      .filter((entry): entry is ThanksMember => entry !== null);
   }
 
   /**
@@ -224,6 +246,12 @@ export class HonoClient implements HonoItemsClient {
     const response = await this.post('/api/items/sync');
     const data = await response.json();
     return data.count || 0;
+  }
+
+  async getSpecialThanks(): Promise<ThanksMember[]> {
+    const response = await this.get('/api/special-thanks');
+    const data = await response.json();
+    return this.normalizeThanksMembers(data);
   }
 }
 

@@ -14,6 +14,7 @@ if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
 
 type TaskStatus = 'backlog' | 'todo' | 'inprogress' | 'done';
 type SyncStatus = 'synced' | 'local_only' | 'modified';
+type ThanksCategory = 'host' | 'mentor' | 'feedback';
 
 type ItemRow = {
   id: string;
@@ -29,6 +30,11 @@ type ItemRow = {
   created_at: string;
   updated_at: string;
   deleted_at: string | null;
+};
+
+type SpecialThanksRow = {
+  name: string;
+  category: ThanksCategory;
 };
 
 type AuthContext = {
@@ -396,12 +402,32 @@ async function handleSoftDeleteItem(c: Context<AppEnv>): Promise<Response> {
   return c.body(null, 204);
 }
 
+async function handleGetSpecialThanks(c: Context<AppEnv>): Promise<Response> {
+  const supabase = createAnonSupabase();
+
+  const { data, error } = await supabase
+    .from('special_thanks')
+    .select('name, category')
+    .order('display_order', { ascending: true });
+
+  if (error) return c.json({ error: error.message }, 400);
+
+  const rows = (data ?? []) as SpecialThanksRow[];
+  const filtered = rows.filter(
+    (row) => row.category === 'host' || row.category === 'mentor' || row.category === 'feedback',
+  );
+
+  return c.json(filtered);
+}
+
 app.get('/api/hello', (c) => {
   return c.json({
     message: 'Hello from Hono (Backend)!',
     timestamp: new Date().toISOString(),
   });
 });
+
+app.get('/api/special-thanks', async (c) => handleGetSpecialThanks(c));
 
 // Auth endpoints
 app.post('/api/auth/login', async (c) => {

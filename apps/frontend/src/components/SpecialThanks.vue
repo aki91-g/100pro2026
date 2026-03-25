@@ -1,10 +1,44 @@
 <script setup lang="ts">
+import { computed, onMounted, ref } from 'vue';
+import { thanksRepository } from '@/api/thanksRepository';
+import type { ThanksMember } from '@/types/thanks';
+
 defineProps<{ show: boolean }>();
 const emit = defineEmits<{ 'close': [] }>();
 
-const hosts = ['TS', 'TY'];
-const mentors = ['YB', 'AS', 'KY', 'MA'];
-const feedbacks = ['RK(友人)', 'RN(友人・9期生)'];
+const members = ref<ThanksMember[]>([]);
+const isLoading = ref(true);
+
+const hosts = computed(() =>
+  members.value
+    .filter((member) => member.category === 'host')
+    .map((member) => member.name),
+);
+
+const mentors = computed(() =>
+  members.value
+    .filter((member) => member.category === 'mentor')
+    .map((member) => member.name),
+);
+
+const feedbacks = computed(() =>
+  members.value
+    .filter((member) => member.category === 'feedback')
+    .map((member) => member.name),
+);
+
+async function fetchThanksMembers() {
+  try {
+    members.value = await thanksRepository.getSpecialThanks();
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.error('Failed to load special_thanks:', message);
+  } finally {
+    isLoading.value = false;
+  }
+}
+
+onMounted(fetchThanksMembers);
 </script>
 
 <template>
@@ -37,12 +71,14 @@ const feedbacks = ['RK(友人)', 'RN(友人・9期生)'];
 
           <div class="thanks-container">
             <h3 class="thanks-title">Special Thanks to</h3>
+            <p v-if="isLoading" class="loading-text">Loading...</p>
             <div class="thanks-grid">
               <section class="thanks-item">
                 <span class="role-label">Program Hosts</span>
                 <ul class="name-grid">
                   <li v-for="name in hosts" :key="name" class="name-chip">{{ name }}</li>
                 </ul>
+                <p v-if="!isLoading && hosts.length === 0" class="empty-text">No entries yet.</p>
               </section>
 
               <section class="thanks-item">
@@ -50,6 +86,7 @@ const feedbacks = ['RK(友人)', 'RN(友人・9期生)'];
                 <ul class="name-grid">
                   <li v-for="name in mentors" :key="name" class="name-chip">{{ name }}</li>
                 </ul>
+                <p v-if="!isLoading && mentors.length === 0" class="empty-text">No entries yet.</p>
               </section>
 
               <section class="thanks-item thanks-item-wide">
@@ -57,6 +94,7 @@ const feedbacks = ['RK(友人)', 'RN(友人・9期生)'];
                 <ul class="name-grid feedback-grid">
                   <li v-for="name in feedbacks" :key="name" class="name-chip">{{ name }}</li>
                 </ul>
+                <p v-if="!isLoading && feedbacks.length === 0" class="empty-text">No entries yet.</p>
               </section>
             </div>
           </div>
@@ -193,6 +231,13 @@ const feedbacks = ['RK(友人)', 'RN(友人・9期生)'];
   letter-spacing: -0.06em;
 }
 
+.loading-text {
+  margin: 0 0 1rem;
+  color: #64748b;
+  font-size: 0.9rem;
+  font-weight: 700;
+}
+
 .thanks-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -250,6 +295,13 @@ const feedbacks = ['RK(友人)', 'RN(友人・9期生)'];
   font-size: 1rem;
   font-weight: 700;
   color: #334155;
+}
+
+.empty-text {
+  margin: 0.75rem 0 0;
+  color: #94a3b8;
+  font-size: 0.85rem;
+  font-weight: 600;
 }
 
 .link {
