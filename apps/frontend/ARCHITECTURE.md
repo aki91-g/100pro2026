@@ -26,7 +26,7 @@ The architecture separates responsibilities into:
 - **Automated 30-second sync**: Background interval timer synchronizes items automatically when authenticated, with in-flight guard to prevent concurrent syncs.
 - **Schema enforcement**: `due` field is mandatory across all layers (frontend type, backend model, database schema), `motivation` is nullable, `description` is nullable.
 - **ScatterPlot visualization**: Interactive SVG scatter plot (`ScatterPlot.vue`) renders task items by due date with configurable Y-axis, color, and radius fields, powered by `useGraph.ts` and D3 force simulation.
-- **100 Program brand gradient**: ScatterPlot color mapping uses a three-stop gradient (Redish-Pink #E63946 → Purple #B45FD1 → Deep Blue #2563EB) inspired by the 100 program brand, applied to Motivation or other numeric fields for meaningful visual feedback.
+- **100 Program brand gradient**: ScatterPlot color mapping uses a three-stop gradient (Reddish-Pink #E63946 → Purple #B45FD1 → Deep Blue #2563EB) inspired by the 100 program brand, applied to Motivation or other numeric fields for meaningful visual feedback.
 - **Improved plot visibility**: ScatterPlot background zones and grid lines use enhanced contrast colors (warmer red for past, cooler blue for future) to ensure all plot points remain clearly visible regardless of assigned color.
 - **TaskDrawer self-contained CRUD**: `TaskDrawer.vue` calls `useItems()` directly for create, archive, and soft-delete operations, eliminating the need to delegate item mutations through parent component event handlers.
 - **UI polish pass**: `SpecialThanks.vue` modal uses responsive centered grid cards with viewport-safe internal scrolling; `TaskDrawer.vue` edit mode now has consistent control styling and a sticky action footer.
@@ -250,7 +250,7 @@ Key Functions/Exported Members:
 - Props: `items: Item[]`.
 - Internal handlers: `handleGroupEnter(group)`, `handleGroupLeave()`, `updateViewportSize()`, `trianglePath(group)`, `tooltipStyle(group)`.
 - Format helpers: `formatDue`, `formatMetric`, `shortId`, `formatRangeHint`, `markerTextAnchor`.
-- Controls: `selectedRange`, `selectedYField`, `selectedColorField`, `selectedRadiusField`, `groupingEnabled` (bound to `useGraph` refs via `v-model`)..
+- Controls: `selectedRange`, `selectedYField`, `selectedColorField`, `selectedRadiusField`, `groupingEnabled` (bound to `useGraph` refs via `v-model`).
 
 ### `src/components/TaskDrawer.vue`
 Description:

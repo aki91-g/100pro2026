@@ -210,6 +210,8 @@ pub fn run() {
 }
 
 fn load_env_for_desktop() {
+    use std::collections::HashSet;
+
     let mut candidates: Vec<PathBuf> = Vec::new();
 
     if let Ok(cwd) = std::env::current_dir() {
@@ -225,15 +227,30 @@ fn load_env_for_desktop() {
     candidates.push(manifest_dir.join("..").join("..").join(".env"));
     candidates.push(manifest_dir.join("..").join("..").join("..").join(".env"));
 
+    // Canonicalize and deduplicate to avoid checking duplicate paths
+    let mut seen = HashSet::new();
+    candidates = candidates
+        .into_iter()
+        .filter_map(|path| {
+            let canonical = std::fs::canonicalize(&path).unwrap_or(path);
+            if seen.insert(canonical.clone()) {
+                Some(canonical)
+            } else {
+                None
+            }
+        })
+        .collect();
+
     let mut loaded_any = false;
     for path in candidates {
         if !path.exists() {
             continue;
         }
 
-        if dotenvy::from_path_override(&path).is_ok() {
+        if dotenvy::from_path(&path).is_ok() {
             println!("Loaded environment from {}", path.display());
             loaded_any = true;
+            break;
         }
     }
 
