@@ -5,7 +5,6 @@ import {
   forceSimulation,
   forceX,
   forceY,
-  interpolateRdYlGn,
   max,
   scaleLinear,
   scalePoint,
@@ -49,6 +48,63 @@ const EMPTY_LAYOUT: GraphLayout = {
   yMax: 0,
   nowMs: 0,
 };
+
+/**
+ * 100 Program brand gradient: Redish-Pink → Purple → Deep Blue
+ * Maps normalized values (0-1) to a three-stop color gradient
+ * @param t Normalized value between 0 and 1
+ * @returns Hex color string
+ */
+function interpolate100ProgramGradient(t: number): string {
+  // Ensure t is clamped between 0 and 1
+  const normalized = Math.min(Math.max(t, 0), 1);
+
+  // Three-color gradient stops
+  type ColorStop = {
+    pos: number;
+    color: [number, number, number];
+  };
+
+  const colorStops: ColorStop[] = [
+    { pos: 0.0, color: [0xe6, 0x39, 0x46] }, // Redish-Pink #E63946
+    { pos: 0.5, color: [0xb4, 0x5f, 0xd1] }, // Purple #B45FD1
+    { pos: 1.0, color: [0x25, 0x63, 0xeb] }, // Deep Blue #2563EB
+  ];
+
+  // Find which two stops we're between
+  const firstStop = colorStops[0];
+  const secondStop = colorStops[1];
+
+  if (!firstStop || !secondStop) {
+    return '#E63946'; // Fallback to first color
+  }
+
+  let lowStop: ColorStop = firstStop;
+  let highStop: ColorStop = secondStop;
+
+  for (let i = 0; i < colorStops.length - 1; i += 1) {
+    const current = colorStops[i];
+    const next = colorStops[i + 1];
+
+    if (!current || !next) continue;
+
+    if (normalized >= current.pos && normalized <= next.pos) {
+      lowStop = current;
+      highStop = next;
+      break;
+    }
+  }
+
+  // Interpolate between the two stops
+  const range = highStop.pos - lowStop.pos;
+  const ratio = range === 0 ? 0 : (normalized - lowStop.pos) / range;
+
+  const r = Math.round(lowStop.color[0] + (highStop.color[0] - lowStop.color[0]) * ratio);
+  const g = Math.round(lowStop.color[1] + (highStop.color[1] - lowStop.color[1]) * ratio);
+  const b = Math.round(lowStop.color[2] + (highStop.color[2] - lowStop.color[2]) * ratio);
+
+  return `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`.toUpperCase();
+}
 
 function clamp(value: number, minValue: number, maxValue: number): number {
   return Math.min(Math.max(value, minValue), maxValue);
@@ -392,10 +448,10 @@ export function useGraph(config: GraphConfig, controls: GraphControls = {}) {
       } else if (colorField === 'motivation') {
         const motivation = typeof item.motivation === 'number' ? item.motivation : config.defaultMotivation;
         const normalized = clamp((motivation - 1) / 9, 0, 1);
-        color = interpolateRdYlGn(normalized);
+        color = interpolate100ProgramGradient(normalized);
       } else if (colorField !== 'none' && colorMetric !== null) {
         const normalized = colorMax === colorMin ? 0.5 : (colorMetric - colorMin) / (colorMax - colorMin);
-        color = interpolateRdYlGn(clamp(normalized, 0, 1));
+        color = interpolate100ProgramGradient(clamp(normalized, 0, 1));
       }
 
       const radiusMetric = getMetricValue(item, radiusField, config.defaultMotivation);

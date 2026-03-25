@@ -157,15 +157,17 @@ function drawScene(): void {
 
   const { plotLeft, plotRight, plotTop, plotBottom, originX } = layout.value;
 
-  // Zone styling
-  ctx.fillStyle = 'rgba(255, 0, 0, 0.05)';
+  // Zone styling with improved contrast
+  // Past zone: Warm red with subtle transparency
+  ctx.fillStyle = 'rgba(229, 57, 70, 0.08)';
   ctx.fillRect(plotLeft, plotTop, Math.max(originX - plotLeft, 0), plotBottom - plotTop);
 
-  ctx.fillStyle = 'rgba(239, 246, 255, 0.45)';
+  // Future zone: Cool blue with improved visibility
+  ctx.fillStyle = 'rgba(37, 99, 235, 0.08)';
   ctx.fillRect(originX, plotTop, Math.max(plotRight - originX, 0), plotBottom - plotTop);
 
-  // Grid lines
-  ctx.strokeStyle = 'rgba(148, 163, 184, 0.2)';
+  // Grid lines with enhanced visibility
+  ctx.strokeStyle = 'rgba(148, 163, 184, 0.3)';
   ctx.lineWidth = 1;
   ctx.setLineDash([4, 6]);
   for (const tick of yTicks.value) {
@@ -181,8 +183,8 @@ function drawScene(): void {
     ctx.stroke();
   }
 
-  // Now line
-  ctx.strokeStyle = 'rgba(15, 23, 42, 0.45)';
+  // Now line with improved visibility
+  ctx.strokeStyle = 'rgba(15, 23, 42, 0.55)';
   ctx.lineWidth = 1.4;
   ctx.setLineDash([6, 6]);
   ctx.beginPath();

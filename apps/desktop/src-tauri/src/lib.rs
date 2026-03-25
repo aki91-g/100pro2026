@@ -9,6 +9,7 @@ pub mod state;
 pub mod utils;
 
 use std::sync::Arc;
+use std::path::PathBuf;
 use tauri::Manager;
 use uuid::Uuid;
 
@@ -51,8 +52,7 @@ async fn clear_user(app_state: tauri::State<'_, AppState>) -> Result<(), String>
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    dotenvy::from_path(std::path::Path::new("../../../.env")).ok();
-    dotenvy::dotenv().ok();
+    load_env_for_desktop();
     // Useful for Linux/Wayland dev environments
     std::env::set_var("WLR_NO_HARDWARE_CURSORS", "1");
 
@@ -207,4 +207,54 @@ pub fn run() {
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
+}
+
+fn load_env_for_desktop() {
+    use std::collections::HashSet;
+
+    let mut candidates: Vec<PathBuf> = Vec::new();
+
+    if let Ok(cwd) = std::env::current_dir() {
+        candidates.push(cwd.join(".env"));
+        candidates.push(cwd.join("..").join(".env"));
+        candidates.push(cwd.join("..").join("..").join(".env"));
+        candidates.push(cwd.join("..").join("..").join("..").join(".env"));
+    }
+
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    candidates.push(manifest_dir.join(".env"));
+    candidates.push(manifest_dir.join("..").join(".env"));
+    candidates.push(manifest_dir.join("..").join("..").join(".env"));
+    candidates.push(manifest_dir.join("..").join("..").join("..").join(".env"));
+
+    // Canonicalize and deduplicate to avoid checking duplicate paths
+    let mut seen = HashSet::new();
+    candidates = candidates
+        .into_iter()
+        .filter_map(|path| {
+            let canonical = std::fs::canonicalize(&path).unwrap_or(path);
+            if seen.insert(canonical.clone()) {
+                Some(canonical)
+            } else {
+                None
+            }
+        })
+        .collect();
+
+    let mut loaded_any = false;
+    for path in candidates {
+        if !path.exists() {
+            continue;
+        }
+
+        if dotenvy::from_path(&path).is_ok() {
+            println!("Loaded environment from {}", path.display());
+            loaded_any = true;
+            break;
+        }
+    }
+
+    if !loaded_any {
+        eprintln!("No .env file loaded for desktop runtime; using process environment only.");
+    }
 }

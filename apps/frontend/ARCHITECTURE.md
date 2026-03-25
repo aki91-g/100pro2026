@@ -22,9 +22,12 @@ The architecture separates responsibilities into:
 - Strong alignment with backend contract fields (`snake_case` item properties like `duration_minutes`, `sync_status`).
 - Frontend-only guest login: `useAuth` can create a transient guest identity (`isGuest`) without writing auth data to backend.
 - Guest-mode item handling in `useItems`: item CRUD runs in memory only, marks items as `local_only`, and skips sync/network calls.
+- **Guest seed data**: When guest mode is activated, `useItems` automatically populates the in-memory items array with 5 sample tasks showcasing varied statuses (backlog, todo, inprogress, done) and different Motivation/Duration values to demonstrate the ScatterPlot's visualization capabilities.
 - **Automated 30-second sync**: Background interval timer synchronizes items automatically when authenticated, with in-flight guard to prevent concurrent syncs.
 - **Schema enforcement**: `due` field is mandatory across all layers (frontend type, backend model, database schema), `motivation` is nullable, `description` is nullable.
 - **ScatterPlot visualization**: Interactive SVG scatter plot (`ScatterPlot.vue`) renders task items by due date with configurable Y-axis, color, and radius fields, powered by `useGraph.ts` and D3 force simulation.
+- **100 Program brand gradient**: ScatterPlot color mapping uses a three-stop gradient (Reddish-Pink #E63946 → Purple #B45FD1 → Deep Blue #2563EB) inspired by the 100 program brand, applied to Motivation or other numeric fields for meaningful visual feedback.
+- **Improved plot visibility**: ScatterPlot background zones and grid lines use enhanced contrast colors (warmer red for past, cooler blue for future) to ensure all plot points remain clearly visible regardless of assigned color.
 - **TaskDrawer self-contained CRUD**: `TaskDrawer.vue` calls `useItems()` directly for create, archive, and soft-delete operations, eliminating the need to delegate item mutations through parent component event handlers.
 - **UI polish pass**: `SpecialThanks.vue` modal uses responsive centered grid cards with viewport-safe internal scrolling; `TaskDrawer.vue` edit mode now has consistent control styling and a sticky action footer.
 
@@ -39,8 +42,10 @@ The architecture separates responsibilities into:
 1. `LoginView.vue` calls `useAuth().continueAsGuest()` when user clicks Continue as Guest.
 2. `useAuth` sets shared guest refs (`isGuest`, guest username, guest userId, dummy token).
 3. `isAuthenticated` resolves true while guest mode is active.
-4. `useItems` reads `isGuest` and keeps all items in memory only.
-5. Logout clears guest refs and clears in-memory items through existing session invalidation flow.
+4. `useItems` detects `isGuest` transition to true and automatically seeds the in-memory items array with 5 sample tasks representing all statuses (backlog, todo, inprogress, done) and varied Motivation/Duration values.
+5. Guest items are marked `sync_status: 'local_only'` and stored only in RAM.
+6. All guest CRUD operations run in memory without network calls.
+7. Logout clears guest refs, sample items, and resets the seed flag through existing session invalidation flow.
 
 ### Registration flow
 1. `LoginView.vue` Sign Up mode calls `useAuth().signUp(email, password, username)`.
@@ -236,6 +241,7 @@ Description:
 - Uses `useGraph` composable for all data processing and D3 force simulation for collision-free placement.
 - Supports grouping mode that aggregates nearby dots into a single marker.
 - Renders triangle markers for items outside the current time window (clamped left/right).
+- **Enhanced visibility**: Background zones use accessible contrast colors (warm red for past #E53946, cool blue for future #2563EB); grid lines and "now" line have improved opacity for clear visibility against plot points.
 - Refreshes layout automatically on container resize (ResizeObserver) and every 5 minutes (interval timer).
 - Shows a debug stats bar (input / visible / plotted / skipped counts) and warning banners for invalid data.
 
@@ -327,6 +333,7 @@ Description:
 - Converts raw `Item[]` into positioned `GraphItem[]` using D3 `scaleLinear`, `scaleQuantize`, and a force simulation (`forceX`, `forceY`, `forceCollide`) run synchronously for 90 ticks.
 - Builds `GraphGroup[]` either as 1-to-1 wrappers (grouping off) or spatially bucketed aggregates (grouping on).
 - Provides reactive `selectedRange`, `selectedYField`, `selectedColorField`, `selectedRadiusField`, `groupingEnabled` controls.
+- **Color mapping**: Uses `interpolate100ProgramGradient()` for numeric color fields (Motivation, Duration), applying a three-stop gradient from Redish-Pink (#E63946) → Purple (#B45FD1) → Deep Blue (#2563EB) inspired by the 100 program brand; status fields use fixed Status colors.
 - Exposes `setDimensions` (called on resize), `updateData` (called when items change), `refreshNow` (called on control change), and `destroy` (cleanup).
 - Exports `GraphDebugStats` for the debug stats bar in `ScatterPlot.vue`.
 
@@ -335,6 +342,7 @@ Key Functions/Exported Members:
 - Returned refs: `graphGroups`, `warnings`, `debugStats`, `layout`, `xTicks`, `yTicks`, `selectedRange`, `selectedYField`, `selectedColorField`, `selectedRadiusField`, `groupingEnabled`.
 - Returned actions: `setDimensions`, `updateData`, `refreshNow`, `destroy`.
 - `GraphDebugStats` type export.
+- Internal function: `interpolate100ProgramGradient(t: number)` → Hex color using three-stop interpolation.
 
 ### `src/composables/useItems.ts`
 Description:
@@ -342,12 +350,14 @@ Description:
 - Implements race-safe session token strategy.
 - Delegates persistence to `itemRepository`.
 - Supports guest-mode local-only CRUD in memory and bypasses repository/sync operations when `isGuest` is true.
+- **Guest seed data**: Automatically populates in-memory items array with 5 sample tasks on guest mode activation via watcher on `auth.isGuest`, showcasing varied statuses, Motivation, and Duration values for UI demo purposes.
 - **Automated sync**: Manages 30-second interval timer with `startAutoSync()`/`stopAutoSync()` and in-flight guard.
 - **Schema enforcement**: `createItem()` requires `due` parameter and accepts optional `description`.
 
 Key Functions/Exported Members:
 - `useItems()`
 - Shared refs: `items`, `isLoading`, `isSyncing`, `error`.
+- Internal function: `generateGuestSeedItems(userId: string)` → Array of 5 sample Item objects.
 - Session controls: `getCurrentToken`, `startNewSession`, `invalidateSession`.
 - Sync controls: `startAutoSync`, `stopAutoSync`.
 - Actions: `fetchActiveItems`, `fetchArchivedItems`, `fetchDeletedItems`, `createItem({ title, description, motivation, due, durationMinutes })`, `syncItems`, `syncAndRefresh`, `updateItemStatus`, `archiveItem`, `softDeleteItem`.
