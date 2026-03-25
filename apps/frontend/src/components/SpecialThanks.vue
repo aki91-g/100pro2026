@@ -2,7 +2,7 @@
 defineProps<{ show: boolean }>();
 const emit = defineEmits<{ 'close': [] }>();
 
-const hosts = ['TS', 'TY']
+const hosts = ['TS', 'TY'];
 const mentors = ['YB', 'AS', 'KY', 'MA'];
 const feedbacks = ['RK(友人)', 'RN(友人・9期生)'];
 </script>

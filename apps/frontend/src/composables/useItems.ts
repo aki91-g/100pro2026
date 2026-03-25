@@ -12,6 +12,96 @@ const isLoading = ref(false);
 const error = ref<string | null>(null);
 const isSyncing = ref(false);
 
+/**
+ * Generate sample seed data for guest mode to showcase the application's capabilities
+ */
+function generateGuestSeedItems(userId: string): Item[] {
+  const now = new Date();
+  const day = 24 * 60 * 60 * 1000;
+  
+  const sampleItems: Item[] = [
+    {
+      id: `guest_sample_1_${Date.now()}`,
+      user_id: userId,
+      sync_status: 'local_only',
+      title: 'Design new landing page',
+      description: 'Create mockups and get stakeholder feedback',
+      status: 'inprogress',
+      due: new Date(now.getTime() + 2 * day).toISOString(),
+      duration_minutes: 240,
+      motivation: 8,
+      is_archived: false,
+      created_at: now.toISOString(),
+      updated_at: now.toISOString(),
+      deleted_at: null,
+    },
+    {
+      id: `guest_sample_2_${Date.now()}`,
+      user_id: userId,
+      sync_status: 'local_only',
+      title: 'Review pull requests from team',
+      description: null,
+      status: 'todo',
+      due: new Date(now.getTime() + 5 * day).toISOString(),
+      duration_minutes: 90,
+      motivation: 6,
+      is_archived: false,
+      created_at: now.toISOString(),
+      updated_at: now.toISOString(),
+      deleted_at: null,
+    },
+    {
+      id: `guest_sample_3_${Date.now()}`,
+      user_id: userId,
+      sync_status: 'local_only',
+      title: 'Update project documentation',
+      description: 'Add API endpoints and migration guides',
+      status: 'backlog',
+      due: new Date(now.getTime() + 14 * day).toISOString(),
+      duration_minutes: 180,
+      motivation: 5,
+      is_archived: false,
+      created_at: now.toISOString(),
+      updated_at: now.toISOString(),
+      deleted_at: null,
+    },
+    {
+      id: `guest_sample_4_${Date.now()}`,
+      user_id: userId,
+      sync_status: 'local_only',
+      title: 'Deploy to production',
+      description: 'After QA sign-off',
+      status: 'done',
+      due: new Date(now.getTime() - 1 * day).toISOString(),
+      duration_minutes: 120,
+      motivation: 9,
+      is_archived: false,
+      created_at: now.toISOString(),
+      updated_at: now.toISOString(),
+      deleted_at: null,
+    },
+    {
+      id: `guest_sample_5_${Date.now()}`,
+      user_id: userId,
+      sync_status: 'local_only',
+      title: 'High-priority bug fix',
+      description: 'Fix authentication token expiration issue',
+      status: 'inprogress',
+      due: new Date(now.getTime() + 1 * day).toISOString(),
+      duration_minutes: 150,
+      motivation: 10,
+      is_archived: false,
+      created_at: now.toISOString(),
+      updated_at: now.toISOString(),
+      deleted_at: null,
+    },
+  ];
+
+  return sampleItems;
+}
+
+let guestSeedInitialized = false;
+
 // Auto-sync state shared across composable instances
 let autoSyncTimer: ReturnType<typeof setInterval> | null = null;
 let autoSyncInFlight = false;
@@ -32,6 +122,20 @@ let previousSyncMap: Record<string, SyncStatus> = {};
  */
 export function useItems() {
   const auth = useAuth();
+
+  // Watch for guest mode activation and seed sample items
+  watch(
+    () => auth.isGuest.value,
+    (isGuest) => {
+      if (isGuest && !guestSeedInitialized && auth.userId.value) {
+        items.value = generateGuestSeedItems(auth.userId.value);
+        guestSeedInitialized = true;
+      } else if (!isGuest) {
+        guestSeedInitialized = false;
+      }
+    },
+    { immediate: true },
+  );
 
   function createGuestItemId(): string {
     const randomPart = Math.random().toString(36).slice(2, 10);
