@@ -3,8 +3,6 @@
 interface ImportMetaEnv {
 	readonly VITE_API_MODE?: 'tauri' | 'hono';
 	readonly VITE_HONO_BASE_URL: string;
-	readonly VITE_SUPABASE_URL?: string;
-	readonly VITE_SUPABASE_ANON_KEY?: string;
 	readonly SUPABASE_URL?: string;
 	readonly SUPABASE_ANON_KEY?: string;
 }
