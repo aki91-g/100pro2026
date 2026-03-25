@@ -175,7 +175,7 @@ async fn fetch_username_from_profiles(
     if let Ok(database_url) = std::env::var("DATABASE_URL") {
         match PgPoolOptions::new()
             .max_connections(1)
-            .acquire_timeout(std::time::Duration::from_secs(2))
+            .acquire_timeout(std::time::Duration::from_secs(5))
             .connect(&database_url)
             .await
         {
