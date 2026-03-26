@@ -9,6 +9,7 @@ function normalizeUsername(value: string | null | undefined): string | null {
   const trimmed = value.trim();
   if (!trimmed) return null;
   if (trimmed.toLowerCase() === 'unknown') return null;
+  if (trimmed.includes('@')) return null;
   return trimmed;
 }
 

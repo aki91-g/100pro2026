@@ -751,6 +751,7 @@ onUnmounted(() => {
 
               <section
                 v-show="currentTab === 'archived'"
+                class="tab-panel"
                 :id="taskTabPanelIds.archived"
                 role="tabpanel"
                 :aria-labelledby="taskTabIds.archived"
@@ -764,9 +765,10 @@ onUnmounted(() => {
                   :is-processing="isRestoringTabItem"
                   @unarchive-item="handleUnarchiveFromList"
                 />
-                <div v-if="isLoadingArchived" class="tab-state-message">{{ t('dbSyncing') }}</div>
+                <div v-if="isLoadingArchived && archivedItems.length === 0" class="tab-state-message">{{ t('dbSyncing') }}</div>
                 <div v-else-if="errorArchived" class="tab-state-message tab-state-error">{{ errorArchived }}</div>
                 <div v-else-if="archivedItems.length === 0" class="tab-state-message">{{ t('drawerNoTasksInTab') }}</div>
+                <div v-if="isLoadingArchived && archivedItems.length > 0" class="tab-loading-overlay">{{ t('dbSyncing') }}</div>
               </section>
 
               <section
@@ -1007,6 +1009,25 @@ onUnmounted(() => {
   display: flex;
   flex-direction: column;
   gap: 1rem;
+}
+
+.tab-panel {
+  position: relative;
+}
+
+.tab-loading-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: color-mix(in srgb, var(--bg-primary) 68%, transparent);
+  border-radius: 0.85rem;
+  color: var(--text-muted);
+  font-size: 0.86rem;
+  font-weight: 600;
+  backdrop-filter: blur(1px);
+  pointer-events: none;
 }
 
 .tab-state-message {

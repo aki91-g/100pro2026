@@ -34,7 +34,7 @@ const emit = defineEmits<{
           {{ statusLabel(item.status) }}
         </span>
         <span class="motivation">
-          <span class="fire">🔥</span> {{ item.motivation }}
+          <span class="fire">🔥</span> {{ item.motivation ?? 'N/A' }}
         </span>
       </div>
 

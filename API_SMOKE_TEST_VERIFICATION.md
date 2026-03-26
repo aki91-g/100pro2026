@@ -12,7 +12,7 @@
 ### 1.1 Archive Operation (`archiveItem`)
 
 **Frontend Flow** (useItems.ts, line 478):
-```
+```text
 TaskDrawer.handleArchive()
   → useItems.archiveItem(id)
     [Authenticated Path]:
@@ -51,7 +51,7 @@ app.post('/api/items/:id/archive', async (c) => {
 | `updated_at` | `old_timestamp` | `new_timestamp` ✅ |
 
 **Frontend State After Archive** (Authenticated):
-```
+```typescript
 items.value = items.value.filter((i) => i.id !== id)
 ```
 - Archived item removed from active list projection ✅
@@ -62,7 +62,7 @@ items.value = items.value.filter((i) => i.id !== id)
 ### 1.2 Unarchive Operation (`unarchiveItem`)
 
 **Frontend Flow** (useItems.ts, line 506):
-```
+```text
 TaskDrawer.handleUnarchiveFromList()
   → useItems.unarchiveItem(id)
     [Authenticated Path]:
@@ -98,11 +98,12 @@ app.post('/api/items/:id/unarchive', async (c) => {
 | `updated_at` | `old_timestamp` | `new_timestamp` ✅ |
 
 **Frontend State After Unarchive** (Authenticated):
+```typescript
+await itemRepository.unarchiveItem(id);
+items.value = await itemRepository.getActiveItems();
 ```
-items.value = items.value.filter((i) => i.id !== id)
-```
-- Unarchived item removed from archived list projection ✅
-- Item becomes visible in active list on next refresh ✅
+- Active list is refreshed from server state via `itemRepository.getActiveItems()` in `useItems.ts` ✅
+- Archived tab removes the item immediately via local list filtering in `TaskDrawer.vue` (`handleUnarchiveFromList`) ✅
 
 ---
 
@@ -111,7 +112,7 @@ items.value = items.value.filter((i) => i.id !== id)
 ### 2.1 Delete Operation (`softDeleteItem`)
 
 **Frontend Flow** (useItems.ts, line 533):
-```
+```text
 TaskDrawer.handleDelete()
   → useItems.softDeleteItem(id)
     [Authenticated Path]:
@@ -147,7 +148,7 @@ app.delete('/api/items/:id', async (c) => {
 | `updated_at` | `old_timestamp` | `new_timestamp` ✅ |
 
 **Frontend State After Delete** (Authenticated):
-```
+```typescript
 items.value = items.value.filter((i) => i.id !== id)
 ```
 - Deleted item removed from all active/archived list projections ✅
@@ -158,7 +159,7 @@ items.value = items.value.filter((i) => i.id !== id)
 ### 2.2 Restore Operation (`restoreItem`)
 
 **Frontend Flow** (useItems.ts, line 561):
-```
+```text
 TaskDrawer.handleRestoreFromList()
   → useItems.restoreItem(id)
     [Authenticated Path]:
@@ -195,11 +196,12 @@ app.post('/api/items/:id/restore', async (c) => {
 | `updated_at` | `old_timestamp` | `new_timestamp` ✅ |
 
 **Frontend State After Restore** (Authenticated):
+```typescript
+await itemRepository.restoreItem(id);
+items.value = await itemRepository.getActiveItems();
 ```
-items.value = items.value.filter((i) => i.id !== id)
-```
-- Restored item removed from deleted list projection ✅
-- Item becomes active and visible in active list on next refresh ✅
+- Active list is refreshed from server state via `itemRepository.getActiveItems()` in `useItems.ts` ✅
+- Deleted tab removes the item immediately via local list filtering in `TaskDrawer.vue` (`handleRestoreFromList`) ✅
 
 ---
 
@@ -252,7 +254,7 @@ function refreshGuestActiveProjection(): void {
 
 **No Duplication Guarantee**:
 
-```
+```text
 // When archive happens:
 guestLocalItems contains: [item1(archived), item2(active), item3(deleted)]
                                   ↓
@@ -271,7 +273,7 @@ guestLocalItems contains: [item1(archived), item2(active), item3(deleted)]
 ### 3.3 Authenticated User Consistency
 
 **Flow After Archive**:
-```
+```text
 ✅ Postgres updated: is_archived = true, sync_status = 'synced'
 ✅ Frontend removes: items.value.filter(i => i.id !== id)
 ✅ Next fetch: Archived tab queries API, receives [item]
@@ -279,11 +281,11 @@ guestLocalItems contains: [item1(archived), item2(active), item3(deleted)]
 ```
 
 **Flow After Restore**:
-```
+```text
 ✅ Postgres updated: deleted_at = null, is_archived = false, sync_status = 'synced'
-✅ Frontend removes: items.value.filter(i => i.id !== id)
-✅ Next fetch: Active tab queries repository, receives [item]
-✅ No duplication: Item was removed before restore fetch
+✅ Frontend refreshes active projection: items.value = await itemRepository.getActiveItems()
+✅ Deleted tab removes restored row immediately in TaskDrawer local state
+✅ No duplication: server refresh + tab-local filtering keep projections consistent
 ```
 
 ---
@@ -410,7 +412,7 @@ updated_at: new Date().toISOString()  // ← Timestamp for conflict resolution
 ## 8. Type Safety Verification ✅
 
 **Frontend TypeCheck Result**: 
-```
+```text
 $ pnpm --filter frontend exec vue-tsc -b
 [Exit Code: 0 - No Errors]
 ```
@@ -425,7 +427,7 @@ $ pnpm --filter frontend exec vue-tsc -b
 ## 9. Summary: Complete End-to-End Integration
 
 ### Archive Flow
-```
+```text
 1️⃣  User clicks "Archive" in detail view (NEW)
 2️⃣  handleArchive() → archiveItem(id)
 3️⃣  [Web] honoClient → POST /api/items/{id}/archive
@@ -437,7 +439,7 @@ $ pnpm --filter frontend exec vue-tsc -b
 ```
 
 ### Unarchive Flow
-```
+```text
 1️⃣  User clicks "Unarchive" in archived tab
 2️⃣  handleUnarchiveFromList() → unarchiveItem(id)
 3️⃣  [Web] honoClient → POST /api/items/{id}/unarchive
@@ -449,7 +451,7 @@ $ pnpm --filter frontend exec vue-tsc -b
 ```
 
 ### Delete Flow
-```
+```text
 1️⃣  User clicks "Delete" in detail view (NEW)
 2️⃣  handleDelete() → softDeleteItem(id)
 3️⃣  [Web] honoClient → DELETE /api/items/{id}
@@ -461,7 +463,7 @@ $ pnpm --filter frontend exec vue-tsc -b
 ```
 
 ### Restore Flow
-```
+```text
 1️⃣  User clicks "Restore" in deleted tab
 2️⃣  handleRestoreFromList() → restoreItem(id)
 3️⃣  [Web] honoClient → POST /api/items/{id}/restore
@@ -477,8 +479,8 @@ $ pnpm --filter frontend exec vue-tsc -b
 ## Conclusion
 
 ✅ **All verification checks passed**:
-- Archive/Unarchive operations correctly implemented end-to-end
-- Delete/Restore operations correctly prevent duplication
+- Archive/Unarchive operations implemented end-to-end
+- Delete/Restore operations prevent duplication
 - Database state remains authoritative (`sync_status = 'synced'`)
 - Guest-mode local projection consistent without duplication
 - Authenticated users receive fresh data on next fetch

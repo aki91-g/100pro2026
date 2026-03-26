@@ -157,6 +157,9 @@ const requireAuth: MiddlewareHandler<AppEnv> = async (c, next) => {
 async function fetchProfileUsername(token: string, userId: string): Promise<string> {
   const anon = createAnonSupabase();
   const { data: authData } = await anon.auth.getUser(token);
+  const metadataUsername = typeof authData.user?.user_metadata?.['username'] === 'string'
+    ? authData.user.user_metadata['username'].trim()
+    : '';
   const fallbackName = (authData.user?.email?.split('@')[0] || 'User').trim();
 
   try {
@@ -168,14 +171,25 @@ async function fetchProfileUsername(token: string, userId: string): Promise<stri
       .maybeSingle();
 
     const trimmedUsername = typeof data?.username === 'string' ? data.username.trim() : '';
-    if (error || trimmedUsername.length === 0) {
+    const resolvedProfileUsername =
+      trimmedUsername.length > 0 && !trimmedUsername.includes('@')
+        ? trimmedUsername
+        : '';
+
+    if (error || resolvedProfileUsername.length === 0) {
       console.log('Profile fetch failed, using fallback username');
+      if (metadataUsername.length > 0 && !metadataUsername.includes('@')) {
+        return metadataUsername;
+      }
       return fallbackName;
     }
 
-    return trimmedUsername;
+    return resolvedProfileUsername;
   } catch {
     console.log('Profile fetch failed, using fallback username');
+    if (metadataUsername.length > 0 && !metadataUsername.includes('@')) {
+      return metadataUsername;
+    }
     return fallbackName;
   }
 }
@@ -364,9 +378,8 @@ async function handleUpdateItem(c: Context<AppEnv>): Promise<Response> {
   return c.body(null, 204);
 }
 
-async function handleArchiveItem(c: Context<AppEnv>): Promise<Response> {
-  const body = await parseJson(c, { id: '' });
-  if (!body.id) return c.json({ error: 'id is required' }, 400);
+async function performToggleArchive(c: Context<AppEnv>, id: string, isArchived: boolean): Promise<Response> {
+  if (!id) return c.json({ error: 'id is required' }, 400);
 
   const { token } = c.get('auth');
   const supabase = createSupabaseWithToken(token);
@@ -374,36 +387,25 @@ async function handleArchiveItem(c: Context<AppEnv>): Promise<Response> {
   const { error } = await supabase
     .from('items')
     .update({
-      is_archived: true,
+      is_archived: isArchived,
       updated_at: new Date().toISOString(),
       sync_status: 'synced',
     })
-    .eq('id', body.id)
+    .eq('id', id)
     .is('deleted_at', null);
 
   if (error) return c.json({ error: error.message }, 400);
   return c.body(null, 204);
 }
 
+async function handleArchiveItem(c: Context<AppEnv>): Promise<Response> {
+  const body = await parseJson(c, { id: '' });
+  return performToggleArchive(c, body.id, true);
+}
+
 async function handleUnarchiveItem(c: Context<AppEnv>): Promise<Response> {
   const body = await parseJson(c, { id: '' });
-  if (!body.id) return c.json({ error: 'id is required' }, 400);
-
-  const { token } = c.get('auth');
-  const supabase = createSupabaseWithToken(token);
-
-  const { error } = await supabase
-    .from('items')
-    .update({
-      is_archived: false,
-      updated_at: new Date().toISOString(),
-      sync_status: 'synced',
-    })
-    .eq('id', body.id)
-    .is('deleted_at', null);
-
-  if (error) return c.json({ error: error.message }, 400);
-  return c.body(null, 204);
+  return performToggleArchive(c, body.id, false);
 }
 
 async function handleSoftDeleteItem(c: Context<AppEnv>): Promise<Response> {
@@ -592,41 +594,13 @@ app.patch('/api/items/:id', async (c) => handleUpdateItem(c));
 app.post('/api/items/update-status', async (c) => handleUpdateItemStatus(c));
 
 app.post('/api/items/:id/archive', async (c) => {
-  const { token } = c.get('auth');
-  const supabase = createSupabaseWithToken(token);
   const id = c.req.param('id');
-
-  const { error } = await supabase
-    .from('items')
-    .update({
-      is_archived: true,
-      updated_at: new Date().toISOString(),
-      sync_status: 'synced',
-    })
-    .eq('id', id)
-    .is('deleted_at', null);
-
-  if (error) return c.json({ error: error.message }, 400);
-  return c.body(null, 204);
+  return performToggleArchive(c, id, true);
 });
 
 app.post('/api/items/:id/unarchive', async (c) => {
-  const { token } = c.get('auth');
-  const supabase = createSupabaseWithToken(token);
   const id = c.req.param('id');
-
-  const { error } = await supabase
-    .from('items')
-    .update({
-      is_archived: false,
-      updated_at: new Date().toISOString(),
-      sync_status: 'synced',
-    })
-    .eq('id', id)
-    .is('deleted_at', null);
-
-  if (error) return c.json({ error: error.message }, 400);
-  return c.body(null, 204);
+  return performToggleArchive(c, id, false);
 });
 
 app.post('/api/items/archive', async (c) => handleArchiveItem(c));
