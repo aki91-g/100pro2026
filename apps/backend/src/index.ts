@@ -441,7 +441,8 @@ async function handleRestoreItem(c: Context<AppEnv>): Promise<Response> {
       updated_at: new Date().toISOString(),
       sync_status: 'synced',
     })
-    .eq('id', body.id);
+    .eq('id', body.id)
+    .not('deleted_at', 'is', null);
 
   if (error) return c.json({ error: error.message }, 400);
   return c.body(null, 204);
@@ -662,7 +663,8 @@ app.post('/api/items/:id/restore', async (c) => {
       updated_at: new Date().toISOString(),
       sync_status: 'synced',
     })
-    .eq('id', id);
+    .eq('id', id)
+    .not('deleted_at', 'is', null);
 
   if (error) return c.json({ error: error.message }, 400);
   return c.body(null, 204);

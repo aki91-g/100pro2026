@@ -382,7 +382,7 @@ updated_at: new Date().toISOString()  // ← Timestamp for conflict resolution
 
 ### 7.1 Action Buttons Added
 
-**Location**: `TaskDrawer.vue` (lines 723-729)
+**Location**: `TaskDrawer.vue` - `danger-zone` buttons (`handleArchive`, `handleDelete`)
 ```vue
 <div class="danger-zone">
   <button type="button" 

@@ -272,7 +272,7 @@ Key Functions/Exported Members:
 Description:
 - Slide-in drawer component for all item lifecycle operations: create, view, edit, archive, unarchive, soft-delete, and restore.
 - Manages four modes: `create`, `view`, `tasks`, and `edit` (internal only).
-- **Self-contained CRUD**: Calls `useItems()` directly for all item mutations (`createItem`, `updateItem`, `archiveItem`, `unarchiveItem`, `softDeleteItem`, `restoreItem`) rather than delegating through parent event emissions.
+- **Self-contained CRUD**: Calls `useItems()` directly for all item mutations (`createItem`, `updateItem`, `updateItemStatus`, `archiveItem`, `unarchiveItem`, `softDeleteItem`, `restoreItem`) rather than delegating through parent event emissions. Status mutations are triggered inline by `handleStatusChange()`.
 - **Contextual Navigation**: Instead of a top navigation bar, uses context-aware buttons in the header:
   - In 'tasks' mode: Shows "+ New Task" button (top-right) to create a new task.
   - In 'view' mode: Shows "← Back to List" button (top-left) to return to the task list.

@@ -521,7 +521,7 @@ export function useItems() {
 
     try {
       await itemRepository.unarchiveItem(id);
-      items.value = items.value.filter((i) => i.id !== id);
+      items.value = await itemRepository.getActiveItems();
     } catch (err) {
       error.value = String(err);
       console.error('Failed to unarchive item:', err);
@@ -576,7 +576,7 @@ export function useItems() {
 
     try {
       await itemRepository.restoreItem(id);
-      items.value = items.value.filter((i) => i.id !== id);
+      items.value = await itemRepository.getActiveItems();
     } catch (err) {
       error.value = String(err);
       console.error('Failed to restore item:', err);

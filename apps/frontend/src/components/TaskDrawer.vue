@@ -53,8 +53,31 @@ const createStatusSelectId = 'task-drawer-status-create';
 const currentTab = ref<TaskTab>('active');
 const archivedItems = ref<Item[]>([]);
 const deletedItems = ref<Item[]>([]);
-const isLoadingTaskTab = ref(false);
+const isLoadingArchived = ref(false);
+const isLoadingDeleted = ref(false);
+const errorArchived = ref<string | null>(null);
+const errorDeleted = ref<string | null>(null);
+const tabRequestToken = ref(0);
 const isRestoringTabItem = ref(false);
+
+const taskTabIds: Record<TaskTab, string> = {
+  active: 'task-tab-active',
+  archived: 'task-tab-archived',
+  deleted: 'task-tab-deleted',
+};
+
+const taskTabPanelIds: Record<TaskTab, string> = {
+  active: 'task-tabpanel-active',
+  archived: 'task-tabpanel-archived',
+  deleted: 'task-tabpanel-deleted',
+};
+
+const taskTabOrder: TaskTab[] = ['active', 'archived', 'deleted'];
+const taskTabButtonRefs = ref<Record<TaskTab, HTMLButtonElement | null>>({
+  active: null,
+  archived: null,
+  deleted: null,
+});
 
 const {
   createItem,
@@ -88,12 +111,6 @@ const strictErrorMap = computed<Record<string, string>>(() => {
     }
   });
   return normalized;
-});
-
-const currentTaskListItems = computed(() => {
-  if (currentTab.value === 'archived') return archivedItems.value;
-  if (currentTab.value === 'deleted') return deletedItems.value;
-  return props.items;
 });
 
 const isMutating = computed(() => isSavingEdit.value || isArchiving.value || isDeleting.value || isUpdatingStatus.value);
@@ -199,6 +216,52 @@ function setCurrentTab(tab: TaskTab): void {
   currentTab.value = tab;
 }
 
+function setTaskTabButtonRef(tab: TaskTab, element: Element | null): void {
+  taskTabButtonRefs.value[tab] = element as HTMLButtonElement | null;
+}
+
+function focusTaskTab(tab: TaskTab): void {
+  taskTabButtonRefs.value[tab]?.focus();
+}
+
+function moveTabFocus(current: TaskTab, direction: 1 | -1): void {
+  const currentIndex = taskTabOrder.indexOf(current);
+  const nextIndex = (currentIndex + direction + taskTabOrder.length) % taskTabOrder.length;
+  const nextTab = taskTabOrder[nextIndex] ?? current;
+  focusTaskTab(nextTab);
+}
+
+function handleTaskTabKeydown(event: KeyboardEvent, tab: TaskTab): void {
+  if (event.key === 'ArrowRight') {
+    event.preventDefault();
+    moveTabFocus(tab, 1);
+    return;
+  }
+
+  if (event.key === 'ArrowLeft') {
+    event.preventDefault();
+    moveTabFocus(tab, -1);
+    return;
+  }
+
+  if (event.key === 'Home') {
+    event.preventDefault();
+    focusTaskTab('active');
+    return;
+  }
+
+  if (event.key === 'End') {
+    event.preventDefault();
+    focusTaskTab('deleted');
+    return;
+  }
+
+  if (event.key === 'Enter' || event.key === ' ') {
+    event.preventDefault();
+    setCurrentTab(tab);
+  }
+}
+
 function goToCreate(): void {
   emit('update:mode', 'create');
 }
@@ -226,17 +289,42 @@ async function loadTaskTabItems(): Promise<void> {
 
   if (currentTab.value === 'active') return;
 
-  isLoadingTaskTab.value = true;
-  try {
-    if (currentTab.value === 'archived') {
-      archivedItems.value = await fetchArchivedItems();
-      return;
+  const tab = currentTab.value;
+  const token = ++tabRequestToken.value;
+
+  if (tab === 'archived') {
+    isLoadingArchived.value = true;
+    errorArchived.value = null;
+    try {
+      const result = await fetchArchivedItems();
+      if (token !== tabRequestToken.value || currentTab.value !== tab) return;
+      archivedItems.value = result;
+    } catch (error) {
+      if (token !== tabRequestToken.value || currentTab.value !== tab) return;
+      errorArchived.value = 'Failed to load archived items.';
+      console.error('Failed to load archived tab items:', error);
+    } finally {
+      if (token === tabRequestToken.value && currentTab.value === tab) {
+        isLoadingArchived.value = false;
+      }
     }
-    deletedItems.value = await fetchDeletedItems();
+    return;
+  }
+
+  isLoadingDeleted.value = true;
+  errorDeleted.value = null;
+  try {
+    const result = await fetchDeletedItems();
+    if (token !== tabRequestToken.value || currentTab.value !== tab) return;
+    deletedItems.value = result;
   } catch (error) {
-    console.error('Failed to load task tab items:', error);
+    if (token !== tabRequestToken.value || currentTab.value !== tab) return;
+    errorDeleted.value = 'Failed to load deleted items.';
+    console.error('Failed to load deleted tab items:', error);
   } finally {
-    isLoadingTaskTab.value = false;
+    if (token === tabRequestToken.value && currentTab.value === tab) {
+      isLoadingDeleted.value = false;
+    }
   }
 }
 
@@ -502,31 +590,46 @@ onUnmounted(() => {
         <div class="drawer-body">
           <nav v-if="mode === 'tasks'" class="tab-container" role="tablist" :aria-label="t('list')">
             <button
+              :id="taskTabIds.active"
+              :ref="(el) => setTaskTabButtonRef('active', el as Element | null)"
               type="button"
               class="tab-trapezoid"
               :class="{ 'active': currentTab === 'active' }"
               role="tab"
               :aria-selected="currentTab === 'active'"
+              :aria-controls="taskTabPanelIds.active"
+              :tabindex="currentTab === 'active' ? 0 : -1"
+              @keydown="handleTaskTabKeydown($event, 'active')"
               @click="setCurrentTab('active')"
             >
               {{ t('active') }}
             </button>
             <button
+              :id="taskTabIds.archived"
+              :ref="(el) => setTaskTabButtonRef('archived', el as Element | null)"
               type="button"
               class="tab-trapezoid"
               :class="{ 'active': currentTab === 'archived' }"
               role="tab"
               :aria-selected="currentTab === 'archived'"
+              :aria-controls="taskTabPanelIds.archived"
+              :tabindex="currentTab === 'archived' ? 0 : -1"
+              @keydown="handleTaskTabKeydown($event, 'archived')"
               @click="setCurrentTab('archived')"
             >
               {{ t('archived') }}
             </button>
             <button
+              :id="taskTabIds.deleted"
+              :ref="(el) => setTaskTabButtonRef('deleted', el as Element | null)"
               type="button"
               class="tab-trapezoid"
               :class="{ 'active': currentTab === 'deleted' }"
               role="tab"
               :aria-selected="currentTab === 'deleted'"
+              :aria-controls="taskTabPanelIds.deleted"
+              :tabindex="currentTab === 'deleted' ? 0 : -1"
+              @keydown="handleTaskTabKeydown($event, 'deleted')"
               @click="setCurrentTab('deleted')"
             >
               {{ t('deleted') }}
@@ -629,37 +732,62 @@ onUnmounted(() => {
             </div>
 
             <div v-else-if="mode === 'tasks'" key="tasks" class="task-list-wrapper">
-              <ActiveList
-                v-if="currentTab === 'active'"
-                :items="items"
-                :sync-map="strictSyncMap"
-                :error-map="strictErrorMap"
-                :is-syncing="isSyncing"
-                @select-item="handleTaskListSelect"
-              />
+              <section
+                v-show="currentTab === 'active'"
+                :id="taskTabPanelIds.active"
+                role="tabpanel"
+                :aria-labelledby="taskTabIds.active"
+                tabindex="0"
+              >
+                <ActiveList
+                  :items="items"
+                  :sync-map="strictSyncMap"
+                  :error-map="strictErrorMap"
+                  :is-syncing="isSyncing"
+                  @select-item="handleTaskListSelect"
+                />
+                <div v-if="items.length === 0" class="tab-state-message">{{ t('drawerNoTasksInTab') }}</div>
+              </section>
 
-              <ArchivedList
-                v-else-if="currentTab === 'archived'"
-                :items="archivedItems"
-                :sync-map="strictSyncMap"
-                :error-map="strictErrorMap"
-                :is-syncing="isSyncing"
-                :is-processing="isRestoringTabItem"
-                @unarchive-item="handleUnarchiveFromList"
-              />
+              <section
+                v-show="currentTab === 'archived'"
+                :id="taskTabPanelIds.archived"
+                role="tabpanel"
+                :aria-labelledby="taskTabIds.archived"
+                tabindex="0"
+              >
+                <ArchivedList
+                  :items="archivedItems"
+                  :sync-map="strictSyncMap"
+                  :error-map="strictErrorMap"
+                  :is-syncing="isSyncing"
+                  :is-processing="isRestoringTabItem"
+                  @unarchive-item="handleUnarchiveFromList"
+                />
+                <div v-if="isLoadingArchived" class="tab-state-message">{{ t('dbSyncing') }}</div>
+                <div v-else-if="errorArchived" class="tab-state-message tab-state-error">{{ errorArchived }}</div>
+                <div v-else-if="archivedItems.length === 0" class="tab-state-message">{{ t('drawerNoTasksInTab') }}</div>
+              </section>
 
-              <DeletedList
-                v-else
-                :items="deletedItems"
-                :sync-map="strictSyncMap"
-                :error-map="strictErrorMap"
-                :is-syncing="isSyncing"
-                :is-processing="isRestoringTabItem"
-                @restore-item="handleRestoreFromList"
-              />
-
-              <div v-if="isLoadingTaskTab" class="tab-state-message">{{ t('dbSyncing') }}</div>
-              <div v-else-if="currentTaskListItems.length === 0" class="tab-state-message">{{ t('drawerNoTasksInTab') }}</div>
+              <section
+                v-show="currentTab === 'deleted'"
+                :id="taskTabPanelIds.deleted"
+                role="tabpanel"
+                :aria-labelledby="taskTabIds.deleted"
+                tabindex="0"
+              >
+                <DeletedList
+                  :items="deletedItems"
+                  :sync-map="strictSyncMap"
+                  :error-map="strictErrorMap"
+                  :is-syncing="isSyncing"
+                  :is-processing="isRestoringTabItem"
+                  @restore-item="handleRestoreFromList"
+                />
+                <div v-if="isLoadingDeleted" class="tab-state-message">{{ t('dbSyncing') }}</div>
+                <div v-else-if="errorDeleted" class="tab-state-message tab-state-error">{{ errorDeleted }}</div>
+                <div v-else-if="deletedItems.length === 0" class="tab-state-message">{{ t('drawerNoTasksInTab') }}</div>
+              </section>
             </div>
 
             <form v-else key="edit" class="task-form edit-form" @submit.prevent="handleEditSubmit">
@@ -889,6 +1017,12 @@ onUnmounted(() => {
   color: var(--text-muted);
   font-size: 0.86rem;
   font-weight: 600;
+}
+
+.tab-state-error {
+  border-color: #fecaca;
+  color: #b91c1c;
+  background: #fef2f2;
 }
 
 .edit-form {
