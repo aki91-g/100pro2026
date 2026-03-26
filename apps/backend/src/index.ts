@@ -522,6 +522,7 @@ app.post('/api/auth/signup', async (c) => {
   const email = typeof body.email === 'string' ? body.email.trim() : '';
   const password = typeof body.password === 'string' ? body.password : '';
   const username = typeof body.username === 'string' ? body.username.trim() : '';
+  const metadataUsername = typeof body.username === 'string' ? body.username.trim() : '';
 
   if (!email || !password || !username) {
     return c.json({ error: 'email, password, and username are required' }, 400);
@@ -551,9 +552,10 @@ app.post('/api/auth/signup', async (c) => {
 
   // With Confirm Email disabled, Supabase typically returns an active session here.
   if (signUpData.session) {
+    const resolvedUsername = await fetchProfileUsername(signUpData.session.access_token, signUpData.user.id);
     return c.json({
       id: signUpData.user.id,
-      username,
+      username: resolvedUsername,
       access_token: signUpData.session.access_token,
       refresh_token: signUpData.session.refresh_token,
       expires_at: signUpData.session.expires_at,
@@ -566,15 +568,22 @@ app.post('/api/auth/signup', async (c) => {
   });
 
   if (signInError || !signInData.session) {
+    const createdUserUsername =
+      typeof signUpData.user.user_metadata?.['username'] === 'string'
+        ? signUpData.user.user_metadata['username']
+        : metadataUsername;
     return c.json({
-      error: signInError?.message ?? 'Signup succeeded but no active session was returned.',
       id: signUpData.user.id,
-    }, 401);
+      username: createdUserUsername,
+      access_token: null,
+    });
   }
+
+  const resolvedUsername = await fetchProfileUsername(signInData.session.access_token, signUpData.user.id);
 
   return c.json({
     id: signUpData.user.id,
-    username,
+    username: resolvedUsername,
     access_token: signInData.session.access_token,
     refresh_token: signInData.session.refresh_token,
     expires_at: signInData.session.expires_at,

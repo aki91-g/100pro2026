@@ -44,14 +44,24 @@ BEGIN
     SET username = COALESCE(EXCLUDED.username, public.profiles.username);
   EXCEPTION
     WHEN unique_violation THEN
-      INSERT INTO public.profiles (id, username, registered_at)
-      VALUES (NEW.id, 'user_' || SUBSTRING(NEW.id::TEXT, 1, 8), NOW())
-      ON CONFLICT (id) DO NOTHING;
+      BEGIN
+        INSERT INTO public.profiles (id, username, registered_at)
+        VALUES (NEW.id, 'user_' || SUBSTRING(NEW.id::TEXT, 1, 8), NOW())
+        ON CONFLICT (id) DO NOTHING;
+      EXCEPTION
+        WHEN OTHERS THEN
+          NULL;
+      END;
     WHEN OTHERS THEN
       -- Failsafe: do not block auth signup if profile insert has an unexpected issue.
-      INSERT INTO public.profiles (id, username, registered_at)
-      VALUES (NEW.id, NULL, NOW())
-      ON CONFLICT (id) DO NOTHING;
+      BEGIN
+        INSERT INTO public.profiles (id, username, registered_at)
+        VALUES (NEW.id, NULL, NOW())
+        ON CONFLICT (id) DO NOTHING;
+      EXCEPTION
+        WHEN OTHERS THEN
+          NULL;
+      END;
   END;
 
   RETURN NEW;
@@ -65,18 +75,71 @@ FOR EACH ROW
 EXECUTE FUNCTION public.handle_new_user();
 
 -- Backfill any missing profile rows for existing auth users.
-INSERT INTO public.profiles (id, username, registered_at)
-SELECT
-  au.id,
-  COALESCE(
-    NULLIF(BTRIM(au.raw_user_meta_data->>'username'), ''),
-    NULLIF(BTRIM(SPLIT_PART(COALESCE(au.email, ''), '@', 1)), ''),
-    'user_' || SUBSTRING(au.id::TEXT, 1, 8)
-  ) AS username,
-  NOW()
-FROM auth.users au
-LEFT JOIN public.profiles p ON p.id = au.id
-WHERE p.id IS NULL;
+DO $$
+DECLARE
+  rec RECORD;
+  raw_username TEXT;
+  normalized_username TEXT;
+  fallback_username TEXT;
+BEGIN
+  FOR rec IN
+    SELECT au.id, au.email, au.raw_user_meta_data
+    FROM auth.users au
+    LEFT JOIN public.profiles p ON p.id = au.id
+    WHERE p.id IS NULL
+  LOOP
+    raw_username := rec.raw_user_meta_data->>'username';
+    normalized_username := NULLIF(BTRIM(raw_username), '');
+
+    IF normalized_username IS NOT NULL AND LOWER(normalized_username) = 'unknown' THEN
+      normalized_username := NULL;
+    END IF;
+
+    IF normalized_username IS NOT NULL AND POSITION('@' IN normalized_username) > 0 THEN
+      normalized_username := NULL;
+    END IF;
+
+    fallback_username := NULLIF(BTRIM(SPLIT_PART(COALESCE(rec.email, ''), '@', 1)), '');
+    IF fallback_username IS NOT NULL AND LOWER(fallback_username) = 'unknown' THEN
+      fallback_username := NULL;
+    END IF;
+
+    IF fallback_username IS NOT NULL AND POSITION('@' IN fallback_username) > 0 THEN
+      fallback_username := NULL;
+    END IF;
+
+    BEGIN
+      INSERT INTO public.profiles (id, username, registered_at)
+      VALUES (
+        rec.id,
+        COALESCE(normalized_username, fallback_username, 'user_' || SUBSTRING(rec.id::TEXT, 1, 8)),
+        NOW()
+      )
+      ON CONFLICT (id) DO UPDATE
+      SET username = COALESCE(EXCLUDED.username, public.profiles.username);
+    EXCEPTION
+      WHEN unique_violation THEN
+        BEGIN
+          INSERT INTO public.profiles (id, username, registered_at)
+          VALUES (rec.id, 'user_' || SUBSTRING(rec.id::TEXT, 1, 8), NOW())
+          ON CONFLICT (id) DO NOTHING;
+        EXCEPTION
+          WHEN OTHERS THEN
+            NULL;
+        END;
+      WHEN OTHERS THEN
+        BEGIN
+          INSERT INTO public.profiles (id, username, registered_at)
+          VALUES (rec.id, NULL, NOW())
+          ON CONFLICT (id) DO NOTHING;
+        EXCEPTION
+          WHEN OTHERS THEN
+            NULL;
+        END;
+    END;
+  END LOOP;
+END;
+$$;
 
 -- Profiles RLS policies for frontend reads/updates.
 ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
