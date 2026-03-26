@@ -522,7 +522,6 @@ app.post('/api/auth/signup', async (c) => {
   const email = typeof body.email === 'string' ? body.email.trim() : '';
   const password = typeof body.password === 'string' ? body.password : '';
   const username = typeof body.username === 'string' ? body.username.trim() : '';
-  const metadataUsername = typeof body.username === 'string' ? body.username.trim() : '';
 
   if (!email || !password || !username) {
     return c.json({ error: 'email, password, and username are required' }, 400);
@@ -571,7 +570,7 @@ app.post('/api/auth/signup', async (c) => {
     const createdUserUsername =
       typeof signUpData.user.user_metadata?.['username'] === 'string'
         ? signUpData.user.user_metadata['username']
-        : metadataUsername;
+        : username;
     return c.json({
       id: signUpData.user.id,
       username: createdUserUsername,
