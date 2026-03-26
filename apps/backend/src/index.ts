@@ -439,6 +439,7 @@ async function performSoftDelete(c: Context<AppEnv>, id: string): Promise<Respon
       sync_status: 'synced',
     })
     .eq('id', id)
+    .is('deleted_at', null)
     .select('id')
     .maybeSingle();
 
