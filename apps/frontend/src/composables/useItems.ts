@@ -8,6 +8,7 @@ import { useAuth } from '@/composables/useAuth';
  * Ensures all components see the same items/sync status
  */
 const items = ref<Item[]>([]);
+const guestLocalItems = ref<Item[]>([]);
 const isLoading = ref(false);
 const error = ref<string | null>(null);
 const isSyncing = ref(false);
@@ -123,15 +124,33 @@ let previousSyncMap: Record<string, SyncStatus> = {};
 export function useItems() {
   const auth = useAuth();
 
+  function getGuestActiveItems(): Item[] {
+    return guestLocalItems.value.filter((item) => !item.is_archived && item.deleted_at === null);
+  }
+
+  function getGuestArchivedItems(): Item[] {
+    return guestLocalItems.value.filter((item) => item.is_archived && item.deleted_at === null);
+  }
+
+  function getGuestDeletedItems(): Item[] {
+    return guestLocalItems.value.filter((item) => item.deleted_at !== null);
+  }
+
+  function refreshGuestActiveProjection(): void {
+    items.value = getGuestActiveItems();
+  }
+
   // Watch for guest mode activation and seed sample items
   watch(
     () => [auth.isGuest.value, auth.userId.value] as const,
     ([isGuest, userId]) => {
       if (isGuest && !guestSeedInitialized && typeof userId === 'string') {
-        items.value = generateGuestSeedItems(userId);
+        guestLocalItems.value = generateGuestSeedItems(userId);
+        refreshGuestActiveProjection();
         guestSeedInitialized = true;
       } else if (!isGuest) {
         guestSeedInitialized = false;
+        guestLocalItems.value = [];
       }
     },
     { immediate: true },
@@ -209,7 +228,11 @@ export function useItems() {
   // Fetch active items with session token protection
   async function fetchActiveItems(sessionToken?: number): Promise<Item[]> {
     if (auth.isGuest.value) {
-      return items.value;
+      const activeItems = getGuestActiveItems();
+      if (sessionToken === undefined || sessionToken === currentLoadToken) {
+        items.value = activeItems;
+      }
+      return activeItems;
     }
 
     startLoading();
@@ -241,7 +264,7 @@ export function useItems() {
   // Fetch archived items
   async function fetchArchivedItems(): Promise<Item[]> {
     if (auth.isGuest.value) {
-      return [];
+      return getGuestArchivedItems();
     }
 
     startLoading();
@@ -261,7 +284,7 @@ export function useItems() {
   // Fetch deleted items
   async function fetchDeletedItems(): Promise<Item[]> {
     if (auth.isGuest.value) {
-      return [];
+      return getGuestDeletedItems();
     }
 
     startLoading();
@@ -368,7 +391,8 @@ export function useItems() {
         updated_at: nowIso,
         deleted_at: null,
       };
-      items.value = [guestItem, ...items.value];
+      guestLocalItems.value = [guestItem, ...guestLocalItems.value];
+      refreshGuestActiveProjection();
       return id;
     }
 
@@ -394,7 +418,7 @@ export function useItems() {
   }): Promise<void> {
     error.value = null;
     if (auth.isGuest.value) {
-      const target = items.value.find((item) => item.id === payload.id);
+      const target = guestLocalItems.value.find((item) => item.id === payload.id);
       if (!target) {
         throw new Error('Item not found');
       }
@@ -406,6 +430,7 @@ export function useItems() {
       target.duration_minutes = payload.durationMinutes ?? null;
       target.sync_status = 'local_only';
       target.updated_at = createGuestNowIso();
+      refreshGuestActiveProjection();
       return;
     }
 
@@ -423,13 +448,14 @@ export function useItems() {
   async function updateItemStatus(id: string, status: Item['status']): Promise<void> {
     error.value = null;
     if (auth.isGuest.value) {
-      const item = items.value.find((entry) => entry.id === id);
+      const item = guestLocalItems.value.find((entry) => entry.id === id);
       if (!item) {
         throw new Error('Item not found');
       }
       item.status = status;
       item.sync_status = 'local_only';
       item.updated_at = createGuestNowIso();
+      refreshGuestActiveProjection();
       return;
     }
 
@@ -452,7 +478,16 @@ export function useItems() {
   async function archiveItem(id: string): Promise<void> {
     error.value = null;
     if (auth.isGuest.value) {
-      items.value = items.value.filter((item) => item.id !== id);
+      const item = guestLocalItems.value.find((entry) => entry.id === id);
+      if (!item) {
+        throw new Error('Item not found');
+      }
+
+      item.is_archived = true;
+      item.deleted_at = null;
+      item.sync_status = 'local_only';
+      item.updated_at = createGuestNowIso();
+      refreshGuestActiveProjection();
       return;
     }
 
@@ -467,11 +502,47 @@ export function useItems() {
     }
   }
 
+  // Unarchive item
+  async function unarchiveItem(id: string): Promise<void> {
+    error.value = null;
+    if (auth.isGuest.value) {
+      const item = guestLocalItems.value.find((entry) => entry.id === id);
+      if (!item) {
+        throw new Error('Item not found');
+      }
+
+      item.is_archived = false;
+      item.deleted_at = null;
+      item.sync_status = 'local_only';
+      item.updated_at = createGuestNowIso();
+      refreshGuestActiveProjection();
+      return;
+    }
+
+    try {
+      await itemRepository.unarchiveItem(id);
+      items.value = items.value.filter((i) => i.id !== id);
+    } catch (err) {
+      error.value = String(err);
+      console.error('Failed to unarchive item:', err);
+      throw err;
+    }
+  }
+
   // Soft delete item
   async function softDeleteItem(id: string): Promise<void> {
     error.value = null;
     if (auth.isGuest.value) {
-      items.value = items.value.filter((item) => item.id !== id);
+      const item = guestLocalItems.value.find((entry) => entry.id === id);
+      if (!item) {
+        throw new Error('Item not found');
+      }
+
+      item.deleted_at = createGuestNowIso();
+      item.is_archived = false;
+      item.sync_status = 'local_only';
+      item.updated_at = createGuestNowIso();
+      refreshGuestActiveProjection();
       return;
     }
 
@@ -482,6 +553,33 @@ export function useItems() {
     } catch (err) {
       error.value = String(err);
       console.error('Failed to delete item:', err);
+      throw err;
+    }
+  }
+
+  // Restore soft-deleted item
+  async function restoreItem(id: string): Promise<void> {
+    error.value = null;
+    if (auth.isGuest.value) {
+      const item = guestLocalItems.value.find((entry) => entry.id === id);
+      if (!item) {
+        throw new Error('Item not found');
+      }
+
+      item.deleted_at = null;
+      item.is_archived = false;
+      item.sync_status = 'local_only';
+      item.updated_at = createGuestNowIso();
+      refreshGuestActiveProjection();
+      return;
+    }
+
+    try {
+      await itemRepository.restoreItem(id);
+      items.value = items.value.filter((i) => i.id !== id);
+    } catch (err) {
+      error.value = String(err);
+      console.error('Failed to restore item:', err);
       throw err;
     }
   }
@@ -509,6 +607,8 @@ export function useItems() {
     updateItem,
     updateItemStatus,
     archiveItem,
+    unarchiveItem,
     softDeleteItem,
+    restoreItem,
   };
 }

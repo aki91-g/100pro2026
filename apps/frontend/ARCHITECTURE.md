@@ -24,14 +24,15 @@ The architecture separates responsibilities into:
 - Global UI settings via `useSettings`: theme (`light`/`dark`) and language (`en`/`ja`) are shared through a composable singleton and persisted in `localStorage`.
 - Header profile consolidation: logout, theme switch, language switch, and sync status are grouped into a single avatar-triggered User Profile Menu.
 - i18n foundation: user-facing text in main shell screens is resolved through `t(key)` translation mapping for incremental expansion.
-- Guest-mode item handling in `useItems`: item CRUD runs in memory only, marks items as `local_only`, and skips sync/network calls.
+- Guest-mode item handling in `useItems`: item CRUD runs in memory only, marks items as `local_only`, and skips sync/network calls; active/archived/deleted views are derived from a local in-memory guest dataset.
 - **Guest seed data**: When guest mode is activated, `useItems` automatically populates the in-memory items array with 5 sample tasks showcasing varied statuses (backlog, todo, inprogress, done) and different Motivation/Duration values to demonstrate the ScatterPlot's visualization capabilities.
 - **Automated 30-second sync**: Background interval timer synchronizes items automatically when authenticated, with in-flight guard to prevent concurrent syncs.
 - **Schema enforcement**: `due` field is mandatory across all layers (frontend type, backend model, database schema), `motivation` is nullable, `description` is nullable.
 - **ScatterPlot visualization**: Interactive SVG scatter plot (`ScatterPlot.vue`) renders task items by due date with configurable Y-axis, color, and radius fields, powered by `useGraph.ts` and D3 force simulation.
 - **100 Program brand gradient**: ScatterPlot color mapping uses a three-stop gradient (Reddish-Pink #E63946 → Purple #B45FD1 → Deep Blue #2563EB) inspired by the 100 program brand, applied to Motivation or other numeric fields for meaningful visual feedback.
 - **Improved plot visibility**: ScatterPlot background zones and grid lines use enhanced contrast colors (warmer red for past, cooler blue for future) to ensure all plot points remain clearly visible regardless of assigned color.
-- **TaskDrawer self-contained CRUD**: `TaskDrawer.vue` calls `useItems()` directly for create, archive, and soft-delete operations, eliminating the need to delegate item mutations through parent component event handlers.
+- **TaskDrawer self-contained CRUD**: `TaskDrawer.vue` calls `useItems()` directly for create, archive, unarchive, soft-delete, and restore operations, eliminating the need to delegate item mutations through parent component event handlers.
+- **Task tabs in drawer**: tasks mode now uses tabbed views (`Active`, `Archived`, `Deleted`) with list-specific actions (`Unarchive`, `Restore`) and no detail-navigation from archived/deleted rows.
 - **UI polish pass**: `SpecialThanks.vue` modal uses responsive centered grid cards with viewport-safe internal scrolling; `TaskDrawer.vue` edit mode now has consistent control styling and a sticky action footer.
 
 ## Data And Control Flow
@@ -45,10 +46,12 @@ The architecture separates responsibilities into:
 1. `LoginView.vue` calls `useAuth().continueAsGuest()` when user clicks Continue as Guest.
 2. `useAuth` sets shared guest refs (`isGuest`, guest username, guest userId, dummy token).
 3. `isAuthenticated` resolves true while guest mode is active.
-4. `useItems` detects `isGuest` transition to true and automatically seeds the in-memory items array with 5 sample tasks representing all statuses (backlog, todo, inprogress, done) and varied Motivation/Duration values.
-5. Guest items are marked `sync_status: 'local_only'` and stored only in RAM.
-6. All guest CRUD operations run in memory without network calls.
-7. Logout clears guest refs, sample items, and resets the seed flag through existing session invalidation flow.
+4. `useItems` detects `isGuest` transition to true and automatically seeds a local in-memory guest dataset with 5 sample tasks representing all statuses (backlog, todo, inprogress, done) and varied Motivation/Duration values.
+5. `useItems` projects active items into the shared `items` ref while `fetchArchivedItems()` and `fetchDeletedItems()` filter from the same local dataset.
+6. Guest archive/delete/unarchive/restore mutate local flags (`is_archived`, `deleted_at`) so list visibility matches authenticated behavior.
+7. Guest items are marked `sync_status: 'local_only'` and stored only in RAM.
+8. All guest CRUD operations run in memory without network calls.
+9. Logout clears guest refs, sample items, and resets the seed flag through existing session invalidation flow.
 
 ### Registration flow
 1. `LoginView.vue` Sign Up mode calls `useAuth().signUp(email, password, username)`.
@@ -124,7 +127,9 @@ apps/frontend/
 │   │   ├── SpecialThanks.vue
 │   │   ├── SyncStatusBadge.vue
 │   │   ├── TaskDrawer.vue
-│   │   └── TaskList.vue
+│   │   ├── ActiveList.vue
+│   │   ├── ArchivedList.vue
+│   │   └── DeletedList.vue
 │   ├── composables/
 │   │   ├── useAuth.ts
 │   │   ├── useGraph.ts
@@ -265,19 +270,19 @@ Key Functions/Exported Members:
 
 ### `src/components/TaskDrawer.vue`
 Description:
-- Slide-in drawer component for all item lifecycle operations: create, view, edit, archive, and soft-delete.
+- Slide-in drawer component for all item lifecycle operations: create, view, edit, archive, unarchive, soft-delete, and restore.
 - Manages four modes: `create`, `view`, `tasks`, and `edit` (internal only).
-- **Self-contained CRUD**: Calls `useItems()` directly for all item mutations (`createItem`, `updateItem`, `archiveItem`, `softDeleteItem`) rather than delegating through parent event emissions.
+- **Self-contained CRUD**: Calls `useItems()` directly for all item mutations (`createItem`, `updateItem`, `archiveItem`, `unarchiveItem`, `softDeleteItem`, `restoreItem`) rather than delegating through parent event emissions.
 - **Contextual Navigation**: Instead of a top navigation bar, uses context-aware buttons in the header:
   - In 'tasks' mode: Shows "+ New Task" button (top-right) to create a new task.
   - In 'view' mode: Shows "← Back to List" button (top-left) to return to the task list.
   - Close button always visible (top-right, after context-specific button if present).
 - **Create mode**: Form with title, description, due datetime, duration, and motivation fields; submits via `itemRepository` through `useItems`, then emits `select-item` with the newly created item and transitions to 'view' mode. Cancel button returns to 'tasks' mode.
 - **View mode**: Displays selected item details (status, due date, motivation, duration) with an "Edit" button in the top-right corner of the task card. Clicking "Edit" transitions to edit mode. Header shows "← Back to List" button to return to tasks.
-- **Tasks mode**: Shows `<TaskList>` component displaying all active items. Task rows are clickable and emit `select-item` event to switch to 'view' mode for that task. Header shows "+ New Task" button in top-right to create new tasks.
+- **Tasks mode**: Shows a tabbed list UI (`Active`, `Archived`, `Deleted`). Active rows remain clickable and open details; archived/deleted rows expose action buttons (`Unarchive`, `Restore`) instead of opening detail view.
 - **Edit mode** (internal, not user-accessible from nav): Vertical single-column form with consistent field spacing for title, description, due, duration, motivation, and status. Footer actions are sticky at the bottom with subtle top border/shadow so Save and Cancel remain accessible while scrolling long descriptions.
 - **Status control**: Includes inline status selector (`todo`, `doing`, `done`) that maps to backend status values (`todo`, `inprogress`, `done`) and updates immediately.
-- Header title updates based on mode: "Tasks" (tasks mode), "Task Details" (view), "Create Task" (create), "Edit Task" (edit).
+- Header uses trapezoid tabs in tasks mode (`Active` / `Archived` / `Deleted`) and title text in other modes (details/create/edit).
 - Keyboard accessible: `Escape` closes the drawer.
 - Mode transitions: Tasks<->Create (via "+ New Task" button), View->Tasks (via "← Back to List" button), View->Edit (via Edit button), Create->View (after creation), Tasks->View (via task click).
 
@@ -286,8 +291,8 @@ Key Functions/Exported Members:
 - Props: `open`, `mode` (DrawerMode), `selectedItem`, `items`, `syncMap`, `errorMap`, `isSyncing`.
 - DrawerMode type: `'create' | 'view' | 'edit' | 'tasks'`.
 - Emits: `update:open`, `update:mode`, `select-item`.
-- Internal navigation functions: `goToTasks()`, `goToCreate()`, `startEdit()`, `cancelEdit()`, `cancelCreate()`, `handleTaskListSelect()`.
-- Internal actions: `submitCreate()`, `handleEditSubmit()`, `handleArchive()`, `handleDelete()`.
+- Internal navigation functions: `goToTasks()`, `goToCreate()`, `startEdit()`, `cancelEdit()`, `cancelCreate()`, `handleTaskListSelect()`, `setCurrentTab()`.
+- Internal actions: `submitCreate()`, `handleEditSubmit()`, `handleArchive()`, `handleDelete()`, `handleUnarchiveFromList()`, `handleRestoreFromList()`.
 - Local loading states: `isCreating`, `isSavingEdit`, `isArchiving`, `isDeleting`.
 - Navigation state: `previousMode` (preserved for potential future use).
 
@@ -312,10 +317,10 @@ Key Functions/Exported Members:
 - Internal helper: `getLabel()`.
 - Props: `syncStatus`, `eventStatus`, `errorMessage`, `isSyncing`.
 
-### `src/components/TaskList.vue`
+### `src/components/ActiveList.vue`
 Description:
 - Renders active task item cards with sync status and metadata.
-- Displayed within the "Tasks" tab of the drawer for quick-access viewing of all active items.
+- Displayed within the `Active` tab of the drawer for quick-access viewing of active tasks.
 - Each task row is clickable and emits a `select-item` event to allow switching to the 'view' mode for that task.
 - Delegates sync-state badge display to `SyncStatusBadge`.
 - Maintains status pills (TODO, IN_PROGRESS, DONE, BACKLOG) color-coded by status.
@@ -325,6 +330,30 @@ Key Functions/Exported Members:
 - Props: `items`, `syncMap`, `errorMap`, `isSyncing`.
 - Emits: `select-item` with selected `Item` as payload.
 - Styling: Card-based layout with flex alignment for status badge, status pill, task info, and motivation indicator.
+
+### `src/components/ArchivedList.vue`
+Description:
+- Mirrors `ActiveList` card styling for visual consistency.
+- Displays archived tasks only.
+- Replaces row-chevron navigation with an `Unarchive` action button.
+- Archived row clicks do not open task details.
+
+Key Functions/Exported Members:
+- Default Vue component export.
+- Props: `items`, `syncMap`, `errorMap`, `isSyncing`, `isProcessing`.
+- Emits: `unarchive-item` with target `Item` payload.
+
+### `src/components/DeletedList.vue`
+Description:
+- Mirrors `ActiveList` card styling for visual consistency.
+- Displays soft-deleted tasks only.
+- Replaces row-chevron navigation with a `Restore` action button.
+- Deleted row clicks do not open task details.
+
+Key Functions/Exported Members:
+- Default Vue component export.
+- Props: `items`, `syncMap`, `errorMap`, `isSyncing`, `isProcessing`.
+- Emits: `restore-item` with target `Item` payload.
 
 ### `src/composables/useAuth.ts`
 Description:
@@ -361,6 +390,7 @@ Description:
 - Implements race-safe session token strategy.
 - Delegates persistence to `itemRepository`.
 - Supports guest-mode local-only CRUD in memory and bypasses repository/sync operations when `isGuest` is true.
+- Maintains a local guest dataset for all item states and derives active/archived/deleted views by filtering `is_archived` and `deleted_at`.
 - **Guest seed data**: Automatically populates in-memory items array with 5 sample tasks on guest mode activation via watcher on `auth.isGuest`, showcasing varied statuses, Motivation, and Duration values for UI demo purposes.
 - **Automated sync**: Manages 30-second interval timer with `startAutoSync()`/`stopAutoSync()` and in-flight guard.
 - **Schema enforcement**: `createItem()` requires `due` parameter and accepts optional `description`.
@@ -371,7 +401,7 @@ Key Functions/Exported Members:
 - Internal function: `generateGuestSeedItems(userId: string)` → Array of 5 sample Item objects.
 - Session controls: `getCurrentToken`, `startNewSession`, `invalidateSession`.
 - Sync controls: `startAutoSync`, `stopAutoSync`.
-- Actions: `fetchActiveItems`, `fetchArchivedItems`, `fetchDeletedItems`, `createItem({ title, description, motivation, due, durationMinutes })`, `syncItems`, `syncAndRefresh`, `updateItemStatus`, `archiveItem`, `softDeleteItem`.
+- Actions: `fetchActiveItems`, `fetchArchivedItems`, `fetchDeletedItems`, `createItem({ title, description, motivation, due, durationMinutes })`, `syncItems`, `syncAndRefresh`, `updateItemStatus`, `archiveItem`, `unarchiveItem`, `softDeleteItem`, `restoreItem`.
 
 ### `src/composables/useSyncStatus.ts`
 Description:

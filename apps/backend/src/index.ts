@@ -303,7 +303,8 @@ async function handleUpdateItemStatus(c: Context<AppEnv>): Promise<Response> {
     .from('items')
     .update({ 
       status: validatedStatus,
-      updated_at: new Date().toISOString()
+      updated_at: new Date().toISOString(),
+      sync_status: 'synced',
     })
     .eq('id', body.id);
 
@@ -372,7 +373,32 @@ async function handleArchiveItem(c: Context<AppEnv>): Promise<Response> {
 
   const { error } = await supabase
     .from('items')
-    .update({ is_archived: true })
+    .update({
+      is_archived: true,
+      updated_at: new Date().toISOString(),
+      sync_status: 'synced',
+    })
+    .eq('id', body.id)
+    .is('deleted_at', null);
+
+  if (error) return c.json({ error: error.message }, 400);
+  return c.body(null, 204);
+}
+
+async function handleUnarchiveItem(c: Context<AppEnv>): Promise<Response> {
+  const body = await parseJson(c, { id: '' });
+  if (!body.id) return c.json({ error: 'id is required' }, 400);
+
+  const { token } = c.get('auth');
+  const supabase = createSupabaseWithToken(token);
+
+  const { error } = await supabase
+    .from('items')
+    .update({
+      is_archived: false,
+      updated_at: new Date().toISOString(),
+      sync_status: 'synced',
+    })
     .eq('id', body.id)
     .is('deleted_at', null);
 
@@ -389,7 +415,32 @@ async function handleSoftDeleteItem(c: Context<AppEnv>): Promise<Response> {
 
   const { error } = await supabase
     .from('items')
-    .update({ deleted_at: new Date().toISOString() })
+    .update({
+      deleted_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+      sync_status: 'synced',
+    })
+    .eq('id', body.id);
+
+  if (error) return c.json({ error: error.message }, 400);
+  return c.body(null, 204);
+}
+
+async function handleRestoreItem(c: Context<AppEnv>): Promise<Response> {
+  const body = await parseJson(c, { id: '' });
+  if (!body.id) return c.json({ error: 'id is required' }, 400);
+
+  const { token } = c.get('auth');
+  const supabase = createSupabaseWithToken(token);
+
+  const { error } = await supabase
+    .from('items')
+    .update({
+      deleted_at: null,
+      is_archived: false,
+      updated_at: new Date().toISOString(),
+      sync_status: 'synced',
+    })
     .eq('id', body.id);
 
   if (error) return c.json({ error: error.message }, 400);
@@ -526,7 +577,8 @@ app.patch('/api/items/:id/status', async (c) => {
     .from('items')
     .update({ 
       status: validatedStatus,
-      updated_at: new Date().toISOString() 
+      updated_at: new Date().toISOString(),
+      sync_status: 'synced',
     })
     .eq('id', id);
 
@@ -545,7 +597,30 @@ app.post('/api/items/:id/archive', async (c) => {
 
   const { error } = await supabase
     .from('items')
-    .update({ is_archived: true })
+    .update({
+      is_archived: true,
+      updated_at: new Date().toISOString(),
+      sync_status: 'synced',
+    })
+    .eq('id', id)
+    .is('deleted_at', null);
+
+  if (error) return c.json({ error: error.message }, 400);
+  return c.body(null, 204);
+});
+
+app.post('/api/items/:id/unarchive', async (c) => {
+  const { token } = c.get('auth');
+  const supabase = createSupabaseWithToken(token);
+  const id = c.req.param('id');
+
+  const { error } = await supabase
+    .from('items')
+    .update({
+      is_archived: false,
+      updated_at: new Date().toISOString(),
+      sync_status: 'synced',
+    })
     .eq('id', id)
     .is('deleted_at', null);
 
@@ -554,6 +629,7 @@ app.post('/api/items/:id/archive', async (c) => {
 });
 
 app.post('/api/items/archive', async (c) => handleArchiveItem(c));
+app.post('/api/items/unarchive', async (c) => handleUnarchiveItem(c));
 
 app.delete('/api/items/:id', async (c) => {
   const { token } = c.get('auth');
@@ -562,7 +638,30 @@ app.delete('/api/items/:id', async (c) => {
 
   const { error } = await supabase
     .from('items')
-    .update({ deleted_at: new Date().toISOString() })
+    .update({
+      deleted_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+      sync_status: 'synced',
+    })
+    .eq('id', id);
+
+  if (error) return c.json({ error: error.message }, 400);
+  return c.body(null, 204);
+});
+
+app.post('/api/items/:id/restore', async (c) => {
+  const { token } = c.get('auth');
+  const supabase = createSupabaseWithToken(token);
+  const id = c.req.param('id');
+
+  const { error } = await supabase
+    .from('items')
+    .update({
+      deleted_at: null,
+      is_archived: false,
+      updated_at: new Date().toISOString(),
+      sync_status: 'synced',
+    })
     .eq('id', id);
 
   if (error) return c.json({ error: error.message }, 400);
@@ -570,6 +669,7 @@ app.delete('/api/items/:id', async (c) => {
 });
 
 app.post('/api/items/soft-delete', async (c) => handleSoftDeleteItem(c));
+app.post('/api/items/restore', async (c) => handleRestoreItem(c));
 
 app.post('/api/items/sync', (c) => c.json({ count: 0 }));
 
@@ -586,8 +686,10 @@ app.post('/api/commands/update_item_status', async (c) => handleUpdateItemStatus
 app.patch('/api/commands/update_item/:id', async (c) => handleUpdateItem(c));
 
 app.post('/api/commands/archive_item', async (c) => handleArchiveItem(c));
+app.post('/api/commands/unarchive_item', async (c) => handleUnarchiveItem(c));
 
 app.post('/api/commands/soft_delete_item', async (c) => handleSoftDeleteItem(c));
+app.post('/api/commands/restore_item', async (c) => handleRestoreItem(c));
 
 app.post('/api/commands/sync_items', (c) => c.json({ count: 0 }));
 
