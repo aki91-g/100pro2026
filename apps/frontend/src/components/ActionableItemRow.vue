@@ -4,8 +4,8 @@ import SyncStatusBadge from '@/components/SyncStatusBadge.vue';
 
 defineProps<{
   item: Item;
-  syncMap: Record<string, 'pending' | 'success' | 'error'>;
-  errorMap: Record<string, string>;
+  syncMap: Partial<Record<string, 'pending' | 'success' | 'error'>>;
+  errorMap: Partial<Record<string, string>>;
   isSyncing: boolean;
   isProcessing?: boolean;
   actionLabel: string;
@@ -173,6 +173,12 @@ const emit = defineEmits<{
 .row-action:hover {
   border-color: #a855f7;
   background: color-mix(in srgb, var(--bg-primary) 70%, #ffffff);
+}
+
+.row-action:focus-visible {
+  outline: none;
+  border-color: #1d4ed8;
+  box-shadow: 0 0 0 3px rgba(29, 78, 216, 0.3);
 }
 
 .row-action:disabled {
