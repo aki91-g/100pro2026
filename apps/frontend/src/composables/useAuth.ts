@@ -59,7 +59,7 @@ export function useAuth() {
     }
 
     if (message.includes('Registration succeeded but no active session was returned')) {
-      return 'Your account was created. Please confirm your email, then log in.';
+      return 'Please confirm your email to log in.';
     }
 
     if (message.includes('Signup failed')) {

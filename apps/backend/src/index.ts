@@ -532,26 +532,35 @@ app.post('/api/auth/signup', async (c) => {
   }
 
   const anon = createAnonSupabase();
-  const { data, error } = await anon.auth.signUp({
+  const { data: signUpData, error: signUpError } = await anon.auth.signUp({
     email,
     password,
-    options: {
-      data: {
-        username,
-      },
-    },
+    options: { data: { username } },
   });
 
-  if (error || !data.user) {
-    return c.json({ error: error?.message ?? 'Supabase signup failed' }, 400);
+  if (signUpError || !signUpData.user) {
+    return c.json({ error: signUpError?.message ?? 'Supabase signup failed' }, 400);
   }
 
+  const { data: signInData, error: signInError } = await anon.auth.signInWithPassword({
+    email,
+    password,
+  });
+
+  if (signInError || !signInData.session) {
+    return c.json({
+      id: signUpData.user.id,
+      username,
+      access_token: null,
+      message: 'Account created, but please log in manually.'
+    });
+  }
   return c.json({
-    id: data.user.id,
+    id: signUpData.user.id,
     username,
-    access_token: data.session?.access_token ?? null,
-    refresh_token: data.session?.refresh_token ?? null,
-    expires_at: data.session?.expires_at ?? null,
+    access_token: signInData.session.access_token,
+    refresh_token: signInData.session.refresh_token,
+    expires_at: signInData.session.expires_at,
   });
 });
 
