@@ -9,6 +9,7 @@ defineProps<{
   isSyncing: boolean;
   isProcessing?: boolean;
   actionLabel: string;
+  motivationFallback: string;
   statusLabel: (status: Item['status']) => string;
 }>();
 
@@ -34,7 +35,7 @@ const emit = defineEmits<{
           {{ statusLabel(item.status) }}
         </span>
         <span class="motivation">
-          <span class="fire">🔥</span> {{ item.motivation ?? 'N/A' }}
+          <span class="fire">🔥</span> {{ item.motivation ?? motivationFallback }}
         </span>
       </div>
 

@@ -37,6 +37,7 @@ function displayStatus(status: Item['status']): string {
         :is-syncing="isSyncing"
         :is-processing="isProcessing"
         :action-label="t('unarchive')"
+        :motivation-fallback="t('drawerNoMotivationValue')"
         :status-label="displayStatus"
         @action="emit('unarchive-item', item)"
       />

@@ -37,6 +37,7 @@ function displayStatus(status: Item['status']): string {
         :is-syncing="isSyncing"
         :is-processing="isProcessing"
         :action-label="t('restore')"
+        :motivation-fallback="t('drawerNoMotivationValue')"
         :status-label="displayStatus"
         @action="emit('restore-item', item)"
       />

@@ -43,6 +43,7 @@ app.post('/api/items/:id/archive', async (c) => {
 ```
 
 **Database State After Archive**:
+
 | Field | Before | After |
 |-------|--------|-------|
 | `is_archived` | `false` | `true` ✅ |
@@ -90,6 +91,7 @@ app.post('/api/items/:id/unarchive', async (c) => {
 ```
 
 **Database State After Unarchive**:
+
 | Field | Before | After |
 |-------|--------|-------|
 | `is_archived` | `true` | `false` ✅ |
@@ -140,6 +142,7 @@ app.delete('/api/items/:id', async (c) => {
 ```
 
 **Database State After Delete**:
+
 | Field | Before | After |
 |-------|--------|-------|
 | `is_archived` | varies | unchanged |
@@ -188,6 +191,7 @@ app.post('/api/items/:id/restore', async (c) => {
 ```
 
 **Database State After Restore**:
+
 | Field | Before | After |
 |-------|--------|-------|
 | `is_archived` | `true` or `false` | `false` ✅ |

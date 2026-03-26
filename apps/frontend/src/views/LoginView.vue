@@ -21,6 +21,12 @@ function normalizeUsername(value: string): string {
 function usernameErrorMessage(value: string): string | null {
   const normalized = normalizeUsername(value);
   if (!normalized) return 'Username is required';
+  if (normalized.toLowerCase() === 'unknown') {
+    return 'Username cannot be unknown';
+  }
+  if (normalized.includes('@')) {
+    return 'Username cannot include @';
+  }
   if (normalized.length < MIN_USERNAME_LEN) {
     return `Username must be at least ${MIN_USERNAME_LEN} characters`;
   }

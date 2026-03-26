@@ -126,6 +126,14 @@ function parseStatus(raw: unknown): TaskStatus | null {
   return null;
 }
 
+function isValidUsername(raw: string): boolean {
+  const normalized = raw.trim();
+  if (!normalized) return false;
+  if (normalized.toLowerCase() === 'unknown') return false;
+  if (normalized.includes('@')) return false;
+  return true;
+}
+
 async function parseJson<T>(c: Context, fallback: T): Promise<T> {
   try {
     const parsed = await c.req.json<T>();
@@ -384,7 +392,7 @@ async function performToggleArchive(c: Context<AppEnv>, id: string, isArchived: 
   const { token } = c.get('auth');
   const supabase = createSupabaseWithToken(token);
 
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from('items')
     .update({
       is_archived: isArchived,
@@ -392,9 +400,12 @@ async function performToggleArchive(c: Context<AppEnv>, id: string, isArchived: 
       sync_status: 'synced',
     })
     .eq('id', id)
-    .is('deleted_at', null);
+    .is('deleted_at', null)
+    .select('id')
+    .maybeSingle();
 
   if (error) return c.json({ error: error.message }, 400);
+  if (!data) return c.json({ error: 'not found' }, 404);
   return c.body(null, 204);
 }
 
@@ -415,16 +426,19 @@ async function handleSoftDeleteItem(c: Context<AppEnv>): Promise<Response> {
   const { token } = c.get('auth');
   const supabase = createSupabaseWithToken(token);
 
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from('items')
     .update({
       deleted_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
       sync_status: 'synced',
     })
-    .eq('id', body.id);
+    .eq('id', body.id)
+    .select('id')
+    .maybeSingle();
 
   if (error) return c.json({ error: error.message }, 400);
+  if (!data) return c.json({ error: 'not found' }, 404);
   return c.body(null, 204);
 }
 
@@ -435,7 +449,7 @@ async function handleRestoreItem(c: Context<AppEnv>): Promise<Response> {
   const { token } = c.get('auth');
   const supabase = createSupabaseWithToken(token);
 
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from('items')
     .update({
       deleted_at: null,
@@ -444,9 +458,12 @@ async function handleRestoreItem(c: Context<AppEnv>): Promise<Response> {
       sync_status: 'synced',
     })
     .eq('id', body.id)
-    .not('deleted_at', 'is', null);
+    .not('deleted_at', 'is', null)
+    .select('id')
+    .maybeSingle();
 
   if (error) return c.json({ error: error.message }, 400);
+  if (!data) return c.json({ error: 'not found' }, 404);
   return c.body(null, 204);
 }
 
@@ -493,6 +510,10 @@ app.post('/api/auth/signup', async (c) => {
 
   if (!email || !password || !username) {
     return c.json({ error: 'email, password, and username are required' }, 400);
+  }
+
+  if (!isValidUsername(username)) {
+    return c.json({ error: 'invalid username: cannot be empty, unknown, or contain @' }, 400);
   }
 
   const anon = createAnonSupabase();
@@ -611,16 +632,19 @@ app.delete('/api/items/:id', async (c) => {
   const supabase = createSupabaseWithToken(token);
   const id = c.req.param('id');
 
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from('items')
     .update({
       deleted_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
       sync_status: 'synced',
     })
-    .eq('id', id);
+    .eq('id', id)
+    .select('id')
+    .maybeSingle();
 
   if (error) return c.json({ error: error.message }, 400);
+  if (!data) return c.json({ error: 'not found' }, 404);
   return c.body(null, 204);
 });
 
@@ -629,7 +653,7 @@ app.post('/api/items/:id/restore', async (c) => {
   const supabase = createSupabaseWithToken(token);
   const id = c.req.param('id');
 
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from('items')
     .update({
       deleted_at: null,
@@ -638,9 +662,12 @@ app.post('/api/items/:id/restore', async (c) => {
       sync_status: 'synced',
     })
     .eq('id', id)
-    .not('deleted_at', 'is', null);
+    .not('deleted_at', 'is', null)
+    .select('id')
+    .maybeSingle();
 
   if (error) return c.json({ error: error.message }, 400);
+  if (!data) return c.json({ error: 'not found' }, 404);
   return c.body(null, 204);
 });
 

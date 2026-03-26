@@ -26,6 +26,7 @@ const emit = defineEmits<{
   (event: 'update:mode', value: DrawerMode): void;
   (event: 'select-item', item: Item): void;
   (event: 'success'): void;
+  (event: 'error', message: string): void;
 }>();
 
 const createTitle = ref('');
@@ -332,11 +333,14 @@ async function handleUnarchiveFromList(item: Item): Promise<void> {
   if (isRestoringTabItem.value) return;
 
   isRestoringTabItem.value = true;
+  errorArchived.value = null;
   try {
     await unarchiveItem(item.id);
     archivedItems.value = archivedItems.value.filter((entry) => entry.id !== item.id);
     emit('success');
   } catch (error) {
+    errorArchived.value = error instanceof Error ? error.message : String(error);
+    emit('error', errorArchived.value);
     console.error('Failed to unarchive item from list:', error);
   } finally {
     isRestoringTabItem.value = false;
@@ -347,11 +351,14 @@ async function handleRestoreFromList(item: Item): Promise<void> {
   if (isRestoringTabItem.value) return;
 
   isRestoringTabItem.value = true;
+  errorDeleted.value = null;
   try {
     await restoreItem(item.id);
     deletedItems.value = deletedItems.value.filter((entry) => entry.id !== item.id);
     emit('success');
   } catch (error) {
+    errorDeleted.value = error instanceof Error ? error.message : String(error);
+    emit('error', errorDeleted.value);
     console.error('Failed to restore item from list:', error);
   } finally {
     isRestoringTabItem.value = false;
