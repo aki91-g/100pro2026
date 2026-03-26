@@ -127,6 +127,9 @@ Response 200:
 Body:
 - status: backlog | todo | inprogress | done
 
+Behavior:
+- Updates `status`, `updated_at`, and sets `sync_status` to `synced`
+
 Response:
 - 204 No Content
 
@@ -143,12 +146,31 @@ Response:
 - 204 No Content
 
 ### POST /api/items/:id/archive
+Behavior:
+- Sets `is_archived = true`, updates `updated_at`, and sets `sync_status = synced`
+
+Response:
+- 204 No Content
+
+### POST /api/items/:id/unarchive
+Behavior:
+- Sets `is_archived = false`, updates `updated_at`, and sets `sync_status = synced`
+
 Response:
 - 204 No Content
 
 ### DELETE /api/items/:id
 Behavior:
 - Soft deletes by setting deleted_at
+- Updates `updated_at` and sets `sync_status = synced`
+
+Response:
+- 204 No Content
+
+### POST /api/items/:id/restore
+Behavior:
+- Restores a soft-deleted item back to active state
+- Sets `deleted_at = null`, `is_archived = false`, updates `updated_at`, and sets `sync_status = synced`
 
 Response:
 - 204 No Content
@@ -171,7 +193,9 @@ These mirror Tauri-style command names for compatibility. All require bearer aut
 ### POST /api/commands/update_item_status
 ### PATCH /api/commands/update_item/:id
 ### POST /api/commands/archive_item
+### POST /api/commands/unarchive_item
 ### POST /api/commands/soft_delete_item
+### POST /api/commands/restore_item
 ### POST /api/commands/sync_items
 
 ## Data Model

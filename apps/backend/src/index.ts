@@ -126,6 +126,14 @@ function parseStatus(raw: unknown): TaskStatus | null {
   return null;
 }
 
+function isValidUsername(raw: string): boolean {
+  const normalized = raw.trim();
+  if (!normalized) return false;
+  if (normalized.toLowerCase() === 'unknown') return false;
+  if (normalized.includes('@')) return false;
+  return true;
+}
+
 async function parseJson<T>(c: Context, fallback: T): Promise<T> {
   try {
     const parsed = await c.req.json<T>();
@@ -157,6 +165,9 @@ const requireAuth: MiddlewareHandler<AppEnv> = async (c, next) => {
 async function fetchProfileUsername(token: string, userId: string): Promise<string> {
   const anon = createAnonSupabase();
   const { data: authData } = await anon.auth.getUser(token);
+  const metadataUsername = typeof authData.user?.user_metadata?.['username'] === 'string'
+    ? authData.user.user_metadata['username'].trim()
+    : '';
   const fallbackName = (authData.user?.email?.split('@')[0] || 'User').trim();
 
   try {
@@ -168,14 +179,25 @@ async function fetchProfileUsername(token: string, userId: string): Promise<stri
       .maybeSingle();
 
     const trimmedUsername = typeof data?.username === 'string' ? data.username.trim() : '';
-    if (error || trimmedUsername.length === 0) {
+    const resolvedProfileUsername =
+      trimmedUsername.length > 0 && !trimmedUsername.includes('@')
+        ? trimmedUsername
+        : '';
+
+    if (error || resolvedProfileUsername.length === 0) {
       console.log('Profile fetch failed, using fallback username');
+      if (isValidUsername(metadataUsername)) {
+        return metadataUsername;
+      }
       return fallbackName;
     }
 
-    return trimmedUsername;
+    return resolvedProfileUsername;
   } catch {
     console.log('Profile fetch failed, using fallback username');
+    if (isValidUsername(metadataUsername)) {
+      return metadataUsername;
+    }
     return fallbackName;
   }
 }
@@ -299,15 +321,19 @@ async function handleUpdateItemStatus(c: Context<AppEnv>): Promise<Response> {
   const { token } = c.get('auth');
   const supabase = createSupabaseWithToken(token);
 
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from('items')
     .update({ 
       status: validatedStatus,
-      updated_at: new Date().toISOString()
+      updated_at: new Date().toISOString(),
+      sync_status: 'synced',
     })
-    .eq('id', body.id);
+    .eq('id', body.id)
+    .select('id')
+    .maybeSingle();
 
   if (error) return c.json({ error: error.message }, 400);
+  if (!data) return c.json({ error: 'Not found' }, 404);
   return c.body(null, 204);
 }
 
@@ -346,7 +372,7 @@ async function handleUpdateItem(c: Context<AppEnv>): Promise<Response> {
       ? body.motivation
       : null;
 
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from('items')
     .update({
       title,
@@ -357,43 +383,103 @@ async function handleUpdateItem(c: Context<AppEnv>): Promise<Response> {
       updated_at: new Date().toISOString(),
       sync_status: 'synced', 
     })
-    .eq('id', id);
+    .eq('id', id)
+    .select('id')
+    .maybeSingle();
 
   if (error) return c.json({ error: error.message }, 400);
+  if (!data) return c.json({ error: 'Not found' }, 404);
+  return c.body(null, 204);
+}
+
+async function performToggleArchive(c: Context<AppEnv>, id: string, isArchived: boolean): Promise<Response> {
+  if (!id) return c.json({ error: 'id is required' }, 400);
+
+  const { token } = c.get('auth');
+  const supabase = createSupabaseWithToken(token);
+
+  const { data, error } = await supabase
+    .from('items')
+    .update({
+      is_archived: isArchived,
+      updated_at: new Date().toISOString(),
+      sync_status: 'synced',
+    })
+    .eq('id', id)
+    .is('deleted_at', null)
+    .select('id')
+    .maybeSingle();
+
+  if (error) return c.json({ error: error.message }, 400);
+  if (!data) return c.json({ error: 'not found' }, 404);
   return c.body(null, 204);
 }
 
 async function handleArchiveItem(c: Context<AppEnv>): Promise<Response> {
   const body = await parseJson(c, { id: '' });
-  if (!body.id) return c.json({ error: 'id is required' }, 400);
+  return performToggleArchive(c, body.id, true);
+}
+
+async function handleUnarchiveItem(c: Context<AppEnv>): Promise<Response> {
+  const body = await parseJson(c, { id: '' });
+  return performToggleArchive(c, body.id, false);
+}
+
+async function performSoftDelete(c: Context<AppEnv>, id: string): Promise<Response> {
+  if (!id) return c.json({ error: 'id is required' }, 400);
 
   const { token } = c.get('auth');
   const supabase = createSupabaseWithToken(token);
 
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from('items')
-    .update({ is_archived: true })
-    .eq('id', body.id)
-    .is('deleted_at', null);
+    .update({
+      deleted_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+      sync_status: 'synced',
+    })
+    .eq('id', id)
+    .is('deleted_at', null)
+    .select('id')
+    .maybeSingle();
 
   if (error) return c.json({ error: error.message }, 400);
+  if (!data) return c.json({ error: 'not found' }, 404);
+  return c.body(null, 204);
+}
+
+async function performRestore(c: Context<AppEnv>, id: string): Promise<Response> {
+  if (!id) return c.json({ error: 'id is required' }, 400);
+
+  const { token } = c.get('auth');
+  const supabase = createSupabaseWithToken(token);
+
+  const { data, error } = await supabase
+    .from('items')
+    .update({
+      deleted_at: null,
+      is_archived: false,
+      updated_at: new Date().toISOString(),
+      sync_status: 'synced',
+    })
+    .eq('id', id)
+    .not('deleted_at', 'is', null)
+    .select('id')
+    .maybeSingle();
+
+  if (error) return c.json({ error: error.message }, 400);
+  if (!data) return c.json({ error: 'not found' }, 404);
   return c.body(null, 204);
 }
 
 async function handleSoftDeleteItem(c: Context<AppEnv>): Promise<Response> {
   const body = await parseJson(c, { id: '' });
-  if (!body.id) return c.json({ error: 'id is required' }, 400);
+  return performSoftDelete(c, body.id);
+}
 
-  const { token } = c.get('auth');
-  const supabase = createSupabaseWithToken(token);
-
-  const { error } = await supabase
-    .from('items')
-    .update({ deleted_at: new Date().toISOString() })
-    .eq('id', body.id);
-
-  if (error) return c.json({ error: error.message }, 400);
-  return c.body(null, 204);
+async function handleRestoreItem(c: Context<AppEnv>): Promise<Response> {
+  const body = await parseJson(c, { id: '' });
+  return performRestore(c, body.id);
 }
 
 app.get('/api/hello', (c) => {
@@ -439,6 +525,10 @@ app.post('/api/auth/signup', async (c) => {
 
   if (!email || !password || !username) {
     return c.json({ error: 'email, password, and username are required' }, 400);
+  }
+
+  if (!isValidUsername(username)) {
+    return c.json({ error: 'invalid username: cannot be empty, unknown, or contain @' }, 400);
   }
 
   const anon = createAnonSupabase();
@@ -522,15 +612,19 @@ app.patch('/api/items/:id/status', async (c) => {
     return c.json({ error: 'invalid status' }, 400);
   }
 
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from('items')
     .update({ 
       status: validatedStatus,
-      updated_at: new Date().toISOString() 
+      updated_at: new Date().toISOString(),
+      sync_status: 'synced',
     })
-    .eq('id', id);
+    .eq('id', id)
+    .select('id')
+    .maybeSingle();
 
   if (error) return c.json({ error: error.message }, 400);
+  if (!data) return c.json({ error: 'Not found' }, 404);
   return c.body(null, 204);
 });
 
@@ -539,37 +633,30 @@ app.patch('/api/items/:id', async (c) => handleUpdateItem(c));
 app.post('/api/items/update-status', async (c) => handleUpdateItemStatus(c));
 
 app.post('/api/items/:id/archive', async (c) => {
-  const { token } = c.get('auth');
-  const supabase = createSupabaseWithToken(token);
   const id = c.req.param('id');
+  return performToggleArchive(c, id, true);
+});
 
-  const { error } = await supabase
-    .from('items')
-    .update({ is_archived: true })
-    .eq('id', id)
-    .is('deleted_at', null);
-
-  if (error) return c.json({ error: error.message }, 400);
-  return c.body(null, 204);
+app.post('/api/items/:id/unarchive', async (c) => {
+  const id = c.req.param('id');
+  return performToggleArchive(c, id, false);
 });
 
 app.post('/api/items/archive', async (c) => handleArchiveItem(c));
+app.post('/api/items/unarchive', async (c) => handleUnarchiveItem(c));
 
 app.delete('/api/items/:id', async (c) => {
-  const { token } = c.get('auth');
-  const supabase = createSupabaseWithToken(token);
   const id = c.req.param('id');
+  return performSoftDelete(c, id);
+});
 
-  const { error } = await supabase
-    .from('items')
-    .update({ deleted_at: new Date().toISOString() })
-    .eq('id', id);
-
-  if (error) return c.json({ error: error.message }, 400);
-  return c.body(null, 204);
+app.post('/api/items/:id/restore', async (c) => {
+  const id = c.req.param('id');
+  return performRestore(c, id);
 });
 
 app.post('/api/items/soft-delete', async (c) => handleSoftDeleteItem(c));
+app.post('/api/items/restore', async (c) => handleRestoreItem(c));
 
 app.post('/api/items/sync', (c) => c.json({ count: 0 }));
 
@@ -586,8 +673,10 @@ app.post('/api/commands/update_item_status', async (c) => handleUpdateItemStatus
 app.patch('/api/commands/update_item/:id', async (c) => handleUpdateItem(c));
 
 app.post('/api/commands/archive_item', async (c) => handleArchiveItem(c));
+app.post('/api/commands/unarchive_item', async (c) => handleUnarchiveItem(c));
 
 app.post('/api/commands/soft_delete_item', async (c) => handleSoftDeleteItem(c));
+app.post('/api/commands/restore_item', async (c) => handleRestoreItem(c));
 
 app.post('/api/commands/sync_items', (c) => c.json({ count: 0 }));
 

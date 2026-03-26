@@ -26,12 +26,6 @@ function displayStatus(status: Item['status']): string {
 
 <template>
   <section v-if="items.length > 0" class="task-section">
-    <header class="section-header">
-      <span class="icon">📋</span>
-      <h2>{{ t('list') }}</h2>
-      <span class="count">{{ items.length }}</span>
-    </header>
-
     <div class="task-container">
       <button
         v-for="item in items"
@@ -79,36 +73,6 @@ function displayStatus(status: Item['status']): string {
 /* --- Section Container --- */
 .task-section {
   padding: 0.5rem 0;
-}
-
-.section-header {
-  display: flex;
-  align-items: center;
-  gap: 0.6rem;
-  margin-bottom: 1.25rem;
-  padding-left: 0.5rem;
-}
-
-.section-header .icon {
-  font-size: 1.2rem;
-}
-
-.section-header h2 {
-  font-size: 1rem;
-  font-weight: 800;
-  color: var(--text-strong);
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
-  margin: 0;
-}
-
-.section-header .count {
-  background: rgba(168, 85, 247, 0.1);
-  color: #a855f7;
-  font-size: 0.75rem;
-  font-weight: 700;
-  padding: 0.1rem 0.6rem;
-  border-radius: 20px;
 }
 
 /* --- List Layout --- */

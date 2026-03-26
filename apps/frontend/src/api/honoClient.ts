@@ -9,7 +9,9 @@ export interface HonoItemsClient {
   updateItem(payload: UpdateItemPayload): Promise<void>;
   updateItemStatus(id: string, status: Item['status']): Promise<void>;
   archiveItem(id: string): Promise<void>;
+  unarchiveItem(id: string): Promise<void>;
   softDeleteItem(id: string): Promise<void>;
+  restoreItem(id: string): Promise<void>;
   syncItems(): Promise<number>;
 }
 
@@ -216,8 +218,16 @@ export class HonoClient implements HonoItemsClient {
     await this.post(`/api/items/${id}/archive`);
   }
 
+  async unarchiveItem(id: string): Promise<void> {
+    await this.post(`/api/items/${id}/unarchive`);
+  }
+
   async softDeleteItem(id: string): Promise<void> {
     await this.delete(`/api/items/${id}`);
+  }
+
+  async restoreItem(id: string): Promise<void> {
+    await this.post(`/api/items/${id}/restore`);
   }
 
   async syncItems(): Promise<number> {
