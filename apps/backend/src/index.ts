@@ -539,7 +539,26 @@ app.post('/api/auth/signup', async (c) => {
   });
 
   if (signUpError || !signUpData.user) {
-    return c.json({ error: signUpError?.message ?? 'Supabase signup failed' }, 400);
+    const rawMessage = signUpError?.message ?? 'Supabase signup failed';
+    const normalizedMessage = rawMessage.toLowerCase();
+    if (normalizedMessage.includes('database error saving new user')) {
+      return c.json({
+        error: 'Database error saving new user. Check public.profiles trigger/policies/constraints.',
+      }, 400);
+    }
+    return c.json({ error: rawMessage }, 400);
+  }
+
+  // With Confirm Email disabled, Supabase typically returns an active session here.
+  if (signUpData.session) {
+    const resolvedUsername = await fetchProfileUsername(signUpData.session.access_token, signUpData.user.id);
+    return c.json({
+      id: signUpData.user.id,
+      username: resolvedUsername,
+      access_token: signUpData.session.access_token,
+      refresh_token: signUpData.session.refresh_token,
+      expires_at: signUpData.session.expires_at,
+    });
   }
 
   const { data: signInData, error: signInError } = await anon.auth.signInWithPassword({
@@ -548,16 +567,22 @@ app.post('/api/auth/signup', async (c) => {
   });
 
   if (signInError || !signInData.session) {
+    const createdUserUsername =
+      typeof signUpData.user.user_metadata?.['username'] === 'string'
+        ? signUpData.user.user_metadata['username']
+        : username;
     return c.json({
       id: signUpData.user.id,
-      username,
+      username: createdUserUsername,
       access_token: null,
-      message: 'Account created, but please log in manually.'
     });
   }
+
+  const resolvedUsername = await fetchProfileUsername(signInData.session.access_token, signUpData.user.id);
+
   return c.json({
     id: signUpData.user.id,
-    username,
+    username: resolvedUsername,
     access_token: signInData.session.access_token,
     refresh_token: signInData.session.refresh_token,
     expires_at: signInData.session.expires_at,
