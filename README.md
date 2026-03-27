@@ -1,55 +1,74 @@
  [プロダクト概要](#japanese) | [Product Description](#english) | [開発者情報](#developer-jp)
 <a name="japanese"></a>
-# “今やるべきこと” が直感的に見えるタスク管理ツール
-100プロ(2026春、第9期)にて始動。
+# “今やるべき” を可視化するタスク管理ツール
+100プロ(2026春、第9期)にて始動。5週間の開発期間で実装。
 
-## 課題
-明日までにクリアしたいゲームのステージと、明後日までに書かなければいけないレポートがあるとき、より目につくべきタスクはどちらでしょうか？
+## 課題：脳のバイアスによる「優先順位の誤認」
 
-従来のタスク管理ツールは、日程順に表示されます。
+明日までのゲームイベントと、明後日〆切のレポート。本来優先すべきは後者ですが、私たちの脳は「手軽な報酬」や「新しさ」にバイアスがかかり、重要度の低いタスクを優先してしまう性質があります。
 
-このデスクトップアプリはユーザーの意欲、期限、所要時間などを軸に視覚化することを目指します。
+従来のリスト形式のツールでは、文字情報（タイトル）自体が誘惑や危機感を引き起こし、冷静な判断を妨げることがありました。
 
-## 構想
-- **カームな画面設計** 
-- **多元的なタスク管理**
+## 解決策：無機質な点による「多元的な可視化」
+TaskGraphは、タスクをタイトルではなく **「無機質な点」** としてグラフ上にプロットします。
+
+感情を排除し、データに基づいた配置を行うことで、真に今やるべきことに向き合う体験を提供します。
+
+## 特徴
+**カームな画面設計**
+- モダンなUI/UX
+- ダークモード
+- 二言語対応 (EN/JP)
+**多元的な軸による可視化**
   - やる気(意欲)
   - 緊急性(期限)
   - 想定される所要時間
-- **ローカルファースト**
+ **ローカルファースト & マルチプラットフォーム**
+- デスクトップ版（Tauri/Rust）はオフラインでも利用可能なローカルDB（SQLite）駆動
+- Web版とのシームレスなデータ同期
 
 ## 将来的な構想
 1. AIサジェスト機能
-3. タスクに対する報酬(EXP)機能
-4. ご褒美タスクのサジェスト
-5. 外部アプリとの連携
+2. タスクに対する報酬(EXP)機能
+3. 外部アプリとの連携
 
 ## 技術スタック
 |  |  |
 | :--- | :--- |
 | **Frontend** | Vue 3, Vite, TypeScript, Tailwind CSS |
 | **Desktop** | Rust, Tauri |
-| **Database** | SQLite, PostgreSQL |
+| **Database** | SQLite, PostgreSQL, Supabase (Auth/DB)|
 | **Backend** | Hono, TypeScript|
+| **Deploy**  | Render |
 
 
 
 <a name="english"></a>
-# The Task Visualizer that understands your "Now."
+# The Task Visualizer that truely shows your "Now."
 Launchd in 100 programs, Spring 2026 (Generation 9)
 
-## The Problem
-When faced with a game task to finish by tomorrow and the final report due the day after, which one should be more prominent? 
+## The Problem: Misprioritization due to Cognitive Bias
+Faced with a game event due tomorrow and a report due the day after, our brains often prioritize the "easy reward" of the game. 
 
-Standard apps only look at dates. This desktop-app looks at how you feel and how long things take, ensuring the "right" task catches your eye at the right time.
+Traditional list-based apps can exacerbate this, as text-heavy titles often trigger emotional distractions.
 
-## The Vision
-- **Intuitive Visualization** 
+## The Solution: Multi-dimensional Visualization with Neutral Data points
+TaskGraph plots tasks as "points" on a graph rather than text entries. 
+
+By abstracting tasks into data points, it eliminates emotional noise and helps users face what truly matters.
+
+## Key Features
+- **Intuitive Visualization**
+- Minimalist design
+- Light/Dark Mode
+- Bilingual support (EN/JP)
 - **Multi-Dimensional Sorting** based on:
   - Motivation
-  - Urgency
-  - Time Cost
+  - Due
+  - Duration
 - **Local-First, Cloud-Ready**
+- Desktop app (Tauri/Rust) runs offline with a local SQLite database.
+- Synchronizes with the Web version for cross-platform accessibility.
 
 ## Future Roadmap
 1. AI suggetion
@@ -62,9 +81,9 @@ Standard apps only look at dates. This desktop-app looks at how you feel and how
 | :--- | :--- |
 | **Frontend** | Vue 3, Vite, TypeScript, Tailwind CSS |
 | **Desktop** | Rust, Tauri |
-| **Database** | SQLite, PostgreSQL |
+| **Database** | SQLite, PostgreSQL, Supabase (Auth/DB)|
 | **Backend** | Hono, TypeScript|
-
+| **Deploy**  | Render |
 
 
 
@@ -72,12 +91,6 @@ Standard apps only look at dates. This desktop-app looks at how you feel and how
 # 開発者情報 (For-Developers)
 ## システム構成
 Tauri(Desktop) + Vue(Frontend) + Hono(Backend) をpnpm と Turborepo により統合したモノレポ構成のアプリ。
-
-## MVP
-- フロントエンド実装
-- ローカルDB連携
-
-※　Web実装と外部DB同期(PostgreSQL)については100プロ期間中の必須要件とはみなさない。
 
 ## 開発フロー
 ### 開発環境 (Dev Container)
